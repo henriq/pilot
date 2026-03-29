@@ -78,7 +78,9 @@ func createServicesMap(configContext *domain.ConfigurationContext) map[string]in
 		serviceHasValue := false
 		serviceMap := make(map[string]interface{})
 		if service.Path != "" {
-			serviceMap["path"] = service.Path
+			// Convert backslashes to forward slashes so Windows paths are not
+			// misinterpreted as escape sequences when used in bash scripts.
+			serviceMap["path"] = strings.ReplaceAll(service.Path, "\\", "/")
 			serviceHasValue = true
 		}
 		if service.GitRef != "" {

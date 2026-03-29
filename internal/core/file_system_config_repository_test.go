@@ -361,6 +361,20 @@ func TestCreateServicesMap(t *testing.T) {
 	assert.False(t, ok, "svc2 should not be present when it has no values")
 }
 
+func TestCreateServicesMap_WindowsPathsConvertedToForwardSlashes(t *testing.T) {
+	context := &domain.ConfigurationContext{
+		Services: []domain.Service{
+			{Name: "test-service", Path: `C:\Users\developer\projects\test-service`, GitRef: "main"},
+		},
+	}
+
+	result := createServicesMap(context)
+
+	svc, ok := result["test-service"].(map[string]interface{})
+	require.True(t, ok, "test-service should be present")
+	assert.Equal(t, "C:/Users/developer/projects/test-service", svc["path"])
+}
+
 func TestMergeConfigurationContexts(t *testing.T) {
 	base := domain.ConfigurationContext{
 		Name: "base",
