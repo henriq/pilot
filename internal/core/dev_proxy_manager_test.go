@@ -27,7 +27,7 @@ func createTestConfigContext() *domain.ConfigurationContext {
 	}
 }
 
-func TestSaveConfiguration_Success(t *testing.T) {
+func TestSaveConfiguration_Success_WithInterception(t *testing.T) {
 	configRepository := new(testutil.MockConfigRepository)
 	fileSystem := new(testutil.MockFileSystem)
 	containerImageRepository := new(testutil.MockContainerImageRepository)
@@ -43,12 +43,37 @@ func TestSaveConfiguration_Success(t *testing.T) {
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	err := sut.SaveConfiguration()
+	err := sut.SaveConfiguration(true)
 
 	assert.NoError(t, err)
 	configRepository.AssertExpectations(t)
 	fileSystem.AssertExpectations(t)
 	fileSystem.AssertNumberOfCalls(t, "WriteFile", 5)
+}
+
+func TestSaveConfiguration_Success_WithoutInterception(t *testing.T) {
+	configRepository := new(testutil.MockConfigRepository)
+	fileSystem := new(testutil.MockFileSystem)
+	containerImageRepository := new(testutil.MockContainerImageRepository)
+	containerOrchestrator := new(testutil.MockContainerOrchestrator)
+	configGenerator := ProvideDevProxyConfigGenerator()
+	configContext := createTestConfigContext()
+	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
+	fileSystem.On("WriteFile", "~/.dx/test-context/dev-proxy/haproxy/haproxy.cfg", mock.Anything, mock.Anything).Return(nil)
+	fileSystem.On("WriteFile", "~/.dx/test-context/dev-proxy/haproxy/Dockerfile", mock.Anything, mock.Anything).Return(nil)
+	fileSystem.On("RemoveAll", "~/.dx/test-context/dev-proxy/mitmproxy").Return(nil)
+	fileSystem.On("WriteFile", "~/.dx/test-context/dev-proxy/helm/Chart.yaml", mock.Anything, mock.Anything).Return(nil)
+	fileSystem.On("WriteFile", "~/.dx/test-context/dev-proxy/helm/templates/dev-proxy.yaml", mock.Anything, mock.Anything).Return(nil)
+
+	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
+
+	err := sut.SaveConfiguration(false)
+
+	assert.NoError(t, err)
+	configRepository.AssertExpectations(t)
+	fileSystem.AssertExpectations(t)
+	fileSystem.AssertNumberOfCalls(t, "WriteFile", 4)
+	fileSystem.AssertNumberOfCalls(t, "RemoveAll", 1)
 }
 
 func TestSaveConfiguration_LoadConfigError(t *testing.T) {
@@ -62,7 +87,7 @@ func TestSaveConfiguration_LoadConfigError(t *testing.T) {
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	err := sut.SaveConfiguration()
+	err := sut.SaveConfiguration(false)
 
 	assert.Error(t, err)
 	assert.Equal(t, expectedErr, err)
@@ -82,7 +107,7 @@ func TestSaveConfiguration_WriteHaproxyConfigError(t *testing.T) {
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	err := sut.SaveConfiguration()
+	err := sut.SaveConfiguration(false)
 
 	assert.Error(t, err)
 	assert.Equal(t, expectedErr, err)
@@ -105,7 +130,31 @@ func TestSaveConfiguration_WriteHaproxyDockerfileError(t *testing.T) {
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	err := sut.SaveConfiguration()
+	err := sut.SaveConfiguration(false)
+
+	assert.Error(t, err)
+	assert.Equal(t, expectedErr, err)
+	configRepository.AssertExpectations(t)
+	fileSystem.AssertExpectations(t)
+}
+
+func TestSaveConfiguration_RemoveAllError(t *testing.T) {
+	configRepository := new(testutil.MockConfigRepository)
+	fileSystem := new(testutil.MockFileSystem)
+	containerImageRepository := new(testutil.MockContainerImageRepository)
+	containerOrchestrator := new(testutil.MockContainerOrchestrator)
+	configGenerator := ProvideDevProxyConfigGenerator()
+
+	configContext := createTestConfigContext()
+	expectedErr := errors.New("remove all error")
+	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
+	fileSystem.On("WriteFile", "~/.dx/test-context/dev-proxy/haproxy/haproxy.cfg", mock.Anything, mock.Anything).Return(nil)
+	fileSystem.On("WriteFile", "~/.dx/test-context/dev-proxy/haproxy/Dockerfile", mock.Anything, mock.Anything).Return(nil)
+	fileSystem.On("RemoveAll", "~/.dx/test-context/dev-proxy/mitmproxy").Return(expectedErr)
+
+	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
+
+	err := sut.SaveConfiguration(false)
 
 	assert.Error(t, err)
 	assert.Equal(t, expectedErr, err)
@@ -129,7 +178,8 @@ func TestSaveConfiguration_WriteMitmproxyDockerfileError(t *testing.T) {
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	err := sut.SaveConfiguration()
+	// interceptHttp=true so mitmproxy Dockerfile is written
+	err := sut.SaveConfiguration(true)
 
 	assert.Error(t, err)
 	assert.Equal(t, expectedErr, err)
@@ -149,12 +199,12 @@ func TestSaveConfiguration_WriteHelmChartError(t *testing.T) {
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	fileSystem.On("WriteFile", "~/.dx/test-context/dev-proxy/haproxy/haproxy.cfg", mock.Anything, mock.Anything).Return(nil)
 	fileSystem.On("WriteFile", "~/.dx/test-context/dev-proxy/haproxy/Dockerfile", mock.Anything, mock.Anything).Return(nil)
-	fileSystem.On("WriteFile", "~/.dx/test-context/dev-proxy/mitmproxy/Dockerfile", mock.Anything, mock.Anything).Return(nil)
+	fileSystem.On("RemoveAll", "~/.dx/test-context/dev-proxy/mitmproxy").Return(nil)
 	fileSystem.On("WriteFile", "~/.dx/test-context/dev-proxy/helm/Chart.yaml", mock.Anything, mock.Anything).Return(expectedErr)
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	err := sut.SaveConfiguration()
+	err := sut.SaveConfiguration(false)
 
 	assert.Error(t, err)
 	assert.Equal(t, expectedErr, err)
@@ -174,13 +224,13 @@ func TestSaveConfiguration_WriteDevProxyManifestsError(t *testing.T) {
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	fileSystem.On("WriteFile", "~/.dx/test-context/dev-proxy/haproxy/haproxy.cfg", mock.Anything, mock.Anything).Return(nil)
 	fileSystem.On("WriteFile", "~/.dx/test-context/dev-proxy/haproxy/Dockerfile", mock.Anything, mock.Anything).Return(nil)
-	fileSystem.On("WriteFile", "~/.dx/test-context/dev-proxy/mitmproxy/Dockerfile", mock.Anything, mock.Anything).Return(nil)
+	fileSystem.On("RemoveAll", "~/.dx/test-context/dev-proxy/mitmproxy").Return(nil)
 	fileSystem.On("WriteFile", "~/.dx/test-context/dev-proxy/helm/Chart.yaml", mock.Anything, mock.Anything).Return(nil)
 	fileSystem.On("WriteFile", "~/.dx/test-context/dev-proxy/helm/templates/dev-proxy.yaml", mock.Anything, mock.Anything).Return(expectedErr)
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	err := sut.SaveConfiguration()
+	err := sut.SaveConfiguration(false)
 
 	assert.Error(t, err)
 	assert.Equal(t, expectedErr, err)
@@ -188,7 +238,7 @@ func TestSaveConfiguration_WriteDevProxyManifestsError(t *testing.T) {
 	fileSystem.AssertExpectations(t)
 }
 
-func TestBuildDevProxy_Success(t *testing.T) {
+func TestBuildDevProxy_Success_WithInterception(t *testing.T) {
 	configRepository := new(testutil.MockConfigRepository)
 	fileSystem := new(testutil.MockFileSystem)
 	containerImageRepository := new(testutil.MockContainerImageRepository)
@@ -215,13 +265,43 @@ func TestBuildDevProxy_Success(t *testing.T) {
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	err := sut.BuildDevProxy()
+	err := sut.BuildDevProxy(true)
 
 	assert.NoError(t, err)
 	configRepository.AssertExpectations(t)
 	fileSystem.AssertExpectations(t)
 	containerImageRepository.AssertExpectations(t)
 	containerImageRepository.AssertNumberOfCalls(t, "BuildImage", 2)
+}
+
+func TestBuildDevProxy_Success_WithoutInterception(t *testing.T) {
+	configRepository := new(testutil.MockConfigRepository)
+	fileSystem := new(testutil.MockFileSystem)
+	containerImageRepository := new(testutil.MockContainerImageRepository)
+	containerOrchestrator := new(testutil.MockContainerOrchestrator)
+	configGenerator := ProvideDevProxyConfigGenerator()
+
+	configContext := createTestConfigContext()
+	homeDir := "/home/testuser"
+
+	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
+	fileSystem.On("HomeDir").Return(homeDir, nil)
+	containerImageRepository.On("BuildImage", domain.DockerImage{
+		Name:                     "henriq/haproxy-test-context",
+		DockerfilePath:           "Dockerfile",
+		BuildContextRelativePath: ".",
+		Path:                     filepath.Join(homeDir, ".dx", "test-context", "dev-proxy", "haproxy"),
+	}).Return(nil)
+
+	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
+
+	err := sut.BuildDevProxy(false)
+
+	assert.NoError(t, err)
+	configRepository.AssertExpectations(t)
+	fileSystem.AssertExpectations(t)
+	containerImageRepository.AssertExpectations(t)
+	containerImageRepository.AssertNumberOfCalls(t, "BuildImage", 1)
 }
 
 func TestBuildDevProxy_LoadConfigError(t *testing.T) {
@@ -235,7 +315,7 @@ func TestBuildDevProxy_LoadConfigError(t *testing.T) {
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	err := sut.BuildDevProxy()
+	err := sut.BuildDevProxy(false)
 
 	assert.Error(t, err)
 	assert.Equal(t, expectedErr, err)
@@ -257,7 +337,7 @@ func TestBuildDevProxy_HomeDirError(t *testing.T) {
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	err := sut.BuildDevProxy()
+	err := sut.BuildDevProxy(false)
 
 	assert.Error(t, err)
 	assert.Equal(t, expectedErr, err)
@@ -287,7 +367,7 @@ func TestBuildDevProxy_BuildFirstImageError(t *testing.T) {
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	err := sut.BuildDevProxy()
+	err := sut.BuildDevProxy(false)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to build image")
@@ -326,7 +406,8 @@ func TestBuildDevProxy_BuildSecondImageError(t *testing.T) {
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	err := sut.BuildDevProxy()
+	// interceptHttp=true so mitmproxy image is also built
+	err := sut.BuildDevProxy(true)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to build image")
@@ -544,7 +625,7 @@ func TestShouldRebuildDevProxy_NoExistingDeployment(t *testing.T) {
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	shouldRebuild, err := sut.ShouldRebuildDevProxy()
+	shouldRebuild, err := sut.ShouldRebuildDevProxy(false)
 
 	assert.NoError(t, err)
 	assert.True(t, shouldRebuild)
@@ -565,7 +646,32 @@ func TestShouldRebuildDevProxy_ChecksumChanged(t *testing.T) {
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	shouldRebuild, err := sut.ShouldRebuildDevProxy()
+	shouldRebuild, err := sut.ShouldRebuildDevProxy(false)
+
+	assert.NoError(t, err)
+	assert.True(t, shouldRebuild)
+	configRepository.AssertExpectations(t)
+	containerOrchestrator.AssertExpectations(t)
+}
+
+func TestShouldRebuildDevProxy_InterceptHttpChange(t *testing.T) {
+	configRepository := new(testutil.MockConfigRepository)
+	fileSystem := new(testutil.MockFileSystem)
+	containerImageRepository := new(testutil.MockContainerImageRepository)
+	containerOrchestrator := new(testutil.MockContainerOrchestrator)
+	configGenerator := ProvideDevProxyConfigGenerator()
+
+	configContext := createTestConfigContext()
+	// Checksum was generated without interception
+	oldChecksum := configGenerator.GenerateChecksum(configContext, false)
+
+	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
+	containerOrchestrator.On("GetDevProxyChecksum").Return(oldChecksum, nil)
+
+	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
+
+	// Now running with interception enabled - should trigger rebuild
+	shouldRebuild, err := sut.ShouldRebuildDevProxy(true)
 
 	assert.NoError(t, err)
 	assert.True(t, shouldRebuild)
@@ -582,14 +688,38 @@ func TestShouldRebuildDevProxy_ChecksumUnchanged(t *testing.T) {
 
 	configContext := createTestConfigContext()
 	// Generate the expected checksum from the test config context
-	expectedChecksum := configGenerator.GenerateChecksum(configContext)
+	expectedChecksum := configGenerator.GenerateChecksum(configContext, false)
 
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	containerOrchestrator.On("GetDevProxyChecksum").Return(expectedChecksum, nil)
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	shouldRebuild, err := sut.ShouldRebuildDevProxy()
+	shouldRebuild, err := sut.ShouldRebuildDevProxy(false)
+
+	assert.NoError(t, err)
+	assert.False(t, shouldRebuild)
+	configRepository.AssertExpectations(t)
+	containerOrchestrator.AssertExpectations(t)
+}
+
+func TestShouldRebuildDevProxy_ChecksumUnchanged_WithInterception(t *testing.T) {
+	configRepository := new(testutil.MockConfigRepository)
+	fileSystem := new(testutil.MockFileSystem)
+	containerImageRepository := new(testutil.MockContainerImageRepository)
+	containerOrchestrator := new(testutil.MockContainerOrchestrator)
+	configGenerator := ProvideDevProxyConfigGenerator()
+
+	configContext := createTestConfigContext()
+	// Generate the expected checksum from the test config context with interception enabled
+	expectedChecksum := configGenerator.GenerateChecksum(configContext, true)
+
+	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
+	containerOrchestrator.On("GetDevProxyChecksum").Return(expectedChecksum, nil)
+
+	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
+
+	shouldRebuild, err := sut.ShouldRebuildDevProxy(true)
 
 	assert.NoError(t, err)
 	assert.False(t, shouldRebuild)
@@ -608,7 +738,7 @@ func TestShouldRebuildDevProxy_LoadConfigError(t *testing.T) {
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	shouldRebuild, err := sut.ShouldRebuildDevProxy()
+	shouldRebuild, err := sut.ShouldRebuildDevProxy(false)
 
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, expectedErr)
@@ -632,7 +762,7 @@ func TestShouldRebuildDevProxy_GetChecksumError(t *testing.T) {
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	shouldRebuild, err := sut.ShouldRebuildDevProxy()
+	shouldRebuild, err := sut.ShouldRebuildDevProxy(false)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get current dev-proxy checksum")

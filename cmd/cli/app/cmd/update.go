@@ -11,6 +11,7 @@ var pullImages bool
 func init() {
 	rootCmd.AddCommand(updateCmd)
 	updateCmd.Flags().BoolVar(&pullImages, "pull", false, "pull images instead of building them")
+	updateCmd.Flags().BoolP("intercept-http", "i", false, "Enable HTTP interception via mitmweb proxy")
 }
 
 var updateCmd = &cobra.Command{
@@ -21,7 +22,12 @@ If no services are specified, updates all services in the current profile.
 
 By default, images are built from source. Use --pull to pull pre-built images
 from the registry instead. Unlike 'dx pull', this skips the confirmation
-prompt since --pull is an explicit opt-in to overwrite locally-built images.`,
+prompt since --pull is an explicit opt-in to overwrite locally-built images.
+
+Use --intercept-http to deploy mitmweb alongside HAProxy for inspecting and
+replaying HTTP traffic. When enabled, the mitmweb UI is available at:
+
+  http://dev-proxy.<context>.localhost`,
 	Example: `  # Build and reinstall all services in the default profile
   dx update
 
@@ -32,10 +38,14 @@ prompt since --pull is an explicit opt-in to overwrite locally-built images.`,
   dx update --pull
 
   # Pull and reinstall specific services
-  dx update --pull api frontend`,
+  dx update --pull api frontend
+
+  # Build and reinstall with HTTP traffic interception
+  dx update --intercept-http`,
 	Args:              ServiceArgsValidator,
 	ValidArgsFunction: ServiceArgsCompletion,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		interceptHttp, _ := cmd.Flags().GetBool("intercept-http")
 		if pullImages {
 			pullHandler, err := app.InjectPullCommandHandler()
 			if err != nil {
@@ -62,6 +72,6 @@ prompt since --pull is an explicit opt-in to overwrite locally-built images.`,
 			return err
 		}
 
-		return installHandler.Handle(args, *profile, false)
+		return installHandler.Handle(args, *profile, interceptHttp)
 	},
 }

@@ -37,7 +37,7 @@ func ProvideDevProxyManager(
 
 // ShouldRebuildDevProxy determines if the dev-proxy needs to be rebuilt.
 // Returns true if the dev-proxy doesn't exist or if the configuration has changed.
-func (d *DevProxyManager) ShouldRebuildDevProxy() (bool, error) {
+func (d *DevProxyManager) ShouldRebuildDevProxy(interceptHttp bool) (bool, error) {
 	configContext, err := d.configRepository.LoadCurrentConfigurationContext()
 	if err != nil {
 		return false, fmt.Errorf("failed to load configuration context: %w", err)
@@ -53,19 +53,20 @@ func (d *DevProxyManager) ShouldRebuildDevProxy() (bool, error) {
 		return true, nil
 	}
 
-	newChecksum := d.configGenerator.GenerateChecksum(configContext)
+	newChecksum := d.configGenerator.GenerateChecksum(configContext, interceptHttp)
 	return currentChecksum != newChecksum, nil
 }
 
 // SaveConfiguration generates and saves all dev-proxy configuration files
 // to $HOME/.dx/$CONTEXT_NAME/dev-proxy/
-func (d *DevProxyManager) SaveConfiguration() error {
+// When interceptHttp is true, mitmproxy configuration is also written.
+func (d *DevProxyManager) SaveConfiguration(interceptHttp bool) error {
 	configContext, err := d.configRepository.LoadCurrentConfigurationContext()
 	if err != nil {
 		return err
 	}
 
-	configs, err := d.configGenerator.Generate(configContext)
+	configs, err := d.configGenerator.Generate(configContext, interceptHttp)
 	if err != nil {
 		return err
 	}
@@ -92,14 +93,21 @@ func (d *DevProxyManager) SaveConfiguration() error {
 		return err
 	}
 
-	// Write mitmproxy Dockerfile
-	err = d.fileService.WriteFile(
-		filepath.Join(basePath, "mitmproxy", "Dockerfile"),
-		configs.MitmProxyDockerfile,
-		ports.ReadWrite,
-	)
-	if err != nil {
-		return err
+	// Write mitmproxy Dockerfile only when HTTP interception is enabled;
+	// remove any previously written mitmproxy directory when switching back.
+	if interceptHttp {
+		err = d.fileService.WriteFile(
+			filepath.Join(basePath, "mitmproxy", "Dockerfile"),
+			configs.MitmProxyDockerfile,
+			ports.ReadWrite,
+		)
+		if err != nil {
+			return err
+		}
+	} else {
+		if err = d.fileService.RemoveAll(filepath.Join(basePath, "mitmproxy")); err != nil {
+			return err
+		}
 	}
 
 	// Write Helm Chart.yaml
@@ -125,8 +133,9 @@ func (d *DevProxyManager) SaveConfiguration() error {
 	return nil
 }
 
-// BuildDevProxy builds the HAProxy and mitmproxy Docker images for the dev-proxy.
-func (d *DevProxyManager) BuildDevProxy() error {
+// BuildDevProxy builds the HAProxy Docker image, and optionally the mitmproxy image
+// when HTTP interception is enabled.
+func (d *DevProxyManager) BuildDevProxy(interceptHttp bool) error {
 	configContext, err := d.configRepository.LoadCurrentConfigurationContext()
 	if err != nil {
 		return err
@@ -142,12 +151,15 @@ func (d *DevProxyManager) BuildDevProxy() error {
 			BuildContextRelativePath: ".",
 			Path:                     filepath.Join(homeDir, ".dx", configContext.Name, "dev-proxy", "haproxy"),
 		},
-		{
+	}
+
+	if interceptHttp {
+		dockerImages = append(dockerImages, domain.DockerImage{
 			Name:                     fmt.Sprintf("henriq/mitmproxy-%s", configContext.Name),
 			DockerfilePath:           "Dockerfile",
 			BuildContextRelativePath: ".",
 			Path:                     filepath.Join(homeDir, ".dx", configContext.Name, "dev-proxy", "mitmproxy"),
-		},
+		})
 	}
 
 	for _, image := range dockerImages {
