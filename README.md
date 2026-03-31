@@ -19,11 +19,11 @@ go run ./cmd/api  # or npm start, python app.py, etc.
 # in Kubernetes now talk to your local api automatically.
 ```
 
-Open the traffic inspector to see every HTTP request flowing between services:
+Enable HTTP traffic inspection (optional):
 
 ```bash
-dx context info
-# Shows mitmweb URL where you can inspect all service-to-service traffic
+dx install --intercept-http
+dx context info  # Shows the mitmweb URL
 ```
 
 ## How It Works
@@ -66,25 +66,28 @@ dx context info
 1. DX patches Kubernetes services to route through a dev-proxy
 2. The proxy health-checks your local service
 3. Healthy? Traffic goes to your machine. Down? Falls back to the cluster pod
-4. All HTTP traffic is captured for inspection
+4. With `--intercept-http`: all HTTP traffic is captured via mitmweb for inspection
 
 **When the dev-proxy is rebuilt:**
 
 1. It does not exist in the cluster yet
 2. Your `localServices` configuration has changed (services added, removed, or modified)
+3. The `--intercept-http` flag changed since the last install
 
-Otherwise, `dx install` and `dx update` skip the rebuild. To skip dev-proxy entirely:
-
-```bash
-dx install --skip-dev-proxy
-dx update --skip-dev-proxy
-```
+Otherwise, `dx install` and `dx update` skip the rebuild automatically.
 
 ## Traffic Inspection
 
-DX includes a traffic inspector (powered by mitmproxy) that captures every request between services: headers, bodies, timing, and more. Filter by service, path, or status code.
+DX includes an optional traffic inspector (powered by mitmproxy) that captures every request between services: headers, bodies, timing, and more. Filter by service, path, or status code.
 
-Run `dx context info` to get the inspector URL.
+Enable it with the `--intercept-http` flag:
+
+```bash
+dx install --intercept-http
+dx update --intercept-http
+```
+
+Run `dx context info` to get the inspector URL. Without `--intercept-http`, the dev-proxy at port 8001 shows a page explaining how to enable interception.
 
 ## Installation
 

@@ -38,7 +38,7 @@ func ProvideInstallCommandHandler(
 	}
 }
 
-func (h *InstallCommandHandler) Handle(services []string, selectedProfile string, skipDevProxy bool) error {
+func (h *InstallCommandHandler) Handle(services []string, selectedProfile string, interceptHttp bool) error {
 	err := h.environmentEnsurer.EnsureExpectedClusterIsSelected()
 	if err != nil {
 		return err
@@ -60,17 +60,14 @@ func (h *InstallCommandHandler) Handle(services []string, selectedProfile string
 			continue
 		}
 
+		service.InterceptHttp = interceptHttp
 		servicesToInstall = append(servicesToInstall, service)
 	}
 
-	// Check if dev-proxy needs to be rebuilt before setting up the tracker
-	shouldRebuildDevProxy := false
-	if !skipDevProxy {
-		var err error
-		shouldRebuildDevProxy, err = h.devProxyManager.ShouldRebuildDevProxy()
-		if err != nil {
-			return err
-		}
+	// Check if dev-proxy needs to be rebuilt based on checksum comparison
+	shouldRebuildDevProxy, err := h.devProxyManager.ShouldRebuildDevProxy(interceptHttp)
+	if err != nil {
+		return err
 	}
 
 	totalItems := len(servicesToInstall)
@@ -108,14 +105,14 @@ func (h *InstallCommandHandler) Handle(services []string, selectedProfile string
 	if shouldRebuildDevProxy {
 		tracker.StartItem(currentIndex)
 
-		if err := h.devProxyManager.SaveConfiguration(); err != nil {
+		if err := h.devProxyManager.SaveConfiguration(interceptHttp); err != nil {
 			tracker.CompleteItem(currentIndex, err)
 			tracker.PrintItemComplete(currentIndex)
 			tracker.Stop()
 			return err
 		}
 
-		if err := h.devProxyManager.BuildDevProxy(); err != nil {
+		if err := h.devProxyManager.BuildDevProxy(interceptHttp); err != nil {
 			tracker.CompleteItem(currentIndex, err)
 			tracker.PrintItemComplete(currentIndex)
 			tracker.Stop()

@@ -151,7 +151,7 @@ func (k *Kubernetes) InstallService(service *domain.Service) error {
 	}
 
 	// 2. Build patches from LocalServices configuration
-	patches, err := k.buildPatches()
+	patches, err := k.buildPatches(service.InterceptHttp)
 	if err != nil {
 		return fmt.Errorf("failed to build patches: %w", err)
 	}
@@ -190,7 +190,9 @@ func (k *Kubernetes) InstallService(service *domain.Service) error {
 }
 
 // buildPatches creates kustomize patches based on LocalServices configuration.
-func (k *Kubernetes) buildPatches() ([]ports.Patch, error) {
+// When interceptHttp is true, service targetPorts are redirected to mitmproxy ports.
+// When false, they are redirected directly to HAProxy frontend ports.
+func (k *Kubernetes) buildPatches(interceptHttp bool) ([]ports.Patch, error) {
 	configContext, err := k.configRepository.LoadCurrentConfigurationContext()
 	if err != nil {
 		return nil, err
@@ -210,17 +212,23 @@ func (k *Kubernetes) buildPatches() ([]ports.Patch, error) {
 		},
 	})
 
+	// When intercepting, redirect to mitmproxy ports; otherwise redirect to HAProxy frontends
+	startPort := core.DevProxyHAProxyStartPort
+	if interceptHttp {
+		startPort = core.DevProxyMitmproxyStartPort
+	}
+
 	// Add service selector patches for each LocalService
-	proxyPort := 18080
+	targetPort := startPort
 	for _, localService := range configContext.LocalServices {
 		patches = append(patches, ports.Patch{
 			Target: ports.PatchTarget{Kind: "Service", Name: localService.Name},
 			Operations: []ports.PatchOperation{
 				{Op: "replace", Path: "/spec/selector/app", Value: "dev-proxy"},
-				{Op: "replace", Path: "/spec/ports/0/targetPort", Value: proxyPort},
+				{Op: "replace", Path: "/spec/ports/0/targetPort", Value: targetPort},
 			},
 		})
-		proxyPort++
+		targetPort++
 	}
 
 	return patches, nil

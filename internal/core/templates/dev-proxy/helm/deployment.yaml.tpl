@@ -26,6 +26,7 @@ spec:
         ports:
         - containerPort: 8080
         - containerPort: 8888
+        - containerPort: 8001
         securityContext:
           readOnlyRootFilesystem: true
           allowPrivilegeEscalation: false
@@ -36,6 +37,7 @@ spec:
           mountPath: /tmp
         - name: haproxy-data
           mountPath: /var/lib/haproxy
+{{- if .InterceptHttp }}
       - name: mitmproxy
         image: henriq/mitmproxy-{{ .Name }}
         imagePullPolicy: Never
@@ -72,12 +74,14 @@ spec:
 {{- range $key, $value := .Services }}
           - --mode=reverse:http://localhost:{{.FrontendPort}}@{{ .ProxyPort }}
 {{- end }}
+{{- end }}
       volumes:
       - name: tmp
         emptyDir:
           medium: Memory
       - name: haproxy-data
         emptyDir: {}
+{{- if .InterceptHttp }}
       - name: mitmproxy-cache
         emptyDir:
           medium: Memory
@@ -85,6 +89,7 @@ spec:
         emptyDir: {}
       - name: mitmproxy-home
         emptyDir: {}
+{{- end }}
 
 ---
 
@@ -101,9 +106,9 @@ spec:
     targetPort: 8888
     name: stats
   - protocol: TCP
-    port: 8000
-    targetPort: 8000
-    name: mitmweb
+    port: 8001
+    targetPort: 8001
+    name: mitmweb-proxy
 
 ---
 
@@ -141,7 +146,7 @@ spec:
           service:
             name: dev-proxy
             port:
-              number: 8000
+              number: 8001
 
 ---
 

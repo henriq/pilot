@@ -34,11 +34,14 @@ func TestInstallCommandHandler_HandleInstallsAllServices(t *testing.T) {
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	containerOrchestrator := new(testutil.MockContainerOrchestrator)
 	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("any-key", nil)
-	containerOrchestrator.On("InstallService", mock.Anything).Return(nil)
+	containerOrchestrator.On("InstallService", mock.MatchedBy(func(s *domain.Service) bool {
+		return s.InterceptHttp == false
+	})).Return(nil)
 	containerOrchestrator.On("InstallDevProxy", mock.Anything).Return(nil)
 	fileSystem := new(testutil.MockFileSystem)
 	fileSystem.On("WriteFile", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	fileSystem.On("HomeDir").Return("/home/test", nil)
+	fileSystem.On("RemoveAll", mock.Anything).Return(nil)
 	scm := new(testutil.MockScm)
 	scm.On(
 		"Download",
@@ -80,7 +83,7 @@ func TestInstallCommandHandler_HandleInstallsAllServices(t *testing.T) {
 
 	assert.Nil(t, result)
 	containerImageRepository.AssertExpectations(t)
-	containerImageRepository.AssertNumberOfCalls(t, "BuildImage", 2)
+	containerImageRepository.AssertNumberOfCalls(t, "BuildImage", 1) // Only HAProxy (no mitmproxy without --intercept-http)
 	fileSystem.AssertExpectations(t)
 	containerOrchestrator.AssertExpectations(t)
 	containerOrchestrator.AssertNumberOfCalls(t, "InstallService", 2)
@@ -117,6 +120,7 @@ func TestInstallCommandHandler_HandleInstallsOnlySelectedService(t *testing.T) {
 	fileSystem := new(testutil.MockFileSystem)
 	fileSystem.On("WriteFile", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	fileSystem.On("HomeDir").Return("/home/test", nil)
+	fileSystem.On("RemoveAll", mock.Anything).Return(nil)
 	scm := new(testutil.MockScm)
 	scm.On(
 		"Download",
@@ -152,7 +156,75 @@ func TestInstallCommandHandler_HandleInstallsOnlySelectedService(t *testing.T) {
 
 	assert.Nil(t, result)
 	containerImageRepository.AssertExpectations(t)
-	containerImageRepository.AssertNumberOfCalls(t, "BuildImage", 2)
+	containerImageRepository.AssertNumberOfCalls(t, "BuildImage", 1) // Only HAProxy
+	fileSystem.AssertExpectations(t)
+	containerOrchestrator.AssertExpectations(t)
+	containerOrchestrator.AssertNumberOfCalls(t, "InstallService", 1)
+	containerOrchestrator.AssertNumberOfCalls(t, "InstallDevProxy", 1)
+	scm.AssertNumberOfCalls(t, "Download", 1)
+	scm.AssertExpectations(t)
+}
+
+func TestInstallCommandHandler_HandleWithInterceptHttp(t *testing.T) {
+	configContext := &domain.ConfigurationContext{
+		Name: "Test",
+		Services: []domain.Service{
+			{
+				Name:         "service-1",
+				HelmRepoPath: "any-repo-1",
+				HelmBranch:   "any-branch-1",
+				Profiles:     []string{"all"},
+			},
+		},
+	}
+	configRepository := new(testutil.MockConfigRepository)
+	configRepository.On("LoadEnvKey", mock.Anything).Return("any-key", nil)
+	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
+	containerOrchestrator := new(testutil.MockContainerOrchestrator)
+	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("any-key", nil)
+	containerOrchestrator.On("InstallService", mock.MatchedBy(func(s *domain.Service) bool {
+		return s.InterceptHttp == true
+	})).Return(nil)
+	containerOrchestrator.On("InstallDevProxy", mock.Anything).Return(nil)
+	fileSystem := new(testutil.MockFileSystem)
+	fileSystem.On("WriteFile", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	fileSystem.On("HomeDir").Return("/home/test", nil)
+	scm := new(testutil.MockScm)
+	scm.On(
+		"Download",
+		configContext.Services[0].HelmRepoPath,
+		configContext.Services[0].HelmBranch,
+		configContext.Services[0].HelmPath,
+	).Return(nil)
+	containerImageRepository := new(testutil.MockContainerImageRepository)
+	containerImageRepository.On("BuildImage", mock.Anything).Return(nil)
+	configGenerator := core.ProvideDevProxyConfigGenerator()
+	containerOrchestrator.On("GetDevProxyChecksum").Return("", nil) // No existing deployment, will trigger rebuild
+	devProxyManager := core.ProvideDevProxyManager(
+		configRepository,
+		fileSystem,
+		containerImageRepository,
+		containerOrchestrator,
+		configGenerator,
+	)
+	environmentEnsurer := core.ProvideEnvironmentEnsurer(
+		configRepository,
+		containerOrchestrator,
+	)
+	sut := ProvideInstallCommandHandler(
+		configRepository,
+		containerImageRepository,
+		containerOrchestrator,
+		devProxyManager,
+		environmentEnsurer,
+		scm,
+	)
+
+	result := sut.Handle([]string{}, "all", true)
+
+	assert.Nil(t, result)
+	containerImageRepository.AssertExpectations(t)
+	containerImageRepository.AssertNumberOfCalls(t, "BuildImage", 2) // HAProxy + mitmproxy when --intercept-http
 	fileSystem.AssertExpectations(t)
 	containerOrchestrator.AssertExpectations(t)
 	containerOrchestrator.AssertNumberOfCalls(t, "InstallService", 1)
@@ -181,9 +253,9 @@ func TestInstallCommandHandler_HandleSkipsDevProxyWhenChecksumUnchanged(t *testi
 			},
 		},
 	}
-	// Calculate the expected checksum for the LocalServices
+	// Calculate the expected checksum for the LocalServices (without interception)
 	configGenerator := core.ProvideDevProxyConfigGenerator()
-	expectedChecksum := configGenerator.GenerateChecksum(configContext)
+	expectedChecksum := configGenerator.GenerateChecksum(configContext, false)
 
 	configRepository := new(testutil.MockConfigRepository)
 	configRepository.On("LoadEnvKey", mock.Anything).Return("any-key", nil)
@@ -237,4 +309,125 @@ func TestInstallCommandHandler_HandleSkipsDevProxyWhenChecksumUnchanged(t *testi
 	// Verify user service was still installed
 	containerOrchestrator.AssertNumberOfCalls(t, "InstallService", 1)
 	scm.AssertNumberOfCalls(t, "Download", 1)
+}
+
+func TestInstallCommandHandler_HandleSkipsDevProxyWhenChecksumUnchanged_WithInterceptHttp(t *testing.T) {
+	configContext := &domain.ConfigurationContext{
+		Name: "Test",
+		LocalServices: []domain.LocalService{
+			{
+				Name:            "test-service",
+				KubernetesPort:  8080,
+				LocalPort:       3000,
+				HealthCheckPath: "/health",
+			},
+		},
+		Services: []domain.Service{
+			{
+				Name:         "service-1",
+				HelmRepoPath: "any-repo-1",
+				HelmBranch:   "any-branch-1",
+				Profiles:     []string{"default"},
+			},
+		},
+	}
+	// Calculate the expected checksum with interception enabled
+	configGenerator := core.ProvideDevProxyConfigGenerator()
+	expectedChecksum := configGenerator.GenerateChecksum(configContext, true)
+
+	configRepository := new(testutil.MockConfigRepository)
+	configRepository.On("LoadEnvKey", mock.Anything).Return("any-key", nil)
+	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
+	containerOrchestrator := new(testutil.MockContainerOrchestrator)
+	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("any-key", nil)
+	containerOrchestrator.On("InstallService", mock.Anything).Return(nil)
+	// Return matching checksum for interceptHttp=true — dev-proxy should be skipped
+	containerOrchestrator.On("GetDevProxyChecksum").Return(expectedChecksum, nil)
+	fileSystem := new(testutil.MockFileSystem)
+	scm := new(testutil.MockScm)
+	scm.On(
+		"Download",
+		configContext.Services[0].HelmRepoPath,
+		configContext.Services[0].HelmBranch,
+		configContext.Services[0].HelmPath,
+	).Return(nil)
+	containerImageRepository := new(testutil.MockContainerImageRepository)
+
+	devProxyManager := core.ProvideDevProxyManager(
+		configRepository,
+		fileSystem,
+		containerImageRepository,
+		containerOrchestrator,
+		configGenerator,
+	)
+	environmentEnsurer := core.ProvideEnvironmentEnsurer(
+		configRepository,
+		containerOrchestrator,
+	)
+	sut := ProvideInstallCommandHandler(
+		configRepository,
+		containerImageRepository,
+		containerOrchestrator,
+		devProxyManager,
+		environmentEnsurer,
+		scm,
+	)
+
+	result := sut.Handle([]string{}, "default", true)
+
+	assert.Nil(t, result)
+	containerImageRepository.AssertNumberOfCalls(t, "BuildImage", 0)
+	containerOrchestrator.AssertNumberOfCalls(t, "InstallDevProxy", 0)
+	fileSystem.AssertNumberOfCalls(t, "WriteFile", 0)
+	containerOrchestrator.AssertNumberOfCalls(t, "InstallService", 1)
+	scm.AssertNumberOfCalls(t, "Download", 1)
+}
+
+func TestInstallCommandHandler_HandleReturnsErrorFromShouldRebuildDevProxy(t *testing.T) {
+	configContext := &domain.ConfigurationContext{
+		Name: "Test",
+		Services: []domain.Service{
+			{
+				Name:         "service-1",
+				HelmRepoPath: "any-repo-1",
+				HelmBranch:   "any-branch-1",
+				Profiles:     []string{"default"},
+			},
+		},
+	}
+	configRepository := new(testutil.MockConfigRepository)
+	configRepository.On("LoadEnvKey", mock.Anything).Return("any-key", nil)
+	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
+	containerOrchestrator := new(testutil.MockContainerOrchestrator)
+	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("any-key", nil)
+	containerOrchestrator.On("GetDevProxyChecksum").Return("", assert.AnError)
+	fileSystem := new(testutil.MockFileSystem)
+	scm := new(testutil.MockScm)
+	containerImageRepository := new(testutil.MockContainerImageRepository)
+	configGenerator := core.ProvideDevProxyConfigGenerator()
+	devProxyManager := core.ProvideDevProxyManager(
+		configRepository,
+		fileSystem,
+		containerImageRepository,
+		containerOrchestrator,
+		configGenerator,
+	)
+	environmentEnsurer := core.ProvideEnvironmentEnsurer(
+		configRepository,
+		containerOrchestrator,
+	)
+	sut := ProvideInstallCommandHandler(
+		configRepository,
+		containerImageRepository,
+		containerOrchestrator,
+		devProxyManager,
+		environmentEnsurer,
+		scm,
+	)
+
+	result := sut.Handle([]string{}, "default", false)
+
+	assert.Error(t, result)
+	containerOrchestrator.AssertNumberOfCalls(t, "InstallService", 0)
+	containerOrchestrator.AssertNumberOfCalls(t, "InstallDevProxy", 0)
 }

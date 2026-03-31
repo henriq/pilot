@@ -28,6 +28,7 @@ type Service struct {
 	GitRepoPath           string        `yaml:"gitRepoPath"`
 	GitRef                string        `yaml:"gitRef"`
 	Path                  string        `yaml:"-"` // Will be ignored during YAML serialization
+	InterceptHttp         bool          `yaml:"-"` // Runtime flag, not persisted
 }
 
 type DockerImage struct {

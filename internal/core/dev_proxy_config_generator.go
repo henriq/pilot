@@ -14,10 +14,10 @@ import (
 )
 
 const (
-	// devProxyFrontendStartPort is the starting port for HAProxy frontend listeners.
-	devProxyFrontendStartPort = 8080
-	// devProxyProxyStartPort is the starting port for mitmproxy backends.
-	devProxyProxyStartPort = 18080
+	// DevProxyHAProxyStartPort is the starting port for HAProxy frontend listeners.
+	DevProxyHAProxyStartPort = 8080
+	// DevProxyMitmproxyStartPort is the starting port for mitmproxy backends.
+	DevProxyMitmproxyStartPort = 18080
 )
 
 //go:embed templates/dev-proxy/*/*.tpl
@@ -42,9 +42,10 @@ func ProvideDevProxyConfigGenerator() *DevProxyConfigGenerator {
 }
 
 // Generate creates all dev-proxy configuration files from the given configuration context.
+// When interceptHttp is true, mitmproxy configuration is also generated.
 // Returns a DevProxyConfigs struct containing all generated content.
-func (g *DevProxyConfigGenerator) Generate(configContext *domain.ConfigurationContext) (*DevProxyConfigs, error) {
-	values := g.buildTemplateValues(configContext)
+func (g *DevProxyConfigGenerator) Generate(configContext *domain.ConfigurationContext, interceptHttp bool) (*DevProxyConfigs, error) {
+	values := g.buildTemplateValues(configContext, interceptHttp)
 
 	haproxyConfig, err := renderTemplate("templates/dev-proxy/haproxy/haproxy.cfg.tpl", values)
 	if err != nil {
@@ -56,9 +57,12 @@ func (g *DevProxyConfigGenerator) Generate(configContext *domain.ConfigurationCo
 		return nil, fmt.Errorf("failed to render haproxy dockerfile: %w", err)
 	}
 
-	mitmproxyDockerfile, err := renderTemplate("templates/dev-proxy/mitmproxy/Dockerfile.tpl", values)
-	if err != nil {
-		return nil, fmt.Errorf("failed to render mitmproxy dockerfile: %w", err)
+	var mitmproxyDockerfile []byte
+	if interceptHttp {
+		mitmproxyDockerfile, err = renderTemplate("templates/dev-proxy/mitmproxy/Dockerfile.tpl", values)
+		if err != nil {
+			return nil, fmt.Errorf("failed to render mitmproxy dockerfile: %w", err)
+		}
 	}
 
 	helmChartYaml, err := renderTemplate("templates/dev-proxy/helm/Chart.yaml.tpl", values)
@@ -82,21 +86,27 @@ func (g *DevProxyConfigGenerator) Generate(configContext *domain.ConfigurationCo
 
 // GenerateChecksum computes the configuration checksum for a given context.
 // This checksum is used to detect configuration changes for the dev-proxy deployment.
-// The checksum is a SHA256 hash of the LocalServices configuration, truncated to 62 characters
-// for readability and to ensure it fits within common annotation display widths.
-func (g *DevProxyConfigGenerator) GenerateChecksum(configContext *domain.ConfigurationContext) string {
+// The checksum is a SHA256 hash of the LocalServices configuration and interceptHttp flag,
+// truncated to 62 characters for readability and to ensure it fits within common annotation
+// display widths.
+func (g *DevProxyConfigGenerator) GenerateChecksum(configContext *domain.ConfigurationContext, interceptHttp bool) string {
 	hash := sha256.New()
 	// Error can be safely ignored: LocalServices contains only JSON-serializable primitive types
 	// (strings, ints, and map[string]string). json.Marshal cannot fail for these types.
 	serviceJSON, _ := json.Marshal(configContext.LocalServices)
 	hash.Write(serviceJSON)
+	if interceptHttp {
+		hash.Write([]byte{1})
+	} else {
+		hash.Write([]byte{0})
+	}
 	return fmt.Sprintf("%x", hash.Sum(nil))[:62]
 }
 
 // buildTemplateValues constructs the values map for template rendering.
-func (g *DevProxyConfigGenerator) buildTemplateValues(configContext *domain.ConfigurationContext) map[string]interface{} {
-	frontendPort := devProxyFrontendStartPort
-	proxyPort := devProxyProxyStartPort
+func (g *DevProxyConfigGenerator) buildTemplateValues(configContext *domain.ConfigurationContext, interceptHttp bool) map[string]interface{} {
+	frontendPort := DevProxyHAProxyStartPort
+	proxyPort := DevProxyMitmproxyStartPort
 	services := make([]map[string]interface{}, len(configContext.LocalServices))
 
 	for i, localService := range configContext.LocalServices {
@@ -113,12 +123,13 @@ func (g *DevProxyConfigGenerator) buildTemplateValues(configContext *domain.Conf
 		proxyPort++
 	}
 
-	checksum := g.GenerateChecksum(configContext)
+	checksum := g.GenerateChecksum(configContext, interceptHttp)
 
 	return map[string]interface{}{
-		"Services": services,
-		"Name":     configContext.Name,
-		"Checksum": checksum,
+		"Services":      services,
+		"Name":          configContext.Name,
+		"Checksum":      checksum,
+		"InterceptHttp": interceptHttp,
 	}
 }
 
