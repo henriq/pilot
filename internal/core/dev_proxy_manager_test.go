@@ -43,9 +43,10 @@ func TestSaveConfiguration_Success_WithInterception(t *testing.T) {
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	err := sut.SaveConfiguration(true)
+	password, err := sut.SaveConfiguration(true)
 
 	assert.NoError(t, err)
+	assert.Len(t, password, 32, "Password should be 32 hex characters")
 	configRepository.AssertExpectations(t)
 	fileSystem.AssertExpectations(t)
 	fileSystem.AssertNumberOfCalls(t, "WriteFile", 5)
@@ -67,9 +68,10 @@ func TestSaveConfiguration_Success_WithoutInterception(t *testing.T) {
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	err := sut.SaveConfiguration(false)
+	password, err := sut.SaveConfiguration(false)
 
 	assert.NoError(t, err)
+	assert.Empty(t, password)
 	configRepository.AssertExpectations(t)
 	fileSystem.AssertExpectations(t)
 	fileSystem.AssertNumberOfCalls(t, "WriteFile", 4)
@@ -87,7 +89,7 @@ func TestSaveConfiguration_LoadConfigError(t *testing.T) {
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	err := sut.SaveConfiguration(false)
+	_, err := sut.SaveConfiguration(false)
 
 	assert.Error(t, err)
 	assert.Equal(t, expectedErr, err)
@@ -107,7 +109,7 @@ func TestSaveConfiguration_WriteHaproxyConfigError(t *testing.T) {
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	err := sut.SaveConfiguration(false)
+	_, err := sut.SaveConfiguration(false)
 
 	assert.Error(t, err)
 	assert.Equal(t, expectedErr, err)
@@ -130,7 +132,7 @@ func TestSaveConfiguration_WriteHaproxyDockerfileError(t *testing.T) {
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	err := sut.SaveConfiguration(false)
+	_, err := sut.SaveConfiguration(false)
 
 	assert.Error(t, err)
 	assert.Equal(t, expectedErr, err)
@@ -154,7 +156,7 @@ func TestSaveConfiguration_RemoveAllError(t *testing.T) {
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	err := sut.SaveConfiguration(false)
+	_, err := sut.SaveConfiguration(false)
 
 	assert.Error(t, err)
 	assert.Equal(t, expectedErr, err)
@@ -179,7 +181,7 @@ func TestSaveConfiguration_WriteMitmproxyDockerfileError(t *testing.T) {
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
 	// interceptHttp=true so mitmproxy Dockerfile is written
-	err := sut.SaveConfiguration(true)
+	_, err := sut.SaveConfiguration(true)
 
 	assert.Error(t, err)
 	assert.Equal(t, expectedErr, err)
@@ -204,7 +206,7 @@ func TestSaveConfiguration_WriteHelmChartError(t *testing.T) {
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	err := sut.SaveConfiguration(false)
+	_, err := sut.SaveConfiguration(false)
 
 	assert.Error(t, err)
 	assert.Equal(t, expectedErr, err)
@@ -230,7 +232,7 @@ func TestSaveConfiguration_WriteDevProxyManifestsError(t *testing.T) {
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	err := sut.SaveConfiguration(false)
+	_, err := sut.SaveConfiguration(false)
 
 	assert.Error(t, err)
 	assert.Equal(t, expectedErr, err)

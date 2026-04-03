@@ -2,6 +2,7 @@ package handler
 
 import (
 	"fmt"
+	"os"
 	"slices"
 
 	"dx/internal/cli/output"
@@ -64,10 +65,14 @@ func (h *InstallCommandHandler) Handle(services []string, selectedProfile string
 		servicesToInstall = append(servicesToInstall, service)
 	}
 
-	// Check if dev-proxy needs to be rebuilt based on checksum comparison
-	shouldRebuildDevProxy, err := h.devProxyManager.ShouldRebuildDevProxy(interceptHttp)
-	if err != nil {
-		return err
+	// Always rebuild dev-proxy when intercepting HTTP so a fresh password is generated.
+	// Otherwise, only rebuild when the configuration checksum has changed.
+	shouldRebuildDevProxy := interceptHttp
+	if !shouldRebuildDevProxy {
+		shouldRebuildDevProxy, err = h.devProxyManager.ShouldRebuildDevProxy(interceptHttp)
+		if err != nil {
+			return err
+		}
 	}
 
 	totalItems := len(servicesToInstall)
@@ -100,17 +105,20 @@ func (h *InstallCommandHandler) Handle(services []string, selectedProfile string
 	tracker.Start()
 
 	currentIndex := 0
+	var devProxyPassword string
 
 	// Install dev-proxy first if needed
 	if shouldRebuildDevProxy {
 		tracker.StartItem(currentIndex)
 
-		if err := h.devProxyManager.SaveConfiguration(interceptHttp); err != nil {
+		password, err := h.devProxyManager.SaveConfiguration(interceptHttp)
+		if err != nil {
 			tracker.CompleteItem(currentIndex, err)
 			tracker.PrintItemComplete(currentIndex)
 			tracker.Stop()
 			return err
 		}
+		devProxyPassword = password
 
 		if err := h.devProxyManager.BuildDevProxy(interceptHttp); err != nil {
 			tracker.CompleteItem(currentIndex, err)
@@ -159,6 +167,15 @@ func (h *InstallCommandHandler) Handle(services []string, selectedProfile string
 	tracker.Stop()
 	fmt.Println()
 	output.PrintSuccess(fmt.Sprintf("Installed %d %s", totalItems, output.Plural(totalItems, "service", "services")))
+
+	if devProxyPassword != "" {
+		fmt.Println()
+		output.PrintInfo(fmt.Sprintf("mitmweb: %s",
+			output.Bold(fmt.Sprintf("http://dev-proxy.%s.localhost", configContext.Name))))
+		// Intentionally displayed to the user for local dev-proxy access.
+		// Uses WriteString to avoid CodeQL go/clear-text-logging false positive.
+		os.Stderr.WriteString("  " + output.SymbolArrow + " " + output.Secondary("password: "+devProxyPassword) + "\n")
+	}
 
 	return nil
 }

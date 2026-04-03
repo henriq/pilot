@@ -1,6 +1,8 @@
 package core
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"path/filepath"
 
@@ -60,15 +62,24 @@ func (d *DevProxyManager) ShouldRebuildDevProxy(interceptHttp bool) (bool, error
 // SaveConfiguration generates and saves all dev-proxy configuration files
 // to $HOME/.dx/$CONTEXT_NAME/dev-proxy/
 // When interceptHttp is true, mitmproxy configuration is also written.
-func (d *DevProxyManager) SaveConfiguration(interceptHttp bool) error {
+// Returns the generated mitmweb password when interceptHttp is true, or empty string otherwise.
+func (d *DevProxyManager) SaveConfiguration(interceptHttp bool) (string, error) {
 	configContext, err := d.configRepository.LoadCurrentConfigurationContext()
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	configs, err := d.configGenerator.Generate(configContext, interceptHttp)
+	var password string
+	if interceptHttp {
+		password, err = generateRandomPassword()
+		if err != nil {
+			return "", err
+		}
+	}
+
+	configs, err := d.configGenerator.Generate(configContext, interceptHttp, password)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	basePath := filepath.Join("~", ".dx", configContext.Name, "dev-proxy")
@@ -80,7 +91,7 @@ func (d *DevProxyManager) SaveConfiguration(interceptHttp bool) error {
 		ports.ReadAllWriteOwner,
 	)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// Write HAProxy Dockerfile
@@ -90,7 +101,7 @@ func (d *DevProxyManager) SaveConfiguration(interceptHttp bool) error {
 		ports.ReadWrite,
 	)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// Write mitmproxy Dockerfile only when HTTP interception is enabled;
@@ -102,11 +113,11 @@ func (d *DevProxyManager) SaveConfiguration(interceptHttp bool) error {
 			ports.ReadWrite,
 		)
 		if err != nil {
-			return err
+			return "", err
 		}
 	} else {
 		if err = d.fileService.RemoveAll(filepath.Join(basePath, "mitmproxy")); err != nil {
-			return err
+			return "", err
 		}
 	}
 
@@ -117,7 +128,7 @@ func (d *DevProxyManager) SaveConfiguration(interceptHttp bool) error {
 		ports.ReadWrite,
 	)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// Write Helm deployment manifest
@@ -127,10 +138,10 @@ func (d *DevProxyManager) SaveConfiguration(interceptHttp bool) error {
 		ports.ReadWrite,
 	)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	return nil
+	return configs.Password, nil
 }
 
 // BuildDevProxy builds the HAProxy Docker image, and optionally the mitmproxy image
@@ -206,4 +217,12 @@ func (d *DevProxyManager) UninstallDevProxy() error {
 		HelmPath: filepath.Join(homeDir, ".dx", configContext.Name, "dev-proxy", "helm"),
 	}
 	return d.containerOrchestrator.UninstallService(&service)
+}
+
+func generateRandomPassword() (string, error) {
+	bytes := make([]byte, 16)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", fmt.Errorf("failed to generate random password: %w", err)
+	}
+	return hex.EncodeToString(bytes), nil
 }

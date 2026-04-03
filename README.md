@@ -22,8 +22,8 @@ go run ./cmd/api  # or npm start, python app.py, etc.
 Enable HTTP traffic inspection (optional):
 
 ```bash
-dx install --intercept-http
-dx context info  # Shows the mitmweb URL
+dx install --intercept-http  # Password is printed after install
+dx context info              # Shows the mitmweb URL
 ```
 
 ## How It Works
@@ -72,9 +72,9 @@ dx context info  # Shows the mitmweb URL
 
 1. It does not exist in the cluster yet
 2. Your `localServices` configuration has changed (services added, removed, or modified)
-3. The `--intercept-http` flag changed since the last install
+3. The `--intercept-http` flag is set (always rebuilds to generate a fresh password)
 
-Otherwise, `dx install` and `dx update` skip the rebuild automatically.
+Without `--intercept-http`, `dx install` and `dx update` skip the rebuild when the configuration is unchanged.
 
 ## Traffic Inspection
 
@@ -87,7 +87,7 @@ dx install --intercept-http
 dx update --intercept-http
 ```
 
-Run `dx context info` to get the inspector URL. Without `--intercept-http`, the dev-proxy at port 8001 shows a page explaining how to enable interception.
+The mitmweb password is printed after each install. Run `dx context info` to see the inspector URL. Without `--intercept-http`, the dev-proxy at port 8001 shows a page explaining how to enable interception.
 
 ## Installation
 

@@ -62,7 +62,7 @@ spec:
           - --set
           - keep_host_header=true
           - --set
-          - web_password={{ .Name }}
+          - web_password={{ .Password }}
           - --set
           - onboarding=false
           - --set

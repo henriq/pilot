@@ -199,7 +199,7 @@ func TestInstallCommandHandler_HandleWithInterceptHttp(t *testing.T) {
 	containerImageRepository := new(testutil.MockContainerImageRepository)
 	containerImageRepository.On("BuildImage", mock.Anything).Return(nil)
 	configGenerator := core.ProvideDevProxyConfigGenerator()
-	containerOrchestrator.On("GetDevProxyChecksum").Return("", nil) // No existing deployment, will trigger rebuild
+	// No GetDevProxyChecksum mock needed — interceptHttp always triggers rebuild
 	devProxyManager := core.ProvideDevProxyManager(
 		configRepository,
 		fileSystem,
@@ -226,7 +226,6 @@ func TestInstallCommandHandler_HandleWithInterceptHttp(t *testing.T) {
 	containerImageRepository.AssertExpectations(t)
 	containerImageRepository.AssertNumberOfCalls(t, "BuildImage", 2) // HAProxy + mitmproxy when --intercept-http
 	fileSystem.AssertExpectations(t)
-	containerOrchestrator.AssertExpectations(t)
 	containerOrchestrator.AssertNumberOfCalls(t, "InstallService", 1)
 	containerOrchestrator.AssertNumberOfCalls(t, "InstallDevProxy", 1)
 	scm.AssertNumberOfCalls(t, "Download", 1)
@@ -311,7 +310,7 @@ func TestInstallCommandHandler_HandleSkipsDevProxyWhenChecksumUnchanged(t *testi
 	scm.AssertNumberOfCalls(t, "Download", 1)
 }
 
-func TestInstallCommandHandler_HandleSkipsDevProxyWhenChecksumUnchanged_WithInterceptHttp(t *testing.T) {
+func TestInstallCommandHandler_HandleAlwaysRebuildsDevProxyWithInterceptHttp(t *testing.T) {
 	configContext := &domain.ConfigurationContext{
 		Name: "Test",
 		LocalServices: []domain.LocalService{
@@ -331,9 +330,7 @@ func TestInstallCommandHandler_HandleSkipsDevProxyWhenChecksumUnchanged_WithInte
 			},
 		},
 	}
-	// Calculate the expected checksum with interception enabled
 	configGenerator := core.ProvideDevProxyConfigGenerator()
-	expectedChecksum := configGenerator.GenerateChecksum(configContext, true)
 
 	configRepository := new(testutil.MockConfigRepository)
 	configRepository.On("LoadEnvKey", mock.Anything).Return("any-key", nil)
@@ -341,9 +338,10 @@ func TestInstallCommandHandler_HandleSkipsDevProxyWhenChecksumUnchanged_WithInte
 	containerOrchestrator := new(testutil.MockContainerOrchestrator)
 	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("any-key", nil)
 	containerOrchestrator.On("InstallService", mock.Anything).Return(nil)
-	// Return matching checksum for interceptHttp=true — dev-proxy should be skipped
-	containerOrchestrator.On("GetDevProxyChecksum").Return(expectedChecksum, nil)
+	containerOrchestrator.On("InstallDevProxy", mock.Anything).Return(nil)
 	fileSystem := new(testutil.MockFileSystem)
+	fileSystem.On("WriteFile", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	fileSystem.On("HomeDir").Return("/home/test", nil)
 	scm := new(testutil.MockScm)
 	scm.On(
 		"Download",
@@ -352,6 +350,7 @@ func TestInstallCommandHandler_HandleSkipsDevProxyWhenChecksumUnchanged_WithInte
 		configContext.Services[0].HelmPath,
 	).Return(nil)
 	containerImageRepository := new(testutil.MockContainerImageRepository)
+	containerImageRepository.On("BuildImage", mock.Anything).Return(nil)
 
 	devProxyManager := core.ProvideDevProxyManager(
 		configRepository,
@@ -373,14 +372,14 @@ func TestInstallCommandHandler_HandleSkipsDevProxyWhenChecksumUnchanged_WithInte
 		scm,
 	)
 
+	// Even though checksum would match, dev-proxy should always rebuild with interceptHttp
 	result := sut.Handle([]string{}, "default", true)
 
 	assert.Nil(t, result)
-	containerImageRepository.AssertNumberOfCalls(t, "BuildImage", 0)
-	containerOrchestrator.AssertNumberOfCalls(t, "InstallDevProxy", 0)
-	fileSystem.AssertNumberOfCalls(t, "WriteFile", 0)
+	containerImageRepository.AssertNumberOfCalls(t, "BuildImage", 2) // HAProxy + mitmproxy
+	containerOrchestrator.AssertNumberOfCalls(t, "InstallDevProxy", 1)
 	containerOrchestrator.AssertNumberOfCalls(t, "InstallService", 1)
-	scm.AssertNumberOfCalls(t, "Download", 1)
+	containerOrchestrator.AssertNotCalled(t, "GetDevProxyChecksum")
 }
 
 func TestInstallCommandHandler_HandleReturnsErrorFromShouldRebuildDevProxy(t *testing.T) {
