@@ -114,16 +114,8 @@ var contextInfoCmd = &cobra.Command{
 			)
 		}
 		fmt.Println()
-		fmt.Println(
-			"Mitmproxy: " + output.Bold(
-				fmt.Sprintf(
-					"http://dev-proxy.%s.localhost (password=%s)",
-					configContext.Name,
-					configContext.Name,
-				),
-			),
-		)
-		fmt.Println("Haproxy stats: " + output.Bold(fmt.Sprintf("http://stats.dev-proxy.%s.localhost", configContext.Name)))
+		fmt.Println("mitmweb: " + output.Bold(fmt.Sprintf("http://dev-proxy.%s.localhost", configContext.Name)))
+		fmt.Println("haproxy stats: " + output.Bold(fmt.Sprintf("http://stats.dev-proxy.%s.localhost", configContext.Name)))
 		return nil
 	},
 }

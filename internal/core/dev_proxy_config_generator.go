@@ -30,10 +30,10 @@ type DevProxyConfigs struct {
 	MitmProxyDockerfile []byte
 	HelmChartYaml       []byte
 	HelmDeploymentYaml  []byte
+	Password            string
 }
 
 // DevProxyConfigGenerator generates dev-proxy configuration files from domain configuration.
-// This is pure business logic with no I/O operations.
 type DevProxyConfigGenerator struct{}
 
 // ProvideDevProxyConfigGenerator creates a new DevProxyConfigGenerator.
@@ -42,10 +42,10 @@ func ProvideDevProxyConfigGenerator() *DevProxyConfigGenerator {
 }
 
 // Generate creates all dev-proxy configuration files from the given configuration context.
-// When interceptHttp is true, mitmproxy configuration is also generated.
+// When interceptHttp is true, mitmproxy configuration is also generated using the provided password.
 // Returns a DevProxyConfigs struct containing all generated content.
-func (g *DevProxyConfigGenerator) Generate(configContext *domain.ConfigurationContext, interceptHttp bool) (*DevProxyConfigs, error) {
-	values := g.buildTemplateValues(configContext, interceptHttp)
+func (g *DevProxyConfigGenerator) Generate(configContext *domain.ConfigurationContext, interceptHttp bool, password string) (*DevProxyConfigs, error) {
+	values := g.buildTemplateValues(configContext, interceptHttp, password)
 
 	haproxyConfig, err := renderTemplate("templates/dev-proxy/haproxy/haproxy.cfg.tpl", values)
 	if err != nil {
@@ -81,6 +81,7 @@ func (g *DevProxyConfigGenerator) Generate(configContext *domain.ConfigurationCo
 		MitmProxyDockerfile: mitmproxyDockerfile,
 		HelmChartYaml:       helmChartYaml,
 		HelmDeploymentYaml:  helmDeploymentYaml,
+		Password:            password,
 	}, nil
 }
 
@@ -104,7 +105,7 @@ func (g *DevProxyConfigGenerator) GenerateChecksum(configContext *domain.Configu
 }
 
 // buildTemplateValues constructs the values map for template rendering.
-func (g *DevProxyConfigGenerator) buildTemplateValues(configContext *domain.ConfigurationContext, interceptHttp bool) map[string]interface{} {
+func (g *DevProxyConfigGenerator) buildTemplateValues(configContext *domain.ConfigurationContext, interceptHttp bool, password string) map[string]interface{} {
 	frontendPort := DevProxyHAProxyStartPort
 	proxyPort := DevProxyMitmproxyStartPort
 	services := make([]map[string]interface{}, len(configContext.LocalServices))
@@ -130,6 +131,7 @@ func (g *DevProxyConfigGenerator) buildTemplateValues(configContext *domain.Conf
 		"Name":          configContext.Name,
 		"Checksum":      checksum,
 		"InterceptHttp": interceptHttp,
+		"Password":      password,
 	}
 }
 
