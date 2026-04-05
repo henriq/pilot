@@ -76,21 +76,7 @@ func (e EncryptedFileSecretRepository) SaveSecrets(
 	configContextName string,
 ) error {
 	secretsFilePath := filepath.Join("~", ".dx", configContextName, "secrets")
-	keyExists, err := e.keyring.HasKey(fmt.Sprintf("%s-encryption-key", configContextName))
-	if err != nil {
-		return err
-	}
-	if !keyExists {
-		key, err := e.encryptor.CreateKey()
-		if err != nil {
-			return err
-		}
-		err = e.keyring.SetKey(fmt.Sprintf("%s-encryption-key", configContextName), string(key))
-		if err != nil {
-			return err
-		}
-	}
-	key, err := e.keyring.GetKey(fmt.Sprintf("%s-encryption-key", configContextName))
+	key, err := GetOrCreateEncryptionKey(e.keyring, e.encryptor, fmt.Sprintf("%s-encryption-key", configContextName))
 	if err != nil {
 		return err
 	}

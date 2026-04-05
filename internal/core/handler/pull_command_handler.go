@@ -82,11 +82,13 @@ func (h *PullCommandHandler) Handle(services []string, selectedProfile string, s
 			return fmt.Errorf("pulling locally-built images requires confirmation. Use --yes to skip in non-interactive mode")
 		}
 
-		output.PrintWarning(fmt.Sprintf(
-			"Pulling these images will overwrite %d locally-built %s:",
-			len(dockerImageNames),
-			output.Plural(len(dockerImageNames), "image", "images"),
-		))
+		output.PrintWarning(
+			fmt.Sprintf(
+				"Pulling these images will overwrite %d locally-built %s:",
+				len(dockerImageNames),
+				output.Plural(len(dockerImageNames), "image", "images"),
+			),
+		)
 		fmt.Println()
 		for _, name := range dockerImageNames {
 			fmt.Printf("  - %s\n", name)
@@ -117,21 +119,23 @@ func (h *PullCommandHandler) Handle(services []string, selectedProfile string, s
 	g.SetLimit(maxConcurrentPulls)
 
 	for i, image := range allImages {
-		g.Go(func() error {
-			// Check if context is cancelled
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			default:
-			}
+		g.Go(
+			func() error {
+				// Check if context is canceled
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				default:
+				}
 
-			tracker.StartItem(i)
+				tracker.StartItem(i)
 
-			err := h.containerImageRepository.PullImage(image)
-			tracker.CompleteItem(i, err)
+				err := h.containerImageRepository.PullImage(image)
+				tracker.CompleteItem(i, err)
 
-			return err
-		})
+				return err
+			},
+		)
 	}
 
 	pullErr := g.Wait()
@@ -142,12 +146,14 @@ func (h *PullCommandHandler) Handle(services []string, selectedProfile string, s
 	}
 
 	fmt.Println()
-	output.PrintSuccess(fmt.Sprintf(
-		"Pulled %d Docker %s in %s",
-		len(allImages),
-		output.Plural(len(allImages), "image", "images"),
-		progress.FormatDuration(time.Since(pullStartTime)),
-	))
+	output.PrintSuccess(
+		fmt.Sprintf(
+			"Pulled %d Docker %s in %s",
+			len(allImages),
+			output.Plural(len(allImages), "image", "images"),
+			progress.FormatDuration(time.Since(pullStartTime)),
+		),
+	)
 
 	return nil
 }

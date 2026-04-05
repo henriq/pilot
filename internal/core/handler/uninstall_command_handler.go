@@ -91,7 +91,7 @@ func (h *UninstallCommandHandler) Handle(services []string, selectedProfile stri
 		if err != nil {
 			return err
 		}
-		output.PrintSuccess("dev-proxy removed")
+		output.PrintSuccess("Removed dev-proxy")
 	}
 
 	return nil

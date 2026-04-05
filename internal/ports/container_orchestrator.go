@@ -6,8 +6,8 @@ import (
 
 type ContainerOrchestrator interface {
 	CreateClusterEnvironmentKey() (string, error)
-	InstallService(service *domain.Service) error
-	InstallDevProxy(service *domain.Service) error
+	InstallService(service *domain.Service, certificateSecrets []byte) error
+	InstallDevProxy(service *domain.Service, certificateSecrets []byte) error
 	UninstallService(service *domain.Service) error
 	HasDeployedServices() (bool, error)
 	// GetDevProxyChecksum returns the checksum annotation from the existing dev-proxy deployment.

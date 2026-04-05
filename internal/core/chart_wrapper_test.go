@@ -617,3 +617,67 @@ func TestExpandTildePath(t *testing.T) {
 		})
 	}
 }
+
+func TestChartWrapper_Generate_WritesCertificateSecrets(t *testing.T) {
+	mockFS := newChartWrapperMockFileSystem()
+	sut := ProvideChartWrapper(mockFS)
+
+	certSecrets := []byte("apiVersion: v1\nkind: Secret\nmetadata:\n  name: foo-tls\n")
+
+	_, err := sut.Generate(WrapperChartConfig{
+		ReleaseName:        "my-service",
+		ContextName:        "my-context",
+		PatchedManifests:   []byte("manifests"),
+		CertificateSecrets: certSecrets,
+		OriginalChartName:  "my-service",
+	})
+
+	require.NoError(t, err)
+
+	secretsPath := filepath.Join("~", ".dx", "my-context", "wrapper-charts", "my-service", "templates", "secrets.yaml")
+	assert.Equal(t, certSecrets, mockFS.writtenFiles[secretsPath])
+}
+
+func TestChartWrapper_Generate_SkipsCertificateSecretsWhenEmpty(t *testing.T) {
+	mockFS := newChartWrapperMockFileSystem()
+	sut := ProvideChartWrapper(mockFS)
+
+	_, err := sut.Generate(WrapperChartConfig{
+		ReleaseName:      "my-service",
+		ContextName:      "my-context",
+		PatchedManifests: []byte("manifests"),
+	})
+
+	require.NoError(t, err)
+
+	secretsPath := filepath.Join("~", ".dx", "my-context", "wrapper-charts", "my-service", "templates", "secrets.yaml")
+	_, exists := mockFS.writtenFiles[secretsPath]
+	assert.False(t, exists, "secrets.yaml should not be written when CertificateSecrets is empty")
+}
+
+func TestChartWrapper_Generate_RemovesStaleSecretsYaml(t *testing.T) {
+	mockFS := newChartWrapperMockFileSystem()
+	sut := ProvideChartWrapper(mockFS)
+
+	secretsPath := filepath.Join("~", ".dx", "my-context", "wrapper-charts", "my-service", "templates", "secrets.yaml")
+
+	// First generate with certificate secrets
+	_, err := sut.Generate(WrapperChartConfig{
+		ReleaseName:        "my-service",
+		ContextName:        "my-context",
+		PatchedManifests:   []byte("manifests"),
+		CertificateSecrets: []byte("secret-yaml"),
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []byte("secret-yaml"), mockFS.writtenFiles[secretsPath])
+
+	// Regenerate without certificate secrets — stale file should be removed
+	_, err = sut.Generate(WrapperChartConfig{
+		ReleaseName:      "my-service",
+		ContextName:      "my-context",
+		PatchedManifests: []byte("manifests"),
+	})
+	require.NoError(t, err)
+
+	assert.True(t, mockFS.removedPaths[secretsPath], "stale secrets.yaml should be removed")
+}

@@ -65,7 +65,7 @@ func ExtractTemplateVariables(template string) map[string][]string {
 	for _, match := range indexMatches {
 		if len(match) >= 3 {
 			varType := match[1] // "Secrets" or "Services"
-			key := match[2]    // The quoted key
+			key := match[2]     // The quoted key
 			addKey(varType, key)
 		}
 	}

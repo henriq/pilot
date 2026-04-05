@@ -4,6 +4,7 @@
 package app
 
 import (
+	"dx/internal/adapters/certificate_authority"
 	"dx/internal/adapters/command_runner"
 	"dx/internal/adapters/container_image_repository"
 	"dx/internal/adapters/container_orchestrator"
@@ -35,6 +36,7 @@ var Adapter = wire.NewSet(
 	wire.Bind(new(ports.KustomizeClient), new(*kustomize.Client)),
 	container_orchestrator.ProvideKubernetes,
 	wire.Bind(new(ports.ContainerOrchestrator), new(*container_orchestrator.Kubernetes)),
+	wire.Bind(new(ports.SecretStore), new(*container_orchestrator.Kubernetes)),
 	filesystem.ProvideOsFileSystem,
 	wire.Bind(new(ports.FileSystem), new(*filesystem.OsFileSystem)),
 	keyring.ProvideZalandoKeyring,
@@ -43,6 +45,8 @@ var Adapter = wire.NewSet(
 	templater.ProvideTextTemplater,
 	terminal.ProvideTerminalInput,
 	wire.Bind(new(ports.TerminalInput), new(*terminal.TerminalInput)),
+	certificate_authority.ProvideX509CertificateAuthority,
+	wire.Bind(new(ports.CertificateAuthority), new(*certificate_authority.X509CertificateAuthority)),
 )
 
 // CoreSet provides domain/core dependencies
@@ -54,6 +58,7 @@ var CoreSet = wire.NewSet(
 	core.ProvideEncryptedFileSecretRepository,
 	core.ProvideEnvironmentEnsurer,
 	core.ProvideChartWrapper,
+	core.ProvideCertificateProvisioner,
 )
 
 // CommandHandlerSet combines all sets needed for command handlers
@@ -166,4 +171,12 @@ func InjectPullCommandHandler() (handler.PullCommandHandler, error) {
 		handler.ProvidePullCommandHandler,
 	)
 	return handler.PullCommandHandler{}, nil
+}
+
+func InjectCACommandHandler() (handler.CACommandHandler, error) {
+	wire.Build(
+		CommandHandlerSet,
+		handler.ProvideCACommandHandler,
+	)
+	return handler.CACommandHandler{}, nil
 }

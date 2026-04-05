@@ -280,7 +280,7 @@ func TestSaveSecrets_HasKeyError(t *testing.T) {
 	err := sut.SaveSecrets(secrets, "test-context")
 
 	assert.Error(t, err)
-	assert.Equal(t, expectedErr, err)
+	assert.ErrorIs(t, err, expectedErr)
 	keyring.AssertExpectations(t)
 }
 
@@ -302,7 +302,7 @@ func TestSaveSecrets_CreateKeyError(t *testing.T) {
 	err := sut.SaveSecrets(secrets, "test-context")
 
 	assert.Error(t, err)
-	assert.Equal(t, expectedErr, err)
+	assert.ErrorIs(t, err, expectedErr)
 	keyring.AssertExpectations(t)
 	encryptor.AssertExpectations(t)
 }
@@ -327,7 +327,7 @@ func TestSaveSecrets_SetKeyError(t *testing.T) {
 	err := sut.SaveSecrets(secrets, "test-context")
 
 	assert.Error(t, err)
-	assert.Equal(t, expectedErr, err)
+	assert.ErrorIs(t, err, expectedErr)
 	keyring.AssertExpectations(t)
 	encryptor.AssertExpectations(t)
 }
@@ -350,7 +350,7 @@ func TestSaveSecrets_GetKeyError(t *testing.T) {
 	err := sut.SaveSecrets(secrets, "test-context")
 
 	assert.Error(t, err)
-	assert.Equal(t, expectedErr, err)
+	assert.ErrorIs(t, err, expectedErr)
 	keyring.AssertExpectations(t)
 }
 

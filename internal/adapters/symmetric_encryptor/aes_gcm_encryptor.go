@@ -43,7 +43,7 @@ func (a AesGcmEncryptor) Encrypt(plaintext []byte, encodedKey []byte) ([]byte, e
 	}
 
 	// Encrypt the plaintext and append the nonce to the ciphertext
-	ciphertext := aesGCM.Seal(nonce, nonce, []byte(plaintext), nil)
+	ciphertext := aesGCM.Seal(nonce, nonce, plaintext, nil)
 
 	return []byte(base64.StdEncoding.EncodeToString(ciphertext)), nil
 }

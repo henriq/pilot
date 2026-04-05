@@ -44,8 +44,8 @@ func ProvideDevProxyConfigGenerator() *DevProxyConfigGenerator {
 // Generate creates all dev-proxy configuration files from the given configuration context.
 // When interceptHttp is true, mitmproxy configuration is also generated using the provided password.
 // Returns a DevProxyConfigs struct containing all generated content.
-func (g *DevProxyConfigGenerator) Generate(configContext *domain.ConfigurationContext, interceptHttp bool, password string) (*DevProxyConfigs, error) {
-	values := g.buildTemplateValues(configContext, interceptHttp, password)
+func (g *DevProxyConfigGenerator) Generate(configContext *domain.ConfigurationContext, interceptHttp bool, password string, certificateSecrets []byte) (*DevProxyConfigs, error) {
+	values := g.buildTemplateValues(configContext, interceptHttp, password, certificateSecrets)
 
 	haproxyConfig, err := renderTemplate("templates/dev-proxy/haproxy/haproxy.cfg.tpl", values)
 	if err != nil {
@@ -90,7 +90,7 @@ func (g *DevProxyConfigGenerator) Generate(configContext *domain.ConfigurationCo
 // The checksum is a SHA256 hash of the LocalServices configuration and interceptHttp flag,
 // truncated to 62 characters for readability and to ensure it fits within common annotation
 // display widths.
-func (g *DevProxyConfigGenerator) GenerateChecksum(configContext *domain.ConfigurationContext, interceptHttp bool) string {
+func (g *DevProxyConfigGenerator) GenerateChecksum(configContext *domain.ConfigurationContext, interceptHttp bool, certificateSecrets []byte) string {
 	hash := sha256.New()
 	// Error can be safely ignored: LocalServices contains only JSON-serializable primitive types
 	// (strings, ints, and map[string]string). json.Marshal cannot fail for these types.
@@ -101,11 +101,14 @@ func (g *DevProxyConfigGenerator) GenerateChecksum(configContext *domain.Configu
 	} else {
 		hash.Write([]byte{0})
 	}
+	if len(certificateSecrets) > 0 {
+		hash.Write(certificateSecrets)
+	}
 	return fmt.Sprintf("%x", hash.Sum(nil))[:62]
 }
 
 // buildTemplateValues constructs the values map for template rendering.
-func (g *DevProxyConfigGenerator) buildTemplateValues(configContext *domain.ConfigurationContext, interceptHttp bool, password string) map[string]interface{} {
+func (g *DevProxyConfigGenerator) buildTemplateValues(configContext *domain.ConfigurationContext, interceptHttp bool, password string, certificateSecrets []byte) map[string]interface{} {
 	frontendPort := DevProxyHAProxyStartPort
 	proxyPort := DevProxyMitmproxyStartPort
 	services := make([]map[string]interface{}, len(configContext.LocalServices))
@@ -124,7 +127,7 @@ func (g *DevProxyConfigGenerator) buildTemplateValues(configContext *domain.Conf
 		proxyPort++
 	}
 
-	checksum := g.GenerateChecksum(configContext, interceptHttp)
+	checksum := g.GenerateChecksum(configContext, interceptHttp, certificateSecrets)
 
 	return map[string]interface{}{
 		"Services":      services,
@@ -132,6 +135,7 @@ func (g *DevProxyConfigGenerator) buildTemplateValues(configContext *domain.Conf
 		"Checksum":      checksum,
 		"InterceptHttp": interceptHttp,
 		"Password":      password,
+		"TLSSecretName": InternalTLSSecretName,
 	}
 }
 

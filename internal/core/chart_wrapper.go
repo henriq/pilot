@@ -11,11 +11,12 @@ import (
 
 // WrapperChartConfig contains configuration for generating a wrapper chart.
 type WrapperChartConfig struct {
-	ReleaseName       string
-	ContextName       string
-	PatchedManifests  []byte
-	OriginalChartName string
-	OriginalChartPath string
+	ReleaseName        string
+	ContextName        string
+	PatchedManifests   []byte
+	CertificateSecrets []byte
+	OriginalChartName  string
+	OriginalChartPath  string
 }
 
 // ChartWrapper generates wrapper Helm charts containing patched manifests.
@@ -69,6 +70,20 @@ func (c *ChartWrapper) Generate(config WrapperChartConfig) (string, error) {
 		ports.ReadWrite,
 	); err != nil {
 		return "", fmt.Errorf("failed to write manifests: %w", err)
+	}
+
+	// Write certificate secrets if present; remove stale file if certificates were removed
+	secretsPath := filepath.Join(templatesPath, "secrets.yaml")
+	if len(config.CertificateSecrets) > 0 {
+		if err := c.fileSystem.WriteFile(
+			secretsPath,
+			config.CertificateSecrets,
+			ports.ReadAllWriteOwner,
+		); err != nil {
+			return "", fmt.Errorf("failed to write certificate secrets: %w", err)
+		}
+	} else {
+		_ = c.fileSystem.RemoveAll(secretsPath)
 	}
 
 	// Return absolute path for external tools like Helm

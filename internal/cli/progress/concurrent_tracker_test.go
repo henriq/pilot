@@ -202,7 +202,7 @@ func TestConcurrentTracker_CompleteItem_SuccessWithColor(t *testing.T) {
 
 	output := buf.String()
 	assert.Contains(t, output, "\033[32m+\033[0m") // green success symbol
-	assert.Contains(t, output, "\033[2m")           // dim formatting
+	assert.Contains(t, output, "\033[2m")          // dim formatting
 	assert.NotContains(t, output, "FAILED")
 }
 

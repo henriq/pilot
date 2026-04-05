@@ -23,7 +23,7 @@ local and Kubernetes services.
 Use --intercept-http to deploy mitmweb alongside HAProxy for inspecting and
 replaying HTTP traffic. When enabled, the mitmweb UI is available at:
 
-  http://dev-proxy.<context>.localhost
+  https://dev-proxy.<context>.localhost
 
 Without --intercept-http, the dev-proxy routes traffic directly through HAProxy
 without HTTP-level inspection.`,

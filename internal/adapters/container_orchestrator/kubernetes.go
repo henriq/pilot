@@ -14,6 +14,7 @@ import (
 	"dx/internal/core/domain"
 	"dx/internal/ports"
 
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -21,6 +22,7 @@ import (
 )
 
 var _ ports.ContainerOrchestrator = (*Kubernetes)(nil)
+var _ ports.SecretStore = (*Kubernetes)(nil)
 
 // Kubernetes represents a client for interacting with Kubernetes
 type Kubernetes struct {
@@ -121,7 +123,7 @@ func (k *Kubernetes) getCurrentNamespace() string {
 }
 
 // InstallService installs a service using helm with kustomize patches.
-func (k *Kubernetes) InstallService(service *domain.Service) error {
+func (k *Kubernetes) InstallService(service *domain.Service, certificateSecrets []byte) error {
 	templateValues, err := core.CreateTemplatingValues(k.configRepository, k.secretsRepository)
 	if err != nil {
 		return err
@@ -176,11 +178,12 @@ func (k *Kubernetes) InstallService(service *domain.Service) error {
 	// 5. Generate wrapper chart
 	defer k.cleanupBuildArtifacts(contextName, service.Name)
 	wrapperPath, err := k.chartWrapper.Generate(core.WrapperChartConfig{
-		ReleaseName:       service.Name,
-		ContextName:       contextName,
-		PatchedManifests:  patchedManifests,
-		OriginalChartName: service.Name,
-		OriginalChartPath: chartPath,
+		ReleaseName:        service.Name,
+		ContextName:        contextName,
+		PatchedManifests:   patchedManifests,
+		CertificateSecrets: certificateSecrets,
+		OriginalChartName:  service.Name,
+		OriginalChartPath:  chartPath,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to generate wrapper chart: %w", err)
@@ -236,7 +239,7 @@ func (k *Kubernetes) buildPatches(interceptHttp bool) ([]ports.Patch, error) {
 }
 
 // InstallDevProxy installs the dev-proxy (no patches needed).
-func (k *Kubernetes) InstallDevProxy(service *domain.Service) error {
+func (k *Kubernetes) InstallDevProxy(service *domain.Service, certificateSecrets []byte) error {
 	templateValues, err := core.CreateTemplatingValues(k.configRepository, k.secretsRepository)
 	if err != nil {
 		return err
@@ -273,11 +276,12 @@ func (k *Kubernetes) InstallDevProxy(service *domain.Service) error {
 	// Generate wrapper chart without patches
 	defer k.cleanupBuildArtifacts(contextName, service.Name)
 	wrapperPath, err := k.chartWrapper.Generate(core.WrapperChartConfig{
-		ReleaseName:       service.Name,
-		ContextName:       contextName,
-		PatchedManifests:  rawManifests, // No patches applied
-		OriginalChartName: service.Name,
-		OriginalChartPath: chartPath,
+		ReleaseName:        service.Name,
+		ContextName:        contextName,
+		PatchedManifests:   rawManifests, // No patches applied
+		CertificateSecrets: certificateSecrets,
+		OriginalChartName:  service.Name,
+		OriginalChartPath:  chartPath,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to generate wrapper chart: %w", err)
@@ -379,6 +383,118 @@ var blockedHelmFlags = []string{
 	"--kube-as-uid",    // Could impersonate by UID
 	"--kube-ca-file",   // Could use unauthorized CA
 	"--kube-apiserver", // Could redirect to malicious API server
+}
+
+// SecretExists checks whether a Kubernetes secret exists by name in the current namespace.
+func (k *Kubernetes) SecretExists(name string) (bool, error) {
+	namespace := k.getCurrentNamespace()
+	_, err := k.clientSet.CoreV1().Secrets(namespace).Get(
+		context.Background(), name, metav1.GetOptions{},
+	)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to check secret %s: %w", name, err)
+	}
+	return true, nil
+}
+
+// GetSecretData returns the data from a Kubernetes secret by name.
+func (k *Kubernetes) GetSecretData(name string) (map[string][]byte, error) {
+	namespace := k.getCurrentNamespace()
+	secret, err := k.clientSet.CoreV1().Secrets(namespace).Get(
+		context.Background(), name, metav1.GetOptions{},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get secret %s: %w", name, err)
+	}
+	return secret.Data, nil
+}
+
+// CreateOrUpdateSecret creates or updates a Kubernetes secret in the current namespace.
+func (k *Kubernetes) CreateOrUpdateSecret(name string, secretType domain.K8sSecretType, data map[string][]byte) error {
+	namespace := k.getCurrentNamespace()
+
+	var k8sSecretType corev1.SecretType
+	switch secretType {
+	case domain.K8sSecretTypeTLS:
+		k8sSecretType = corev1.SecretTypeTLS
+	case domain.K8sSecretTypeOpaque:
+		k8sSecretType = corev1.SecretTypeOpaque
+	default:
+		return fmt.Errorf("unsupported secret type: %s", secretType)
+	}
+
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+			Labels: map[string]string{
+				"managed-by": "dx",
+			},
+		},
+		Type: k8sSecretType,
+		Data: data,
+	}
+
+	existing, err := k.clientSet.CoreV1().Secrets(namespace).Get(
+		context.Background(), name, metav1.GetOptions{},
+	)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			_, err = k.clientSet.CoreV1().Secrets(namespace).Create(
+				context.Background(), secret, metav1.CreateOptions{},
+			)
+			if err != nil {
+				return fmt.Errorf("failed to create secret %s: %w", name, err)
+			}
+			return nil
+		}
+		return fmt.Errorf("failed to get secret %s: %w", name, err)
+	}
+
+	if existing.Labels["managed-by"] != "dx" {
+		return fmt.Errorf("secret '%s' exists but is not managed by DX; refusing to overwrite", name)
+	}
+
+	existing.Type = k8sSecretType
+	existing.Data = data
+
+	_, err = k.clientSet.CoreV1().Secrets(namespace).Update(
+		context.Background(), existing, metav1.UpdateOptions{},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update secret %s: %w", name, err)
+	}
+	return nil
+}
+
+// DeleteSecret deletes a Kubernetes secret by name.
+// Only deletes secrets with the managed-by=dx label. Returns nil if the secret does not exist.
+func (k *Kubernetes) DeleteSecret(name string) error {
+	namespace := k.getCurrentNamespace()
+	existing, err := k.clientSet.CoreV1().Secrets(namespace).Get(
+		context.Background(), name, metav1.GetOptions{},
+	)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil
+		}
+		return fmt.Errorf("failed to get secret %s: %w", name, err)
+	}
+
+	if existing.Labels["managed-by"] != "dx" {
+		return fmt.Errorf("secret '%s' exists but is not managed by DX; refusing to delete", name)
+	}
+
+	err = k.clientSet.CoreV1().Secrets(namespace).Delete(
+		context.Background(), name, metav1.DeleteOptions{},
+	)
+	if err != nil {
+		return fmt.Errorf("failed to delete secret %s: %w", name, err)
+	}
+	return nil
 }
 
 // validateHelmArgs checks that user-provided helm args don't contain dangerous flags.
