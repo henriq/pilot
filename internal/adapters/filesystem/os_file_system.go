@@ -154,7 +154,7 @@ func (f *OsFileSystem) ReadFile(path string) ([]byte, error) {
 		return nil, err
 	}
 
-	return os.ReadFile(validPath)
+	return os.ReadFile(validPath) //nolint:gosec // path validated by validatePath()
 }
 
 func (f *OsFileSystem) WriteFile(path string, content []byte, accessMode ports.AccessMode) error {

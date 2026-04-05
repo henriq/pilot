@@ -61,7 +61,7 @@ func NewTrackerWithVerb(names []string, verb string) *Tracker {
 	}
 
 	_, noColor := os.LookupEnv("NO_COLOR")
-	isTTY := term.IsTerminal(int(os.Stdout.Fd()))
+	isTTY := term.IsTerminal(int(os.Stdout.Fd())) //nolint:gosec // safe fd conversion
 	caps := detectCapabilities()
 
 	return &Tracker{
@@ -93,7 +93,7 @@ func NewTrackerWithInfoAndVerb(names []string, infos []string, verb string) *Tra
 	}
 
 	_, noColor := os.LookupEnv("NO_COLOR")
-	isTTY := term.IsTerminal(int(os.Stdout.Fd()))
+	isTTY := term.IsTerminal(int(os.Stdout.Fd())) //nolint:gosec // safe fd conversion
 	caps := detectCapabilities()
 
 	return &Tracker{

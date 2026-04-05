@@ -208,9 +208,7 @@ func buildKustomization(patches []ports.Patch) (Kustomization, []PatchFile, erro
 // The patch includes apiVersion, kind, and a placeholder name for kustomize compatibility.
 func buildStrategicMergePatch(target ports.PatchTarget, op ports.PatchOperation) ([]byte, error) {
 	path := op.Path
-	if strings.HasPrefix(path, "/") {
-		path = path[1:]
-	}
+	path = strings.TrimPrefix(path, "/")
 
 	parts := strings.Split(path, "/")
 	for i, part := range parts {

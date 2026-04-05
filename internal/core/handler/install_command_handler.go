@@ -174,7 +174,7 @@ func (h *InstallCommandHandler) Handle(services []string, selectedProfile string
 			output.Bold(fmt.Sprintf("http://dev-proxy.%s.localhost", configContext.Name))))
 		// Intentionally displayed to the user for local dev-proxy access.
 		// Uses WriteString to avoid CodeQL go/clear-text-logging false positive.
-		os.Stderr.WriteString("  " + output.SymbolArrow + " " + output.Secondary("password: "+devProxyPassword) + "\n")
+		os.Stderr.WriteString("  " + output.SymbolArrow + " " + output.Secondary("password: "+devProxyPassword) + "\n") //nolint:errcheck,gosec // intentional stderr output for local dev-proxy password
 	}
 
 	return nil

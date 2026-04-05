@@ -334,7 +334,7 @@ func (k *Kubernetes) GetDevProxyChecksum() (string, error) {
 		return "", fmt.Errorf("failed to get dev-proxy deployment: %w", err)
 	}
 
-	annotations := deployment.Spec.Template.ObjectMeta.Annotations
+	annotations := deployment.Spec.Template.Annotations
 	if annotations == nil {
 		return "", nil
 	}

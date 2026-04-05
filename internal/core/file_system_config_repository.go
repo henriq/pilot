@@ -143,14 +143,14 @@ func (c *FileSystemConfigRepository) LoadConfig() (*domain.Config, error) {
 		return nil, fmt.Errorf("failed to get user home directory: %v", err)
 	}
 
-	for i, _ := range config.Contexts {
+	for i := range config.Contexts {
 		context := &config.Contexts[i]
 		if context.Import != nil {
 			// Import paths are user-specified and may point to any location on the filesystem.
 			// This is intentional - users may want to import shared config from project directories.
 			// We use os.ReadFile directly since the restricted FileSystem is only for ~/.dx/ paths.
 			importPath := expandImportPath(*context.Import, home)
-			data, err := os.ReadFile(importPath)
+			data, err := os.ReadFile(importPath) //nolint:gosec // import paths intentionally unrestricted per design
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "WARN: failed to read import file %s: %v\n", importPath, err)
 			} else {
@@ -163,19 +163,19 @@ func (c *FileSystemConfigRepository) LoadConfig() (*domain.Config, error) {
 			}
 		}
 
-		for j, _ := range context.Services {
+		for j := range context.Services {
 			service := &context.Services[j]
-			if service.Profiles == nil || len(service.Profiles) == 0 {
+			if len(service.Profiles) == 0 {
 				service.Profiles = []string{"default"}
 			}
 			if !slices.Contains(service.Profiles, "all") {
 				service.Profiles = append(service.Profiles, "all")
 			}
 			hasher := sha256.New()
-			hasher.Write([]byte(fmt.Sprintf("%s-%s", service.HelmRepoPath, service.HelmBranch)))
+			fmt.Fprintf(hasher, "%s-%s", service.HelmRepoPath, service.HelmBranch)
 			hashedName := fmt.Sprintf("%x", hasher.Sum(nil))[:12]
 			service.HelmPath = filepath.Join(home, ".dx", context.Name, "charts", hashedName)
-			for k, _ := range context.Services[j].DockerImages {
+			for k := range context.Services[j].DockerImages {
 				image := &config.Contexts[i].Services[j].DockerImages[k]
 				if image.GitRepoPath == "" {
 					image.GitRepoPath = service.GitRepoPath
@@ -185,13 +185,13 @@ func (c *FileSystemConfigRepository) LoadConfig() (*domain.Config, error) {
 				}
 
 				hasher := sha256.New()
-				hasher.Write([]byte(fmt.Sprintf("%s-%s", image.GitRepoPath, image.GitRef)))
+				fmt.Fprintf(hasher, "%s-%s", image.GitRepoPath, image.GitRef)
 				hashedName = fmt.Sprintf("%x", hasher.Sum(nil))[:12]
 				image.Path = filepath.Join(home, ".dx", context.Name, service.Name, hashedName)
 			}
 			if service.GitRepoPath != "" && service.GitRef != "" {
 				hasher := sha256.New()
-				hasher.Write([]byte(fmt.Sprintf("%s-%s", service.GitRepoPath, service.GitRef)))
+				fmt.Fprintf(hasher, "%s-%s", service.GitRepoPath, service.GitRef)
 				hashedName = fmt.Sprintf("%x", hasher.Sum(nil))[:12]
 				service.Path = filepath.Join(home, ".dx", context.Name, service.Name, hashedName)
 			}

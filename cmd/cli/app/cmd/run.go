@@ -59,7 +59,7 @@ func ScriptArgsValidator(cmd *cobra.Command, args []string) error {
 
 	for _, wantedScriptName := range args {
 		var foundScript bool
-		for scriptName, _ := range configContext.Scripts {
+		for scriptName := range configContext.Scripts {
 			if wantedScriptName == scriptName {
 				foundScript = true
 				break
@@ -87,7 +87,7 @@ func ScriptArgsCompletion(
 		return nil, cobra.ShellCompDirectiveError
 	}
 	var matchingScripts []string
-	for scriptName, _ := range configContext.Scripts {
+	for scriptName := range configContext.Scripts {
 		matchingScripts = append(matchingScripts, scriptName)
 	}
 

@@ -47,5 +47,5 @@ func (t *TerminalInput) ReadLine(prompt string) (string, error) {
 
 // IsTerminal returns true if stdin is connected to a terminal.
 func (t *TerminalInput) IsTerminal() bool {
-	return term.IsTerminal(int(os.Stdin.Fd()))
+	return term.IsTerminal(int(os.Stdin.Fd())) //nolint:gosec // safe fd conversion
 }

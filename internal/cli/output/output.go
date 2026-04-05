@@ -14,7 +14,7 @@ func ColorsEnabled() bool {
 	if noColor {
 		return false
 	}
-	return term.IsTerminal(int(os.Stdout.Fd()))
+	return term.IsTerminal(int(os.Stdout.Fd())) //nolint:gosec // safe fd conversion
 }
 
 // ANSI color codes
