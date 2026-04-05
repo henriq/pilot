@@ -6,7 +6,7 @@ require (
 	github.com/google/wire v0.7.0
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
-	github.com/zalando/go-keyring v0.2.6
+	github.com/zalando/go-keyring v0.2.8
 	golang.org/x/sync v0.19.0
 	golang.org/x/sys v0.39.0
 	golang.org/x/term v0.38.0
@@ -16,7 +16,6 @@ require (
 )
 
 require (
-	al.essio.dev/pkg/shellescape v1.6.0 // indirect
 	github.com/danieljoos/wincred v1.2.3 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/emicklei/go-restful/v3 v3.13.0 // indirect
@@ -36,7 +35,7 @@ require (
 	github.com/go-openapi/swag/stringutils v0.25.4 // indirect
 	github.com/go-openapi/swag/typeutils v0.25.4 // indirect
 	github.com/go-openapi/swag/yamlutils v0.25.4 // indirect
-	github.com/godbus/dbus/v5 v5.2.1 // indirect
+	github.com/godbus/dbus/v5 v5.2.2 // indirect
 	github.com/google/gnostic-models v0.7.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
