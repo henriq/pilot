@@ -14,16 +14,16 @@ import (
 
 // chartWrapperMockFileSystem implements ports.FileSystem for testing
 type chartWrapperMockFileSystem struct {
-	writtenFiles      map[string][]byte
+	writtenFiles       map[string][]byte
 	writtenAccessModes map[string]ports.AccessMode
-	createdDirs       map[string]bool
-	removedPaths      map[string]bool
-	writeError        error
-	writeErrorFunc    func(path string) error
-	mkdirAllError     error
-	removeAllError    error
-	homeDirResult     string
-	homeDirError      error
+	createdDirs        map[string]bool
+	removedPaths       map[string]bool
+	writeError         error
+	writeErrorFunc     func(path string) error
+	mkdirAllError      error
+	removeAllError     error
+	homeDirResult      string
+	homeDirError       error
 }
 
 func newChartWrapperMockFileSystem() *chartWrapperMockFileSystem {

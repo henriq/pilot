@@ -579,7 +579,7 @@ func TestOverlayCertificate_PartialOverride(t *testing.T) {
 	overlayCertificate(&base, &overlay)
 
 	assert.Equal(t, domain.CertificateTypeClient, base.Type)
-	assert.Equal(t, []string{"base.localhost"}, base.DNSNames) // kept
+	assert.Equal(t, []string{"base.localhost"}, base.DNSNames)    // kept
 	assert.Equal(t, domain.K8sSecretTypeTLS, base.K8sSecret.Type) // kept
 }
 

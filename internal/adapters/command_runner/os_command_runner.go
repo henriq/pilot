@@ -21,7 +21,7 @@ func (r *OsCommandRunner) Run(name string, args ...string) ([]byte, error) {
 }
 
 func (r *OsCommandRunner) RunWithEnv(name string, env []string, args ...string) ([]byte, error) {
-	cmd := exec.Command(name, args...) //nolint:gosec // CommandRunner adapter — executing variable commands is its purpose
+	cmd := exec.Command(name, args...)     //nolint:gosec // CommandRunner adapter — executing variable commands is its purpose
 	cmd.Env = append(os.Environ(), env...) // Extend environment instead of replacing
 	return cmd.CombinedOutput()
 }

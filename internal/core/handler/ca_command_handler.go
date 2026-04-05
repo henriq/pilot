@@ -314,4 +314,3 @@ func formatCertStatus(s core.CertificateStatus) string {
 		),
 	)
 }
-
