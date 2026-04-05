@@ -248,7 +248,6 @@ func TestCertificateProvisioner_ReissueCertificates(t *testing.T) {
 	mockKeyring.On("HasKey", "ctx-ca-key").Return(true, nil)
 	mockKeyring.On("GetKey", "ctx-ca-key").Return("test-passphrase", nil)
 
-
 	issued := &domain.IssuedCertificate{
 		CertPEM: []byte("cert-pem"),
 		KeyPEM:  []byte("key-pem"),
@@ -569,7 +568,6 @@ func TestCertificateProvisioner_ReissueCertificates_CreateSecretError(t *testing
 
 	mockKeyring.On("HasKey", "ctx-ca-key").Return(true, nil)
 	mockKeyring.On("GetKey", "ctx-ca-key").Return("pass", nil)
-
 
 	issued := &domain.IssuedCertificate{CertPEM: []byte("c"), KeyPEM: []byte("k"), CAPEM: []byte("a")}
 	mockCA.On("IssueCertificate", mock.Anything, mock.Anything, mock.Anything).Return(issued, nil)
