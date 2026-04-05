@@ -14,25 +14,27 @@ import (
 
 // chartWrapperMockFileSystem implements ports.FileSystem for testing
 type chartWrapperMockFileSystem struct {
-	writtenFiles   map[string][]byte
-	createdDirs    map[string]bool
-	removedPaths   map[string]bool
-	writeError     error
-	writeErrorFunc func(path string) error
-	mkdirAllError  error
-	removeAllError error
-	homeDirResult  string
-	homeDirError   error
+	writtenFiles      map[string][]byte
+	writtenAccessModes map[string]ports.AccessMode
+	createdDirs       map[string]bool
+	removedPaths      map[string]bool
+	writeError        error
+	writeErrorFunc    func(path string) error
+	mkdirAllError     error
+	removeAllError    error
+	homeDirResult     string
+	homeDirError      error
 }
 
 func newChartWrapperMockFileSystem() *chartWrapperMockFileSystem {
 	// Get actual home dir for default behavior
 	home, _ := os.UserHomeDir()
 	return &chartWrapperMockFileSystem{
-		writtenFiles:  make(map[string][]byte),
-		createdDirs:   make(map[string]bool),
-		removedPaths:  make(map[string]bool),
-		homeDirResult: home,
+		writtenFiles:       make(map[string][]byte),
+		writtenAccessModes: make(map[string]ports.AccessMode),
+		createdDirs:        make(map[string]bool),
+		removedPaths:       make(map[string]bool),
+		homeDirResult:      home,
 	}
 }
 
@@ -46,6 +48,7 @@ func (m *chartWrapperMockFileSystem) WriteFile(path string, content []byte, acce
 		return m.writeError
 	}
 	m.writtenFiles[path] = content
+	m.writtenAccessModes[path] = accessMode
 	return nil
 }
 
@@ -284,7 +287,6 @@ func TestChartWrapper_Cleanup_Success(t *testing.T) {
 	err := wrapper.Cleanup("test-context", "test-release")
 	require.NoError(t, err)
 
-	// Verify RemoveAll was called with correct path
 	expectedPath := filepath.Join("~", ".dx", "test-context", "wrapper-charts", "test-release")
 	assert.True(t, fs.removedPaths[expectedPath], "wrapper chart directory should be removed")
 }
@@ -379,9 +381,9 @@ func TestChartWrapper_Cleanup_RemoveAllError(t *testing.T) {
 	fs.removeAllError = errors.New("directory not empty")
 	wrapper := ProvideChartWrapper(fs)
 
+	// Cleanup is best-effort — RemoveAll errors are ignored
 	err := wrapper.Cleanup("test-context", "test-release")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to remove wrapper chart directory")
+	assert.NoError(t, err)
 }
 
 func TestChartWrapper_Generate_InvalidContextName(t *testing.T) {
@@ -470,6 +472,28 @@ func TestChartWrapper_Cleanup_InvalidContextName(t *testing.T) {
 			assert.Contains(t, err.Error(), "invalid context name")
 		})
 	}
+}
+
+func TestChartWrapper_Generate_ManifestsPermissions(t *testing.T) {
+	fs := newChartWrapperMockFileSystem()
+	wrapper := ProvideChartWrapper(fs)
+
+	config := WrapperChartConfig{
+		ReleaseName:      "test-release",
+		ContextName:      "test-context",
+		PatchedManifests: []byte("apiVersion: v1\nkind: Secret\n"),
+	}
+
+	_, err := wrapper.Generate(config)
+	require.NoError(t, err)
+
+	tildePath := filepath.Join("~", ".dx", "test-context", "wrapper-charts", "test-release")
+
+	manifestsPath := filepath.Join(tildePath, "templates", "manifests.yaml")
+	assert.Equal(t, ports.AccessMode(ports.ReadWrite), fs.writtenAccessModes[manifestsPath], "manifests.yaml should be owner-only readable")
+
+	chartYamlPath := filepath.Join(tildePath, "Chart.yaml")
+	assert.Equal(t, ports.AccessMode(ports.ReadAllWriteOwner), fs.writtenAccessModes[chartYamlPath], "Chart.yaml uses standard permissions (no secrets)")
 }
 
 func TestGenerateChartYaml_WithAnnotations(t *testing.T) {

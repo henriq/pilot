@@ -66,7 +66,7 @@ func (c *ChartWrapper) Generate(config WrapperChartConfig) (string, error) {
 	if err := c.fileSystem.WriteFile(
 		filepath.Join(templatesPath, "manifests.yaml"),
 		config.PatchedManifests,
-		ports.ReadAllWriteOwner,
+		ports.ReadWrite,
 	); err != nil {
 		return "", fmt.Errorf("failed to write manifests: %w", err)
 	}
@@ -91,12 +91,7 @@ func (c *ChartWrapper) Cleanup(contextName, releaseName string) error {
 		return fmt.Errorf("invalid context name: %s", contextName)
 	}
 
-	basePath := filepath.Join("~", ".dx", safeContext, "wrapper-charts", safeName)
-
-	// Remove the wrapper chart directory
-	if err := c.fileSystem.RemoveAll(basePath); err != nil {
-		return fmt.Errorf("failed to remove wrapper chart directory: %w", err)
-	}
+	_ = c.fileSystem.RemoveAll(filepath.Join("~", ".dx", safeContext, "wrapper-charts", safeName))
 
 	return nil
 }

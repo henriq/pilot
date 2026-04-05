@@ -174,6 +174,7 @@ func (k *Kubernetes) InstallService(service *domain.Service) error {
 	}
 
 	// 5. Generate wrapper chart
+	defer k.cleanupBuildArtifacts(contextName, service.Name)
 	wrapperPath, err := k.chartWrapper.Generate(core.WrapperChartConfig{
 		ReleaseName:       service.Name,
 		ContextName:       contextName,
@@ -270,6 +271,7 @@ func (k *Kubernetes) InstallDevProxy(service *domain.Service) error {
 	}
 
 	// Generate wrapper chart without patches
+	defer k.cleanupBuildArtifacts(contextName, service.Name)
 	wrapperPath, err := k.chartWrapper.Generate(core.WrapperChartConfig{
 		ReleaseName:       service.Name,
 		ContextName:       contextName,
@@ -300,8 +302,14 @@ func (k *Kubernetes) UninstallService(service *domain.Service) error {
 	}
 
 	// Ignore cleanup errors - the service was already uninstalled
-	_ = k.chartWrapper.Cleanup(contextName, service.Name)
+	k.cleanupBuildArtifacts(contextName, service.Name)
 	return nil
+}
+
+// cleanupBuildArtifacts removes the wrapper chart and kustomize work directory for a service.
+func (k *Kubernetes) cleanupBuildArtifacts(contextName, serviceName string) {
+	_ = k.chartWrapper.Cleanup(contextName, serviceName)
+	_ = k.fileService.RemoveAll(filepath.Join("~", ".dx", contextName, "kustomize", serviceName))
 }
 
 func (k *Kubernetes) HasDeployedServices() (bool, error) {
