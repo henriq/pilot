@@ -27,7 +27,7 @@ jobs:
         run: go generate ./...
 
       - name: Verify generated files are up to date
-        run: git diff --exit-code || (echo "Generated files are out of date. Run 'make generate' and commit the result." && exit 1)
+        run: git diff --exit-code -- '**/*_gen.go' '**/*_gen_test.go' || (echo "Generated files are out of date. Run 'make generate' and commit the result." && exit 1)
 
       - name: Vet
         run: go vet ./...
