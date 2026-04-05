@@ -46,7 +46,7 @@ func NewConcurrentTracker(names []string, verb string) *ConcurrentTracker {
 	}
 
 	_, noColor := os.LookupEnv("NO_COLOR")
-	isTTY := term.IsTerminal(int(os.Stdout.Fd()))
+	isTTY := term.IsTerminal(int(os.Stdout.Fd())) //nolint:gosec // safe fd conversion
 	caps := detectCapabilities()
 
 	return &ConcurrentTracker{

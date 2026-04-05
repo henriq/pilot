@@ -1,6 +1,6 @@
 module dx
 
-go 1.25.0
+go 1.25.8
 
 require (
 	github.com/google/wire v0.7.0

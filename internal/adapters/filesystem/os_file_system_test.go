@@ -21,7 +21,7 @@ func testDir(t *testing.T) string {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		t.Fatalf("failed to create test dir: %v", err)
 	}
-	t.Cleanup(func() { os.RemoveAll(dir) })
+	t.Cleanup(func() { os.RemoveAll(dir) }) //nolint:errcheck,gosec // cleanup
 	return dir
 }
 
@@ -250,16 +250,16 @@ func TestOsFileSystem_ReadWriteConfigFile(t *testing.T) {
 	configFile := filepath.Join(home, ".dx-config.yaml")
 
 	// Check if config file exists and back it up
-	existingContent, existsErr := os.ReadFile(configFile)
+	existingContent, existsErr := os.ReadFile(configFile) //nolint:gosec // test reading known config path
 	configExists := existsErr == nil
 
 	if configExists {
 		t.Cleanup(func() {
-			os.WriteFile(configFile, existingContent, 0600)
+			os.WriteFile(configFile, existingContent, 0600) //nolint:errcheck,gosec // cleanup
 		})
 	} else {
 		t.Cleanup(func() {
-			os.Remove(configFile)
+			os.Remove(configFile) //nolint:errcheck,gosec // cleanup
 		})
 	}
 

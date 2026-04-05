@@ -32,7 +32,7 @@ func TestAesGcmEncryptor_DecryptReturnsPlainText(t *testing.T) {
 	sut := ProvideAesGcmEncryptor()
 	plainText := []byte(uuid.NewUUID())
 	key, _ := sut.CreateKey()
-	cipherText, err := sut.Encrypt(plainText, key)
+	cipherText, _ := sut.Encrypt(plainText, key)
 
 	result, err := sut.Decrypt(cipherText, key)
 
@@ -45,7 +45,7 @@ func TestAesGcmEncryptor_DecryptWithWrongKeyReturnsError(t *testing.T) {
 	plainText := []byte(uuid.NewUUID())
 	key1, _ := sut.CreateKey()
 	key2, _ := sut.CreateKey()
-	cipherText, err := sut.Encrypt(plainText, key1)
+	cipherText, _ := sut.Encrypt(plainText, key1)
 	result, err := sut.Decrypt(cipherText, key2)
 
 	assert.NotNil(t, err)

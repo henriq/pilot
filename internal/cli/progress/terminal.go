@@ -16,7 +16,7 @@ type terminalCapabilities struct {
 // detectCapabilities returns the terminal capabilities for the current environment.
 // It is safe to call multiple times; on Windows, SetConsoleMode is idempotent.
 func detectCapabilities() terminalCapabilities {
-	width, _, err := term.GetSize(int(os.Stdout.Fd()))
+	width, _, err := term.GetSize(int(os.Stdout.Fd())) //nolint:gosec // safe fd conversion
 	if err != nil || width <= 0 {
 		width = 80 // fallback default
 	}

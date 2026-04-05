@@ -106,8 +106,8 @@ func (c *ChartWrapper) generateChartYaml(config WrapperChartConfig) string {
 	var sb strings.Builder
 
 	sb.WriteString("apiVersion: v2\n")
-	sb.WriteString(fmt.Sprintf("name: %s-wrapper\n", config.ReleaseName))
-	sb.WriteString(fmt.Sprintf("description: Wrapper chart for %s with dx patches applied\n", config.ReleaseName))
+	fmt.Fprintf(&sb, "name: %s-wrapper\n", config.ReleaseName)
+	fmt.Fprintf(&sb, "description: Wrapper chart for %s with dx patches applied\n", config.ReleaseName)
 	sb.WriteString("type: application\n")
 	sb.WriteString("version: 1.0.0\n")
 	sb.WriteString("appVersion: \"1.0.0\"\n")
@@ -116,10 +116,10 @@ func (c *ChartWrapper) generateChartYaml(config WrapperChartConfig) string {
 	if config.OriginalChartName != "" || config.OriginalChartPath != "" {
 		sb.WriteString("annotations:\n")
 		if config.OriginalChartName != "" {
-			sb.WriteString(fmt.Sprintf("  dx.wrapped-chart: \"%s\"\n", escapeYamlString(config.OriginalChartName)))
+			fmt.Fprintf(&sb, "  dx.wrapped-chart: \"%s\"\n", escapeYamlString(config.OriginalChartName))
 		}
 		if config.OriginalChartPath != "" {
-			sb.WriteString(fmt.Sprintf("  dx.wrapped-path: \"%s\"\n", escapeYamlString(config.OriginalChartPath)))
+			fmt.Fprintf(&sb, "  dx.wrapped-path: \"%s\"\n", escapeYamlString(config.OriginalChartPath))
 		}
 	}
 

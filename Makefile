@@ -1,4 +1,4 @@
-.PHONY: all build build-windows generate clean test fmt vet help
+.PHONY: all build build-windows generate clean test fmt vet lint help
 
 # Build output directory
 BUILD_DIR := bin
@@ -29,6 +29,10 @@ fmt:
 vet:
 	go vet ./...
 
+# Run linters (matches CI)
+lint: vet
+	golangci-lint run ./...
+
 # Clean build artifacts
 clean:
 	rm -rf $(BUILD_DIR)
@@ -45,5 +49,6 @@ help:
 	@echo "  test           - Run all tests"
 	@echo "  fmt            - Format Go code"
 	@echo "  vet            - Run go vet"
+	@echo "  lint           - Run go vet and golangci-lint"
 	@echo "  clean          - Remove $(BUILD_DIR)/ directory"
 	@echo "  all            - Clean, generate, test, and build"

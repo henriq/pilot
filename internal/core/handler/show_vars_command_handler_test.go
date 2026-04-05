@@ -151,7 +151,7 @@ func TestShowVarsCommandHandler_Handle_SortedOutput(t *testing.T) {
 
 	err := sut.Handle()
 
-	w.Close()
+	w.Close() //nolint:errcheck,gosec // test pipe close
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
