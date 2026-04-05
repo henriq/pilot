@@ -384,8 +384,32 @@ func overlayService(baseService domain.Service, overlayService domain.Service) d
 	if overlayService.RemoteImages != nil {
 		baseService.RemoteImages = append(baseService.RemoteImages, overlayService.RemoteImages...)
 	}
+	if overlayService.Certificates != nil {
+		for _, overlayCert := range overlayService.Certificates {
+			for i, baseCert := range baseService.Certificates {
+				if baseCert.K8sSecret.Name == overlayCert.K8sSecret.Name {
+					overlayCertificate(&baseService.Certificates[i], &overlayCert)
+				}
+			}
+		}
+	}
 
 	return baseService
+}
+
+func overlayCertificate(baseCert *domain.CertificateRequest, overlayCert *domain.CertificateRequest) {
+	if overlayCert.Type != "" {
+		baseCert.Type = overlayCert.Type
+	}
+	if overlayCert.DNSNames != nil {
+		baseCert.DNSNames = overlayCert.DNSNames
+	}
+	if overlayCert.K8sSecret.Type != "" {
+		baseCert.K8sSecret.Type = overlayCert.K8sSecret.Type
+	}
+	if overlayCert.K8sSecret.Keys != nil {
+		baseCert.K8sSecret.Keys = overlayCert.K8sSecret.Keys
+	}
 }
 
 func overlayDockerImage(baseImage *domain.DockerImage, overlayImage *domain.DockerImage) {

@@ -7,6 +7,7 @@
 package app
 
 import (
+	"dx/internal/adapters/certificate_authority"
 	"dx/internal/adapters/command_runner"
 	"dx/internal/adapters/container_image_repository"
 	"dx/internal/adapters/container_orchestrator"
@@ -79,7 +80,9 @@ func InjectInstallCommandHandler() (handler.InstallCommandHandler, error) {
 	environmentEnsurer := core.ProvideEnvironmentEnsurer(fileSystemConfigRepository, kubernetes)
 	gitClient := scm.ProvideGitClient(osCommandRunner, osFileSystem)
 	git := scm.ProvideGit(gitClient, osFileSystem)
-	installCommandHandler := handler.ProvideInstallCommandHandler(fileSystemConfigRepository, dockerRepository, kubernetes, devProxyManager, environmentEnsurer, git)
+	x509CertificateAuthority := certificate_authority.ProvideX509CertificateAuthority(osFileSystem, aesGcmEncryptor)
+	certificateProvisioner := core.ProvideCertificateProvisioner(x509CertificateAuthority, kubernetes, portsKeyring, aesGcmEncryptor)
+	installCommandHandler := handler.ProvideInstallCommandHandler(fileSystemConfigRepository, dockerRepository, kubernetes, devProxyManager, environmentEnsurer, git, certificateProvisioner)
 	return installCommandHandler, nil
 }
 
@@ -213,12 +216,35 @@ func InjectPullCommandHandler() (handler.PullCommandHandler, error) {
 	return pullCommandHandler, nil
 }
 
+func InjectCACommandHandler() (handler.CACommandHandler, error) {
+	osFileSystem := filesystem.ProvideOsFileSystem()
+	portsKeyring := keyring.ProvideZalandoKeyring()
+	aesGcmEncryptor := symmetric_encryptor.ProvideAesGcmEncryptor()
+	secretsRepository := core.ProvideEncryptedFileSecretRepository(osFileSystem, portsKeyring, aesGcmEncryptor)
+	portsTemplater := templater.ProvideTextTemplater()
+	fileSystemConfigRepository := core.ProvideFileSystemConfigRepository(osFileSystem, secretsRepository, portsTemplater)
+	x509CertificateAuthority := certificate_authority.ProvideX509CertificateAuthority(osFileSystem, aesGcmEncryptor)
+	osCommandRunner := command_runner.ProvideOsCommandRunner()
+	helmClient := container_orchestrator.ProvideHelmClient(osCommandRunner)
+	client := kustomize.ProvideKustomizeClient(osCommandRunner, osFileSystem)
+	chartWrapper := core.ProvideChartWrapper(osFileSystem)
+	kubernetes, err := container_orchestrator.ProvideKubernetes(fileSystemConfigRepository, secretsRepository, portsTemplater, osFileSystem, helmClient, client, chartWrapper)
+	if err != nil {
+		return handler.CACommandHandler{}, err
+	}
+	certificateProvisioner := core.ProvideCertificateProvisioner(x509CertificateAuthority, kubernetes, portsKeyring, aesGcmEncryptor)
+	terminalInput := terminal.ProvideTerminalInput()
+	environmentEnsurer := core.ProvideEnvironmentEnsurer(fileSystemConfigRepository, kubernetes)
+	caCommandHandler := handler.ProvideCACommandHandler(fileSystemConfigRepository, x509CertificateAuthority, certificateProvisioner, terminalInput, environmentEnsurer)
+	return caCommandHandler, nil
+}
+
 // wire.go:
 
-var Adapter = wire.NewSet(command_runner.ProvideOsCommandRunner, wire.Bind(new(ports.CommandRunner), new(*command_runner.OsCommandRunner)), scm.ProvideGitClient, scm.ProvideGit, wire.Bind(new(ports.Scm), new(*scm.Git)), container_image_repository.ProvideDockerRepository, wire.Bind(new(ports.ContainerImageRepository), new(*container_image_repository.DockerRepository)), container_orchestrator.ProvideHelmClient, wire.Bind(new(ports.HelmClient), new(*container_orchestrator.HelmClient)), kustomize.ProvideKustomizeClient, wire.Bind(new(ports.KustomizeClient), new(*kustomize.Client)), container_orchestrator.ProvideKubernetes, wire.Bind(new(ports.ContainerOrchestrator), new(*container_orchestrator.Kubernetes)), filesystem.ProvideOsFileSystem, wire.Bind(new(ports.FileSystem), new(*filesystem.OsFileSystem)), keyring.ProvideZalandoKeyring, symmetric_encryptor.ProvideAesGcmEncryptor, wire.Bind(new(ports.SymmetricEncryptor), new(*symmetric_encryptor.AesGcmEncryptor)), templater.ProvideTextTemplater, terminal.ProvideTerminalInput, wire.Bind(new(ports.TerminalInput), new(*terminal.TerminalInput)))
+var Adapter = wire.NewSet(command_runner.ProvideOsCommandRunner, wire.Bind(new(ports.CommandRunner), new(*command_runner.OsCommandRunner)), scm.ProvideGitClient, scm.ProvideGit, wire.Bind(new(ports.Scm), new(*scm.Git)), container_image_repository.ProvideDockerRepository, wire.Bind(new(ports.ContainerImageRepository), new(*container_image_repository.DockerRepository)), container_orchestrator.ProvideHelmClient, wire.Bind(new(ports.HelmClient), new(*container_orchestrator.HelmClient)), kustomize.ProvideKustomizeClient, wire.Bind(new(ports.KustomizeClient), new(*kustomize.Client)), container_orchestrator.ProvideKubernetes, wire.Bind(new(ports.ContainerOrchestrator), new(*container_orchestrator.Kubernetes)), wire.Bind(new(ports.SecretStore), new(*container_orchestrator.Kubernetes)), filesystem.ProvideOsFileSystem, wire.Bind(new(ports.FileSystem), new(*filesystem.OsFileSystem)), keyring.ProvideZalandoKeyring, symmetric_encryptor.ProvideAesGcmEncryptor, wire.Bind(new(ports.SymmetricEncryptor), new(*symmetric_encryptor.AesGcmEncryptor)), templater.ProvideTextTemplater, terminal.ProvideTerminalInput, wire.Bind(new(ports.TerminalInput), new(*terminal.TerminalInput)), certificate_authority.ProvideX509CertificateAuthority, wire.Bind(new(ports.CertificateAuthority), new(*certificate_authority.X509CertificateAuthority)))
 
 // CoreSet provides domain/core dependencies
-var CoreSet = wire.NewSet(core.ProvideFileSystemConfigRepository, wire.Bind(new(core.ConfigRepository), new(*core.FileSystemConfigRepository)), core.ProvideDevProxyConfigGenerator, core.ProvideDevProxyManager, core.ProvideEncryptedFileSecretRepository, core.ProvideEnvironmentEnsurer, core.ProvideChartWrapper)
+var CoreSet = wire.NewSet(core.ProvideFileSystemConfigRepository, wire.Bind(new(core.ConfigRepository), new(*core.FileSystemConfigRepository)), core.ProvideDevProxyConfigGenerator, core.ProvideDevProxyManager, core.ProvideEncryptedFileSecretRepository, core.ProvideEnvironmentEnsurer, core.ProvideChartWrapper, core.ProvideCertificateProvisioner)
 
 // CommandHandlerSet combines all sets needed for command handlers
 var CommandHandlerSet = wire.NewSet(

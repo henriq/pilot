@@ -2,9 +2,12 @@ package testutil
 
 import (
 	"dx/internal/core/domain"
+	"dx/internal/ports"
 
 	"github.com/stretchr/testify/mock"
 )
+
+var _ ports.ContainerOrchestrator = (*MockContainerOrchestrator)(nil)
 
 type MockContainerOrchestrator struct {
 	mock.Mock
@@ -15,13 +18,13 @@ func (m *MockContainerOrchestrator) CreateClusterEnvironmentKey() (string, error
 	return args.String(0), args.Error(1)
 }
 
-func (m *MockContainerOrchestrator) InstallService(service *domain.Service) error {
-	args := m.Called(service)
+func (m *MockContainerOrchestrator) InstallService(service *domain.Service, certificateSecrets []byte) error {
+	args := m.Called(service, certificateSecrets)
 	return args.Error(0)
 }
 
-func (m *MockContainerOrchestrator) InstallDevProxy(service *domain.Service) error {
-	args := m.Called(service)
+func (m *MockContainerOrchestrator) InstallDevProxy(service *domain.Service, certificateSecrets []byte) error {
+	args := m.Called(service, certificateSecrets)
 	return args.Error(0)
 }
 

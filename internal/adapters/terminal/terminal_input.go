@@ -26,7 +26,7 @@ func ProvideTerminalInput() *TerminalInput {
 // ReadPassword prompts for a password and returns the input without echoing to the terminal.
 func (t *TerminalInput) ReadPassword(prompt string) (string, error) {
 	fmt.Print(prompt)
-	password, err := term.ReadPassword(int(syscall.Stdin))
+	password, err := term.ReadPassword(syscall.Stdin)
 	fmt.Println() // Print newline after password input
 	if err != nil {
 		return "", fmt.Errorf("failed to read password: %w", err)

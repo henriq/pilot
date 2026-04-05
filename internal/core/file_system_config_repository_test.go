@@ -326,8 +326,8 @@ func TestCreateSecretsMap_ConflictingKeys_ReverseOrder(t *testing.T) {
 	// validated at write time by secret set/configure, but this test ensures
 	// createSecretsMap still handles legacy data gracefully.
 	secrets := []*domain.Secret{
-		{Key: "db.password", Value: "secret123"},    // Creates db as a map
-		{Key: "db", Value: "connection-string"},     // Overwrites db map with scalar
+		{Key: "db.password", Value: "secret123"}, // Creates db as a map
+		{Key: "db", Value: "connection-string"},  // Overwrites db map with scalar
 	}
 
 	result := createSecretsMap(secrets)
@@ -444,6 +444,143 @@ func TestOverlayService(t *testing.T) {
 	assert.Equal(t, "feature", result.GitRef)
 	assert.Equal(t, "git@example.com:base/repo.git", result.GitRepoPath)
 	assert.Equal(t, "main", result.HelmBranch)
+}
+
+func TestOverlayService_CertificatesMergedBySecretName(t *testing.T) {
+	base := domain.Service{
+		Name: "svc",
+		Certificates: []domain.CertificateRequest{
+			{
+				Type:     domain.CertificateTypeServer,
+				DNSNames: []string{"base.localhost"},
+				K8sSecret: domain.K8sSecretConfig{
+					Name: "cert-a",
+					Type: domain.K8sSecretTypeTLS,
+				},
+			},
+			{
+				Type:     domain.CertificateTypeServer,
+				DNSNames: []string{"other.localhost"},
+				K8sSecret: domain.K8sSecretConfig{
+					Name: "cert-b",
+					Type: domain.K8sSecretTypeTLS,
+				},
+			},
+		},
+	}
+
+	overlay := domain.Service{
+		Name: "svc",
+		Certificates: []domain.CertificateRequest{
+			{
+				// Override only DNSNames for cert-a
+				DNSNames: []string{"overlay.localhost", "extra.localhost"},
+				K8sSecret: domain.K8sSecretConfig{
+					Name: "cert-a",
+				},
+			},
+		},
+	}
+
+	result := overlayService(base, overlay)
+
+	require.Len(t, result.Certificates, 2)
+
+	// cert-a: DNSNames overridden, Type kept from base
+	assert.Equal(t, "cert-a", result.Certificates[0].K8sSecret.Name)
+	assert.Equal(t, []string{"overlay.localhost", "extra.localhost"}, result.Certificates[0].DNSNames)
+	assert.Equal(t, domain.CertificateTypeServer, result.Certificates[0].Type)
+	assert.Equal(t, domain.K8sSecretTypeTLS, result.Certificates[0].K8sSecret.Type)
+
+	// cert-b: unchanged
+	assert.Equal(t, "cert-b", result.Certificates[1].K8sSecret.Name)
+	assert.Equal(t, []string{"other.localhost"}, result.Certificates[1].DNSNames)
+}
+
+func TestOverlayService_CertificatesUnmatchedOverlayIgnored(t *testing.T) {
+	base := domain.Service{
+		Name: "svc",
+		Certificates: []domain.CertificateRequest{
+			{
+				Type:     domain.CertificateTypeServer,
+				DNSNames: []string{"base.localhost"},
+				K8sSecret: domain.K8sSecretConfig{
+					Name: "cert-a",
+					Type: domain.K8sSecretTypeTLS,
+				},
+			},
+		},
+	}
+
+	overlay := domain.Service{
+		Name: "svc",
+		Certificates: []domain.CertificateRequest{
+			{
+				DNSNames: []string{"new.localhost"},
+				K8sSecret: domain.K8sSecretConfig{
+					Name: "cert-unknown",
+				},
+			},
+		},
+	}
+
+	result := overlayService(base, overlay)
+
+	// Base certificate unchanged, unmatched overlay ignored
+	require.Len(t, result.Certificates, 1)
+	assert.Equal(t, "cert-a", result.Certificates[0].K8sSecret.Name)
+	assert.Equal(t, []string{"base.localhost"}, result.Certificates[0].DNSNames)
+}
+
+func TestOverlayService_CertificatesNilOverlayKeepsBase(t *testing.T) {
+	base := domain.Service{
+		Name: "svc",
+		Certificates: []domain.CertificateRequest{
+			{
+				Type:     domain.CertificateTypeServer,
+				DNSNames: []string{"base.localhost"},
+				K8sSecret: domain.K8sSecretConfig{
+					Name: "cert-a",
+					Type: domain.K8sSecretTypeTLS,
+				},
+			},
+		},
+	}
+
+	overlay := domain.Service{
+		Name: "svc",
+		// Certificates not set
+	}
+
+	result := overlayService(base, overlay)
+
+	require.Len(t, result.Certificates, 1)
+	assert.Equal(t, "cert-a", result.Certificates[0].K8sSecret.Name)
+	assert.Equal(t, []string{"base.localhost"}, result.Certificates[0].DNSNames)
+}
+
+func TestOverlayCertificate_PartialOverride(t *testing.T) {
+	base := domain.CertificateRequest{
+		Type:     domain.CertificateTypeServer,
+		DNSNames: []string{"base.localhost"},
+		K8sSecret: domain.K8sSecretConfig{
+			Name: "cert-a",
+			Type: domain.K8sSecretTypeTLS,
+		},
+	}
+
+	overlay := domain.CertificateRequest{
+		Type: domain.CertificateTypeClient,
+		K8sSecret: domain.K8sSecretConfig{
+			Name: "cert-a",
+		},
+	}
+
+	overlayCertificate(&base, &overlay)
+
+	assert.Equal(t, domain.CertificateTypeClient, base.Type)
+	assert.Equal(t, []string{"base.localhost"}, base.DNSNames) // kept
+	assert.Equal(t, domain.K8sSecretTypeTLS, base.K8sSecret.Type) // kept
 }
 
 func TestFileSystemConfigRepository_LoadConfig_CachesResult(t *testing.T) {

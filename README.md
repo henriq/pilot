@@ -64,7 +64,7 @@ dx context info              # Shows the mitmweb URL
 **How traffic flows:**
 
 1. DX patches Kubernetes services to route through a dev-proxy
-2. The proxy health-checks your local service
+2. The proxy health checks your local service
 3. Healthy? Traffic goes to your machine. Down? Falls back to the cluster pod
 4. With `--intercept-http`: all HTTP traffic is captured via mitmweb for inspection
 
@@ -130,12 +130,12 @@ dx context info
 
 ### Build and Deploy
 
-| Command | What it does |
-|---------|--------------|
-| `dx update [services...]` | Build images and deploy (most common) |
-| `dx build [services...]` | Build Docker images only |
-| `dx install [services...]` | Deploy to Kubernetes only |
-| `dx uninstall [services...]` | Remove services from Kubernetes |
+| Command                      | What it does                          |
+|------------------------------|---------------------------------------|
+| `dx update [services...]`    | Build images and deploy (most common) |
+| `dx build [services...]`     | Build Docker images only              |
+| `dx install [services...]`   | Deploy to Kubernetes only             |
+| `dx uninstall [services...]` | Remove services from Kubernetes       |
 
 All commands support:
 - **No arguments**: operates on the default profile
@@ -187,6 +187,27 @@ Use `--check` to validate without prompting:
 dx secret configure --check
 # Exit code 0: all secrets configured
 # Exit code 1: missing secrets (lists them)
+```
+
+### Manage Certificates
+
+DX can automatically issue TLS certificates for your services using a private certificate authority (CA) managed per context. Certificates are provisioned as Kubernetes secrets before services are installed.
+
+```bash
+dx ca status                  # Show CA status and expiry
+dx ca print                   # Print CA certificate in PEM format
+dx ca print > ca.crt          # Save CA certificate to a file
+dx ca reissue                 # Re-issue all certificates (keeps existing CA)
+dx ca recreate                # Delete and recreate CA and all certificates
+dx ca recreate --yes          # Skip confirmation prompt
+```
+
+The CA is created automatically on the first `dx install`. Leaf certificates have a 30-day validity period and are automatically renewed during `dx install` when they have less than 14 days remaining.
+
+To trust the certificates locally, extract the CA certificate and add it to your system's trust store:
+
+```bash
+dx ca print > ca.crt
 ```
 
 ### Utilities
@@ -264,6 +285,43 @@ services:
       - default
       - backend
 ```
+
+### Certificates
+
+Services can declare TLS certificates that DX provisions as Kubernetes secrets:
+
+```yaml
+services:
+  - name: api
+    # ... helm and docker config ...
+    certificates:
+      # Standard TLS secret (kubernetes.io/tls)
+      - type: server
+        dnsNames:
+          - api.localhost
+          - "*.api.localhost"
+        k8sSecret:
+          name: api-tls
+          type: tls
+
+      # Opaque secret with custom key names
+      - type: client
+        dnsNames:
+          - api-client.localhost
+        k8sSecret:
+          name: api-client-tls
+          type: opaque
+          keys:
+            privateKey: client.key
+            cert: client.crt
+            ca: ca.crt
+```
+
+- **`type`**: `server` (ExtKeyUsageServerAuth) or `client` (ExtKeyUsageClientAuth)
+- **`dnsNames`**: Subject Alternative Names for the certificate. Supports wildcards (e.g., `*.api.localhost`). Must use a reserved TLD: `.localhost`, `.test`, `.example`, `.invalid`, `.local`, `.internal`, or `.home.arpa`
+- **`k8sSecret.type`**: `tls` uses standard keys (`tls.crt`, `tls.key`, `ca.crt`); `opaque` uses custom key names defined in `keys`
+
+Certificates are automatically issued during `dx install` and renewed when they have less than 14 days of validity remaining.
 
 ### Local Services
 
@@ -376,6 +434,15 @@ contexts:
             gitRef: my-feature-branch  # Override the branch
 ```
 
+When `import` is set, services are matched by name and merged with the following rules:
+
+| Field | Merge strategy |
+|-------|----------------|
+| Scalar fields (`gitRef`, `helmBranch`, etc.) | Local value overrides base (if non-empty) |
+| `dockerImages` | Merged by name; individual image fields are overlaid |
+| `remoteImages` | Appended to base list |
+| `certificates` | Merged by `k8sSecret.name`; individual certificate fields are overlaid |
+
 ## Common Workflows
 
 ### Iterative Development
@@ -439,6 +506,7 @@ dx completion powershell | Out-String | Invoke-Expression
 DX stores data in `~/.dx/`:
 - Cloned repositories for Helm charts and Docker builds
 - Encrypted secrets (per context)
+- Certificate authority files (per context)
 - Generated dev-proxy configuration
 
 Configuration lives at `~/.dx-config.yaml`.

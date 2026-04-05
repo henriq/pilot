@@ -27,7 +27,7 @@ func TestDevProxyConfigGenerator_Generate_Success(t *testing.T) {
 
 	sut := ProvideDevProxyConfigGenerator()
 
-	configs, err := sut.Generate(configContext, true, "test-password-abc123")
+	configs, err := sut.Generate(configContext, true, "test-password-abc123", nil)
 
 	require.NoError(t, err)
 	assert.NotNil(t, configs)
@@ -58,7 +58,7 @@ func TestDevProxyConfigGenerator_Generate_NoInterception(t *testing.T) {
 
 	sut := ProvideDevProxyConfigGenerator()
 
-	configs, err := sut.Generate(configContext, false, "")
+	configs, err := sut.Generate(configContext, false, "", nil)
 
 	require.NoError(t, err)
 	assert.NotNil(t, configs)
@@ -86,7 +86,7 @@ func TestDevProxyConfigGenerator_Generate_HAProxyConfigContent(t *testing.T) {
 
 	sut := ProvideDevProxyConfigGenerator()
 
-	configs, err := sut.Generate(configContext, false, "")
+	configs, err := sut.Generate(configContext, false, "", nil)
 
 	require.NoError(t, err)
 	haproxyConfig := string(configs.HAProxyConfig)
@@ -122,7 +122,7 @@ func TestDevProxyConfigGenerator_Generate_PortIncrement(t *testing.T) {
 
 	sut := ProvideDevProxyConfigGenerator()
 
-	configs, err := sut.Generate(configContext, false, "")
+	configs, err := sut.Generate(configContext, false, "", nil)
 
 	require.NoError(t, err)
 	haproxyConfig := string(configs.HAProxyConfig)
@@ -151,10 +151,10 @@ func TestDevProxyConfigGenerator_Generate_ChecksumDeterministic(t *testing.T) {
 
 	sut := ProvideDevProxyConfigGenerator()
 
-	configs1, err := sut.Generate(configContext, false, "")
+	configs1, err := sut.Generate(configContext, false, "", nil)
 	require.NoError(t, err)
 
-	configs2, err := sut.Generate(configContext, false, "")
+	configs2, err := sut.Generate(configContext, false, "", nil)
 	require.NoError(t, err)
 
 	// Same input should produce same output (deterministic checksum)
@@ -177,7 +177,7 @@ func TestDevProxyConfigGenerator_Generate_HelmChartYamlContent(t *testing.T) {
 
 	sut := ProvideDevProxyConfigGenerator()
 
-	configs, err := sut.Generate(configContext, false, "")
+	configs, err := sut.Generate(configContext, false, "", nil)
 
 	require.NoError(t, err)
 	chartYaml := string(configs.HelmChartYaml)
@@ -195,7 +195,7 @@ func TestDevProxyConfigGenerator_Generate_EmptyLocalServices(t *testing.T) {
 
 	sut := ProvideDevProxyConfigGenerator()
 
-	configs, err := sut.Generate(configContext, false, "")
+	configs, err := sut.Generate(configContext, false, "", nil)
 
 	require.NoError(t, err)
 	assert.NotNil(t, configs)
@@ -220,7 +220,7 @@ func TestDevProxyConfigGenerator_Generate_SpecialCharactersInServiceName(t *test
 
 	sut := ProvideDevProxyConfigGenerator()
 
-	configs, err := sut.Generate(configContext, false, "")
+	configs, err := sut.Generate(configContext, false, "", nil)
 
 	require.NoError(t, err)
 	haproxyConfig := string(configs.HAProxyConfig)
@@ -238,7 +238,7 @@ func TestDevProxyConfigGenerator_buildTemplateValues_PortAssignment(t *testing.T
 	}
 
 	sut := ProvideDevProxyConfigGenerator()
-	values := sut.buildTemplateValues(configContext, false, "")
+	values := sut.buildTemplateValues(configContext, false, "", nil)
 
 	services := values["Services"].([]map[string]interface{})
 	assert.Len(t, services, 3)
@@ -263,7 +263,7 @@ func TestDevProxyConfigGenerator_buildTemplateValues_Checksum(t *testing.T) {
 	}
 
 	sut := ProvideDevProxyConfigGenerator()
-	values := sut.buildTemplateValues(configContext, false, "")
+	values := sut.buildTemplateValues(configContext, false, "", nil)
 
 	checksum := values["Checksum"].(string)
 	assert.Len(t, checksum, 62, "Checksum should be 62 characters (truncated SHA256 hex)")
@@ -279,8 +279,8 @@ func TestDevProxyConfigGenerator_GenerateChecksum_DiffersWithInterceptHttp(t *te
 	}
 
 	sut := ProvideDevProxyConfigGenerator()
-	checksumWithout := sut.GenerateChecksum(configContext, false)
-	checksumWith := sut.GenerateChecksum(configContext, true)
+	checksumWithout := sut.GenerateChecksum(configContext, false, nil)
+	checksumWith := sut.GenerateChecksum(configContext, true, nil)
 
 	assert.NotEqual(t, checksumWithout, checksumWith, "Checksums should differ when interceptHttp changes")
 }
@@ -301,10 +301,10 @@ func TestDevProxyConfigGenerator_Generate_HelmDeploymentYamlDiffersWithIntercept
 
 	sut := ProvideDevProxyConfigGenerator()
 
-	configsWithout, err := sut.Generate(configContext, false, "")
+	configsWithout, err := sut.Generate(configContext, false, "", nil)
 	require.NoError(t, err)
 
-	configsWith, err := sut.Generate(configContext, true, "test-password-abc123")
+	configsWith, err := sut.Generate(configContext, true, "test-password-abc123", nil)
 	require.NoError(t, err)
 
 	deploymentWithout := string(configsWithout.HelmDeploymentYaml)
@@ -322,13 +322,94 @@ func TestDevProxyConfigGenerator_buildTemplateValues_InterceptHttpFlag(t *testin
 
 	sut := ProvideDevProxyConfigGenerator()
 
-	valuesWithout := sut.buildTemplateValues(configContext, false, "")
-	valuesWith := sut.buildTemplateValues(configContext, true, "test-password")
+	valuesWithout := sut.buildTemplateValues(configContext, false, "", nil)
+	valuesWith := sut.buildTemplateValues(configContext, true, "test-password", nil)
 
 	assert.Equal(t, false, valuesWithout["InterceptHttp"])
 	assert.Equal(t, true, valuesWith["InterceptHttp"])
 	assert.Equal(t, "", valuesWithout["Password"])
 	assert.Equal(t, "test-password", valuesWith["Password"])
+}
+
+func TestInternalTLSDNSNames_WithLocalServices(t *testing.T) {
+	configContext := &domain.ConfigurationContext{
+		Name: "my-ctx",
+		LocalServices: []domain.LocalService{
+			{Name: "api"},
+			{Name: "web"},
+		},
+	}
+
+	names := InternalTLSDNSNames(configContext)
+
+	assert.Equal(t, []string{
+		"dev-proxy.my-ctx.localhost",
+		"stats.dev-proxy.my-ctx.localhost",
+		"api.my-ctx.localhost",
+		"web.my-ctx.localhost",
+	}, names)
+}
+
+func TestInternalTLSDNSNames_NoLocalServices(t *testing.T) {
+	configContext := &domain.ConfigurationContext{
+		Name:          "empty",
+		LocalServices: []domain.LocalService{},
+	}
+
+	names := InternalTLSDNSNames(configContext)
+
+	assert.Equal(t, []string{
+		"dev-proxy.empty.localhost",
+		"stats.dev-proxy.empty.localhost",
+	}, names)
+}
+
+func TestInternalTLSCertificateRequest(t *testing.T) {
+	configContext := &domain.ConfigurationContext{
+		Name: "prod",
+		LocalServices: []domain.LocalService{
+			{Name: "svc"},
+		},
+	}
+
+	req := InternalTLSCertificateRequest(configContext)
+
+	assert.Equal(t, domain.CertificateTypeServer, req.Type)
+	assert.Equal(t, InternalTLSSecretName, req.K8sSecret.Name)
+	assert.Equal(t, domain.K8sSecretTypeTLS, req.K8sSecret.Type)
+	assert.Contains(t, req.DNSNames, "dev-proxy.prod.localhost")
+	assert.Contains(t, req.DNSNames, "stats.dev-proxy.prod.localhost")
+	assert.Contains(t, req.DNSNames, "svc.prod.localhost")
+}
+
+func TestDevProxyConfigGenerator_Generate_TLSInIngresses(t *testing.T) {
+	configContext := &domain.ConfigurationContext{
+		Name: "test-ctx",
+		LocalServices: []domain.LocalService{
+			{
+				Name:            "api",
+				KubernetesPort:  8080,
+				LocalPort:       3000,
+				HealthCheckPath: "/health",
+				Selector:        map[string]string{"app": "api"},
+			},
+		},
+	}
+
+	sut := ProvideDevProxyConfigGenerator()
+	configs, err := sut.Generate(configContext, false, "", nil)
+
+	require.NoError(t, err)
+	deployment := string(configs.HelmDeploymentYaml)
+
+	// All ingresses should reference the internal TLS secret
+	assert.Contains(t, deployment, "secretName: "+InternalTLSSecretName)
+	// Service ingress TLS host
+	assert.Contains(t, deployment, "api.test-ctx.localhost")
+	// Stats ingress TLS host
+	assert.Contains(t, deployment, "stats.dev-proxy.test-ctx.localhost")
+	// Mitmweb ingress TLS host
+	assert.Contains(t, deployment, "dev-proxy.test-ctx.localhost")
 }
 
 func isHexString(s string) bool {

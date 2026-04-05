@@ -117,6 +117,10 @@ kind: Ingress
 metadata:
   name: dev-proxy-haproxy
 spec:
+  tls:
+  - hosts:
+    - stats.dev-proxy.{{ .Name }}.localhost
+    secretName: {{ .TLSSecretName }}
   rules:
   - host: stats.dev-proxy.{{ .Name }}.localhost
     http:
@@ -136,6 +140,10 @@ kind: Ingress
 metadata:
   name: dev-proxy-mitmweb
 spec:
+  tls:
+  - hosts:
+    - dev-proxy.{{ .Name }}.localhost
+    secretName: {{ .TLSSecretName }}
   rules:
   - host: dev-proxy.{{ .Name }}.localhost
     http:
@@ -172,6 +180,10 @@ kind: Ingress
 metadata:
   name: {{ .Name }}-dx
 spec:
+  tls:
+  - hosts:
+    - {{ .Name }}.{{ $.Name }}.localhost
+    secretName: {{ $.TLSSecretName }}
   rules:
   - host: {{ .Name }}.{{ $.Name }}.localhost
     http:

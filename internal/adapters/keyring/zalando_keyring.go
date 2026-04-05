@@ -7,6 +7,8 @@ import (
 	"github.com/zalando/go-keyring"
 )
 
+const keyringService = "se.henriq.dx"
+
 var _ ports.Keyring = (*ZalandoKeyring)(nil)
 
 type ZalandoKeyring struct{}
@@ -16,17 +18,25 @@ func ProvideZalandoKeyring() ports.Keyring {
 }
 
 func (z ZalandoKeyring) GetKey(keyName string) (string, error) {
-	return keyring.Get("se.henriq.dx", keyName)
+	return keyring.Get(keyringService, keyName)
 }
 
 func (z ZalandoKeyring) SetKey(keyName string, keyValue string) error {
-	return keyring.Set("se.henriq.dx", keyName, keyValue)
+	return keyring.Set(keyringService, keyName, keyValue)
 }
 
 func (z ZalandoKeyring) HasKey(keyName string) (bool, error) {
-	_, err := keyring.Get("se.henriq.dx", keyName)
+	_, err := keyring.Get(keyringService, keyName)
 	if errors.Is(err, keyring.ErrNotFound) {
 		return false, nil
 	}
 	return err == nil, err
+}
+
+func (z ZalandoKeyring) DeleteKey(keyName string) error {
+	err := keyring.Delete(keyringService, keyName)
+	if errors.Is(err, keyring.ErrNotFound) {
+		return nil
+	}
+	return err
 }

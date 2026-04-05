@@ -19,6 +19,7 @@ type InstallCommandHandler struct {
 	devProxyManager          *core.DevProxyManager
 	environmentEnsurer       core.EnvironmentEnsurer
 	scm                      ports.Scm
+	certificateProvisioner   *core.CertificateProvisioner
 }
 
 func ProvideInstallCommandHandler(
@@ -28,6 +29,7 @@ func ProvideInstallCommandHandler(
 	devProxyManager *core.DevProxyManager,
 	environmentEnsurer core.EnvironmentEnsurer,
 	scm ports.Scm,
+	certificateProvisioner *core.CertificateProvisioner,
 ) InstallCommandHandler {
 	return InstallCommandHandler{
 		configRepository:         configRepository,
@@ -36,6 +38,7 @@ func ProvideInstallCommandHandler(
 		devProxyManager:          devProxyManager,
 		environmentEnsurer:       environmentEnsurer,
 		scm:                      scm,
+		certificateProvisioner:   certificateProvisioner,
 	}
 }
 
@@ -65,11 +68,46 @@ func (h *InstallCommandHandler) Handle(services []string, selectedProfile string
 		servicesToInstall = append(servicesToInstall, service)
 	}
 
+	// Provision certificate data for services that need them (includes internal TLS for dev-proxy)
+	serviceCerts := core.CollectAllCertificates(servicesToInstall, configContext)
+	certsByService, provisionedSecrets, err := h.certificateProvisioner.ProvisionCertificateData(serviceCerts, configContext.Name)
+	if err != nil {
+		return fmt.Errorf("failed to provision certificates: %w", err)
+	}
+
+	// Render certificate data as K8s Secret YAML for inclusion in wrapper charts
+	renderedCertSecrets := make(map[string][]byte)
+	for serviceName, certs := range certsByService {
+		rendered, err := core.RenderCertificateSecretManifests(certs)
+		if err != nil {
+			return fmt.Errorf("failed to render certificate secrets for %s: %w", serviceName, err)
+		}
+		renderedCertSecrets[serviceName] = rendered
+	}
+
+	if len(provisionedSecrets) > 0 {
+		output.PrintHeader("Provisioning certificates")
+		fmt.Println()
+		for _, name := range provisionedSecrets {
+			fmt.Printf("  %s %s\n", output.SymbolBullet, name)
+		}
+		output.PrintSuccess(
+			fmt.Sprintf(
+				"Provisioned %d %s",
+				len(provisionedSecrets),
+				output.Plural(len(provisionedSecrets), "certificate", "certificates"),
+			),
+		)
+		fmt.Println()
+	}
+
 	// Always rebuild dev-proxy when intercepting HTTP so a fresh password is generated.
-	// Otherwise, only rebuild when the configuration checksum has changed.
+	// Otherwise, only rebuild when the configuration checksum has changed (including
+	// certificate secret changes).
+	devProxyCertSecrets := renderedCertSecrets["dev-proxy"]
 	shouldRebuildDevProxy := interceptHttp
 	if !shouldRebuildDevProxy {
-		shouldRebuildDevProxy, err = h.devProxyManager.ShouldRebuildDevProxy(interceptHttp)
+		shouldRebuildDevProxy, err = h.devProxyManager.ShouldRebuildDevProxy(interceptHttp, devProxyCertSecrets)
 		if err != nil {
 			return err
 		}
@@ -111,7 +149,7 @@ func (h *InstallCommandHandler) Handle(services []string, selectedProfile string
 	if shouldRebuildDevProxy {
 		tracker.StartItem(currentIndex)
 
-		password, err := h.devProxyManager.SaveConfiguration(interceptHttp)
+		password, err := h.devProxyManager.SaveConfiguration(interceptHttp, devProxyCertSecrets)
 		if err != nil {
 			tracker.CompleteItem(currentIndex, err)
 			tracker.PrintItemComplete(currentIndex)
@@ -127,7 +165,7 @@ func (h *InstallCommandHandler) Handle(services []string, selectedProfile string
 			return err
 		}
 
-		if err := h.devProxyManager.InstallDevProxy(); err != nil {
+		if err := h.devProxyManager.InstallDevProxy(devProxyCertSecrets); err != nil {
 			tracker.CompleteItem(currentIndex, err)
 			tracker.PrintItemComplete(currentIndex)
 			tracker.Stop()
@@ -151,7 +189,7 @@ func (h *InstallCommandHandler) Handle(services []string, selectedProfile string
 			return err
 		}
 
-		if err = h.containerOrchestrator.InstallService(&service); err != nil {
+		if err = h.containerOrchestrator.InstallService(&service, renderedCertSecrets[service.Name]); err != nil {
 			installErr := fmt.Errorf("failed to install service %s: %v", service.Name, err)
 			tracker.CompleteItem(currentIndex, installErr)
 			tracker.PrintItemComplete(currentIndex)
@@ -170,11 +208,18 @@ func (h *InstallCommandHandler) Handle(services []string, selectedProfile string
 
 	if devProxyPassword != "" {
 		fmt.Println()
-		output.PrintInfo(fmt.Sprintf("mitmweb: %s",
-			output.Bold(fmt.Sprintf("http://dev-proxy.%s.localhost", configContext.Name))))
+		output.PrintInfo(
+			fmt.Sprintf(
+				"mitmweb: %s",
+				output.Bold(fmt.Sprintf("https://dev-proxy.%s.localhost", configContext.Name)),
+			),
+		)
 		// Intentionally displayed to the user for local dev-proxy access.
 		// Uses WriteString to avoid CodeQL go/clear-text-logging false positive.
-		os.Stderr.WriteString("  " + output.SymbolArrow + " " + output.Secondary("password: "+devProxyPassword) + "\n") //nolint:errcheck,gosec // intentional stderr output for local dev-proxy password
+		_, err = os.Stderr.WriteString("  " + output.SymbolArrow + " " + output.Secondary("password: "+devProxyPassword) + "\n")
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil

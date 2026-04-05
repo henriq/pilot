@@ -13,11 +13,11 @@ import (
 
 func TestFindConflictingSecretKey(t *testing.T) {
 	tests := []struct {
-		name             string
-		secrets          []*domain.Secret
-		newKey           string
-		expectConflict   bool
-		conflictingKey   string
+		name           string
+		secrets        []*domain.Secret
+		newKey         string
+		expectConflict bool
+		conflictingKey string
 	}{
 		{
 			name:           "exact match is skipped",

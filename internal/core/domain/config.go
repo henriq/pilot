@@ -15,20 +15,21 @@ type ConfigurationContext struct {
 
 // Service represents a deployable service with its Docker configuration
 type Service struct {
-	Name                  string        `yaml:"name"`
-	HelmRepoPath          string        `yaml:"helmRepoPath"`
-	HelmPath              string        `yaml:"-"` // Will be ignored during YAML serialization
-	HelmChartRelativePath string        `yaml:"helmChartRelativePath"`
-	HelmBranch            string        `yaml:"helmBranch"`
-	HelmArgs              []string      `yaml:"helmArgs"`
-	LocalPort             *int          `yaml:"localPort,omitempty"` // Using pointer to make nullable
-	DockerImages          []DockerImage `yaml:"dockerImages"`
-	RemoteImages          []string      `yaml:"remoteImages"`
-	Profiles              []string      `yaml:"profiles,omitempty"`
-	GitRepoPath           string        `yaml:"gitRepoPath"`
-	GitRef                string        `yaml:"gitRef"`
-	Path                  string        `yaml:"-"` // Will be ignored during YAML serialization
-	InterceptHttp         bool          `yaml:"-"` // Runtime flag, not persisted
+	Name                  string               `yaml:"name"`
+	HelmRepoPath          string               `yaml:"helmRepoPath"`
+	HelmPath              string               `yaml:"-"` // Will be ignored during YAML serialization
+	HelmChartRelativePath string               `yaml:"helmChartRelativePath"`
+	HelmBranch            string               `yaml:"helmBranch"`
+	HelmArgs              []string             `yaml:"helmArgs"`
+	LocalPort             *int                 `yaml:"localPort,omitempty"` // Using pointer to make nullable
+	DockerImages          []DockerImage        `yaml:"dockerImages"`
+	RemoteImages          []string             `yaml:"remoteImages"`
+	Profiles              []string             `yaml:"profiles,omitempty"`
+	GitRepoPath           string               `yaml:"gitRepoPath"`
+	GitRef                string               `yaml:"gitRef"`
+	Certificates          []CertificateRequest `yaml:"certificates,omitempty"`
+	Path                  string               `yaml:"-"` // Will be ignored during YAML serialization
+	InterceptHttp         bool                 `yaml:"-"` // Runtime flag, not persisted
 }
 
 type DockerImage struct {
@@ -190,6 +191,13 @@ func (c *Config) Validate() error {
 						svc.Name,
 						ctx.Name,
 					)
+				}
+			}
+
+			// Validate Certificates
+			for _, cert := range svc.Certificates {
+				if err := cert.Validate(svc.Name, ctx.Name); err != nil {
+					return err
 				}
 			}
 

@@ -123,6 +123,21 @@ func PrintWarning(message string) {
 	fmt.Fprintf(os.Stderr, "%s %s\n", Warning(SymbolWarning), Warning(message))
 }
 
+// PrintWarningNewline prints a blank line to stderr for visual spacing in warning/confirmation blocks.
+func PrintWarningNewline() {
+	fmt.Fprintln(os.Stderr)
+}
+
+// PrintWarningDetail prints a detail line to stderr, for supplementary context under a warning.
+func PrintWarningDetail(message string) {
+	fmt.Fprintf(os.Stderr, "  %s %s\n", SymbolBullet, message)
+}
+
+// PrintWarningSecondary prints a secondary/hint line to stderr, for actionable guidance under a warning.
+func PrintWarningSecondary(message string) {
+	fmt.Fprintf(os.Stderr, "  %s %s\n", SymbolArrow, Secondary(message))
+}
+
 // PrintInfo prints an info message with * symbol
 func PrintInfo(message string) {
 	fmt.Printf("%s %s\n", Info(SymbolInfo), Info(message))
@@ -136,6 +151,37 @@ func PrintStep(message string) {
 // PrintSecondary prints secondary/supplementary information
 func PrintSecondary(message string) {
 	fmt.Printf("  %s %s\n", SymbolArrow, Secondary(message))
+}
+
+// PrintNewline prints a blank line to stdout for visual spacing.
+func PrintNewline() {
+	fmt.Println()
+}
+
+// PrintBullet prints a bullet list item to stdout.
+func PrintBullet(message string) {
+	fmt.Printf("  %s %s\n", SymbolBullet, message)
+}
+
+// PrintField prints an indented key-value pair to stdout.
+// The label is right-padded to 13 characters for alignment.
+func PrintField(label string, value string) {
+	fmt.Printf("  %-13s%s\n", label, value)
+}
+
+// PrintLabel prints an indented label line to stdout, used as a sub-section heading.
+func PrintLabel(label string) {
+	fmt.Printf("  %s\n", label)
+}
+
+// PrintBulletField prints an indented bullet item with a right-side value.
+func PrintBulletField(name string, value string) {
+	fmt.Printf("    %s %-36s %s\n", SymbolBullet, name, value)
+}
+
+// PrintSubfield prints a deeply-indented key-value pair, used for detail lines under a bullet.
+func PrintSubfield(label string, value string) {
+	fmt.Printf("      %-7s%s\n", label, value)
 }
 
 // Plural returns the singular or plural form based on count

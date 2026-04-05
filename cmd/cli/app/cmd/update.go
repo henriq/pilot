@@ -27,7 +27,7 @@ prompt since --pull is an explicit opt-in to overwrite locally-built images.
 Use --intercept-http to deploy mitmweb alongside HAProxy for inspecting and
 replaying HTTP traffic. When enabled, the mitmweb UI is available at:
 
-  http://dev-proxy.<context>.localhost`,
+  https://dev-proxy.<context>.localhost`,
 	Example: `  # Build and reinstall all services in the default profile
   dx update
 
