@@ -6,14 +6,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var caRecreateSkipConfirmation bool
+var caDeleteSkipConfirmation bool
 
 func init() {
 	caCmd.AddCommand(caPrintCmd)
-	caCmd.AddCommand(caReissueCmd)
-	caCmd.AddCommand(caRecreateCmd)
+	caCmd.AddCommand(caDeleteCmd)
 	caCmd.AddCommand(caStatusCmd)
-	caRecreateCmd.Flags().BoolVarP(&caRecreateSkipConfirmation, "yes", "y", false, "skip confirmation prompt")
+	caDeleteCmd.Flags().BoolVarP(&caDeleteSkipConfirmation, "yes", "y", false, "skip confirmation prompt")
 	rootCmd.AddCommand(caCmd)
 }
 
@@ -29,11 +28,8 @@ the first 'dx install' when certificates are configured.`,
   # Print the CA certificate for trust store setup
   dx ca print > ca.crt
 
-  # Re-issue all certificates (non-destructive)
-  dx ca reissue
-
-  # Delete and recreate the CA (destructive)
-  dx ca recreate`,
+  # Delete the local CA files
+  dx ca delete`,
 }
 
 var caPrintCmd = &cobra.Command{
@@ -58,54 +54,29 @@ Use this to add the CA to your system trust store or browser for local developme
 	},
 }
 
-var caReissueCmd = &cobra.Command{
-	Use:   "reissue",
+var caDeleteCmd = &cobra.Command{
+	Use:   "delete",
 	Args:  cobra.NoArgs,
-	Short: "Re-issue all certificates using the existing CA",
-	Long: `Generate new certificates for all configured services using the existing CA.
-The CA certificate itself is not changed.
+	Short: "Delete the local CA for the current context",
+	Long: `Delete the local CA files and its passphrase from the keyring for the current
+context. A new CA will be created automatically on the next 'dx install',
+which will also issue fresh certificates signed by the new CA.
 
-Existing Kubernetes secrets are updated with the new certificates. Run
-'dx install' afterwards to restart services with the new certificates.`,
-	Example: `  # Re-issue all certificates
-  dx ca reissue
-
-  # Re-issue and apply
-  dx ca reissue && dx install`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		handler, err := app.InjectCACommandHandler()
-		if err != nil {
-			return err
-		}
-		return handler.HandleReissue()
-	},
-}
-
-var caRecreateCmd = &cobra.Command{
-	Use:   "recreate",
-	Args:  cobra.NoArgs,
-	Short: "Delete and recreate the CA and all certificates",
-	Long: `Delete the existing CA, create a new one, and re-issue all configured
-certificates. This is a destructive operation that invalidates all previously
-issued certificates.
-
-After recreating, you must:
-  1. Run 'dx install' to apply the new certificates
-  2. Update your system trust store with the new CA certificate`,
-	Example: `  # Recreate with confirmation prompt
-  dx ca recreate
+After installing, update your system trust store with the new CA certificate.`,
+	Example: `  # Delete the local CA files
+  dx ca delete
 
   # Skip confirmation (for scripting)
-  dx ca recreate --yes
+  dx ca delete --yes
 
-  # Full workflow
-  dx ca recreate && dx install`,
+  # Delete and recreate the CA
+  dx ca delete && dx install`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		handler, err := app.InjectCACommandHandler()
 		if err != nil {
 			return err
 		}
-		return handler.HandleRecreate(caRecreateSkipConfirmation)
+		return handler.HandleDelete(caDeleteSkipConfirmation)
 	},
 }
 

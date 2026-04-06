@@ -10,11 +10,8 @@ import (
 	"dx/internal/ports"
 )
 
-const (
-	certRenewalThresholdDays = 14
-	// InternalTLSSecretName is the K8s secret name for the dev-proxy TLS certificate.
-	InternalTLSSecretName = "dx-internal-tls" //nolint:gosec // Not a credential, just a K8s secret resource name
-)
+// InternalTLSSecretName is the K8s secret name for the dev-proxy TLS certificate.
+const InternalTLSSecretName = "dx-internal-tls" //nolint:gosec // Not a credential, just a K8s secret resource name
 
 // CertificateStatus holds the status of a provisioned certificate.
 type CertificateStatus struct {
@@ -26,7 +23,7 @@ type CertificateStatus struct {
 	DaysRemaining int
 }
 
-// CertificateProvisioner checks and provisions certificates as Kubernetes secrets.
+// CertificateProvisioner issues certificates and provides certificate status information.
 type CertificateProvisioner struct {
 	ca          ports.CertificateAuthority
 	secretStore ports.SecretStore
@@ -100,140 +97,43 @@ func CollectAllCertificates(
 	})
 }
 
-// ProvisionCertificateData issues or collects certificate data for all services without creating
-// K8s secrets. For certificates that need issuance or renewal, new certificates are issued via
-// the CA. For certificates that already exist and don't need renewal, existing secret data is
-// read from the cluster. Returns all certificate data grouped by service name (for inclusion
-// in Helm wrapper charts) and a list of newly issued/renewed secret names (for UI output).
+// ProvisionCertificateData issues certificates for all services via the CA.
+// Returns all certificate data grouped by service name for inclusion in Helm wrapper charts.
 func (p *CertificateProvisioner) ProvisionCertificateData(
 	services []domain.ServiceCertificates,
 	contextName string,
-) (map[string][]domain.ProvisionedCertificate, []string, error) {
+) (map[string][]domain.ProvisionedCertificate, error) {
 	if len(services) == 0 {
-		return nil, nil, nil
+		return nil, nil
 	}
 
 	passphrase, err := p.getOrCreatePassphrase(contextName)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	result := make(map[string][]domain.ProvisionedCertificate)
-	var provisioned []string
 
 	for _, svc := range services {
 		for _, certReq := range svc.Certificates {
-			secretData, err := p.secretStore.GetSecretData(certReq.K8sSecret.Name)
-			if err != nil {
-				return result, provisioned, fmt.Errorf("failed to check secret %s: %w", certReq.K8sSecret.Name, err)
-			}
-			if secretData != nil && !needsRenewal(certReq, secretData) {
-				result[svc.Name] = append(result[svc.Name], domain.ProvisionedCertificate{
-					Request: certReq,
-					Data:    secretData,
-				})
-				continue
-			}
-
 			issued, err := p.ca.IssueCertificate(contextName, passphrase, certReq)
 			if err != nil {
-				return result, provisioned, fmt.Errorf("failed to issue certificate for %s: %w", certReq.K8sSecret.Name, err)
+				return nil, fmt.Errorf("failed to issue certificate for %s: %w", certReq.K8sSecret.Name, err)
 			}
 
 			data, err := buildSecretData(certReq, issued)
 			if err != nil {
-				return result, provisioned, fmt.Errorf("failed to build secret data for %s: %w", certReq.K8sSecret.Name, err)
+				return nil, fmt.Errorf("failed to build secret data for %s: %w", certReq.K8sSecret.Name, err)
 			}
 
 			result[svc.Name] = append(result[svc.Name], domain.ProvisionedCertificate{
 				Request: certReq,
 				Data:    data,
 			})
-			provisioned = append(provisioned, certReq.K8sSecret.Name)
 		}
 	}
 
-	return result, provisioned, nil
-}
-
-// needsRenewal checks if the certificate data needs re-issuing.
-// Returns true if the cert is expiring within the renewal threshold or if the
-// configured DNS names differ from the certificate's SANs.
-func needsRenewal(certReq domain.CertificateRequest, data map[string][]byte) bool {
-	certKey := certPEMKey(certReq)
-	certPEM, ok := data[certKey]
-	if !ok || len(certPEM) == 0 {
-		return true
-	}
-
-	block, _ := pem.Decode(certPEM)
-	if block == nil {
-		return true
-	}
-
-	cert, err := x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		return true
-	}
-
-	// Re-issue if DNS names changed (added/removed SANs)
-	if !dnsNamesMatch(certReq.DNSNames, cert.DNSNames) {
-		return true
-	}
-
-	threshold := time.Now().AddDate(0, 0, certRenewalThresholdDays)
-	return cert.NotAfter.Before(threshold)
-}
-
-// dnsNamesMatch returns true if the two DNS name slices contain the same names (order-independent).
-func dnsNamesMatch(configured, actual []string) bool {
-	if len(configured) != len(actual) {
-		return false
-	}
-	counts := make(map[string]int, len(configured))
-	for _, name := range configured {
-		counts[name]++
-	}
-	for _, name := range actual {
-		counts[name]--
-		if counts[name] < 0 {
-			return false
-		}
-	}
-	return true
-}
-
-// ReissueCertificates re-issues all certificates for the given services, overwriting existing secrets.
-// Returns the secret names of re-issued certificates.
-func (p *CertificateProvisioner) ReissueCertificates(
-	services []domain.ServiceCertificates,
-	contextName string,
-) ([]string, error) {
-	passphrase, err := p.getOrCreatePassphrase(contextName)
-	if err != nil {
-		return nil, err
-	}
-
-	var reissued []string
-	for _, service := range services {
-		for _, certReq := range service.Certificates {
-			issued, err := p.ca.IssueCertificate(contextName, passphrase, certReq)
-			if err != nil {
-				return reissued, fmt.Errorf("failed to issue certificate for %s: %w", certReq.K8sSecret.Name, err)
-			}
-
-			data, err := buildSecretData(certReq, issued)
-			if err != nil {
-				return reissued, fmt.Errorf("failed to build secret data for %s: %w", certReq.K8sSecret.Name, err)
-			}
-			if err := p.secretStore.CreateOrUpdateSecret(certReq.K8sSecret.Name, certReq.K8sSecret.Type, data); err != nil {
-				return reissued, fmt.Errorf("failed to create secret %s: %w", certReq.K8sSecret.Name, err)
-			}
-			reissued = append(reissued, certReq.K8sSecret.Name)
-		}
-	}
-
-	return reissued, nil
+	return result, nil
 }
 
 // GetCertificateStatuses returns the status of each certificate across all services.

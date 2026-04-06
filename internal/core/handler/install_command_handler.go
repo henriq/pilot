@@ -59,7 +59,7 @@ func (h *InstallCommandHandler) Handle(services []string, selectedProfile string
 
 	// Provision certificate data for services that need them (includes internal TLS for dev-proxy)
 	serviceCerts := core.CollectAllCertificates(servicesToInstall, configContext)
-	certsByService, provisionedSecrets, err := h.certificateProvisioner.ProvisionCertificateData(serviceCerts, configContext.Name)
+	certsByService, err := h.certificateProvisioner.ProvisionCertificateData(serviceCerts, configContext.Name)
 	if err != nil {
 		return fmt.Errorf("failed to provision certificates: %w", err)
 	}
@@ -74,42 +74,25 @@ func (h *InstallCommandHandler) Handle(services []string, selectedProfile string
 		renderedCertSecrets[serviceName] = rendered
 	}
 
-	if len(provisionedSecrets) > 0 {
-		output.PrintHeader("Provisioning certificates")
-		fmt.Println()
-		for _, name := range provisionedSecrets {
-			fmt.Printf("  %s %s\n", output.SymbolBullet, name)
-		}
-		output.PrintSuccess(
-			fmt.Sprintf(
-				"Provisioned %d %s",
-				len(provisionedSecrets),
-				output.Plural(len(provisionedSecrets), "certificate", "certificates"),
-			),
-		)
-		fmt.Println()
-	}
-
 	// Always rebuild dev-proxy when intercepting HTTP so a fresh password is generated.
-	// Otherwise, only rebuild when the configuration checksum has changed (including
-	// certificate secret changes).
+	// Otherwise, only rebuild when the configuration checksum has changed.
 	devProxyCertSecrets := renderedCertSecrets["dev-proxy"]
 	shouldRebuildDevProxy := interceptHttp
 	if !shouldRebuildDevProxy {
-		shouldRebuildDevProxy, err = h.devProxyManager.ShouldRebuildDevProxy(interceptHttp, devProxyCertSecrets)
+		shouldRebuildDevProxy, err = h.devProxyManager.ShouldRebuildDevProxy(interceptHttp)
 		if err != nil {
 			return err
 		}
 	}
 
-	totalItems := len(servicesToInstall)
-	if shouldRebuildDevProxy {
-		totalItems++
-	}
-
-	if totalItems == 0 {
+	if len(servicesToInstall) == 0 && !shouldRebuildDevProxy {
 		return nil
 	}
+
+	// Dev-proxy is always installed when there are services to install (to apply
+	// fresh certificates via Helm), but only rebuilt (Docker image) when the
+	// configuration checksum changes.
+	totalItems := len(servicesToInstall) + 1
 
 	output.PrintHeader("Installing services")
 	fmt.Println()
@@ -118,10 +101,8 @@ func (h *InstallCommandHandler) Handle(services []string, selectedProfile string
 	names := make([]string, 0, totalItems)
 	infos := make([]string, 0, totalItems)
 
-	if shouldRebuildDevProxy {
-		names = append(names, "dev-proxy")
-		infos = append(infos, "dx")
-	}
+	names = append(names, "dev-proxy")
+	infos = append(infos, "dx")
 
 	for _, svc := range servicesToInstall {
 		names = append(names, svc.Name)
@@ -134,24 +115,26 @@ func (h *InstallCommandHandler) Handle(services []string, selectedProfile string
 	currentIndex := 0
 	var devProxyPassword string
 
-	// Install dev-proxy first if needed
-	if shouldRebuildDevProxy {
+	// Install dev-proxy first: rebuild if needed, always install via Helm
+	{
 		tracker.StartItem(currentIndex)
 
-		password, err := h.devProxyManager.SaveConfiguration(interceptHttp, devProxyCertSecrets)
-		if err != nil {
-			tracker.CompleteItem(currentIndex, err)
-			tracker.PrintItemComplete(currentIndex)
-			tracker.Stop()
-			return err
-		}
-		devProxyPassword = password
+		if shouldRebuildDevProxy {
+			password, err := h.devProxyManager.SaveConfiguration(interceptHttp)
+			if err != nil {
+				tracker.CompleteItem(currentIndex, err)
+				tracker.PrintItemComplete(currentIndex)
+				tracker.Stop()
+				return err
+			}
+			devProxyPassword = password
 
-		if err := h.devProxyManager.BuildDevProxy(interceptHttp); err != nil {
-			tracker.CompleteItem(currentIndex, err)
-			tracker.PrintItemComplete(currentIndex)
-			tracker.Stop()
-			return err
+			if err := h.devProxyManager.BuildDevProxy(interceptHttp); err != nil {
+				tracker.CompleteItem(currentIndex, err)
+				tracker.PrintItemComplete(currentIndex)
+				tracker.Stop()
+				return err
+			}
 		}
 
 		if err := h.devProxyManager.InstallDevProxy(devProxyCertSecrets); err != nil {

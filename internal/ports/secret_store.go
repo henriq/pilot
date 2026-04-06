@@ -1,18 +1,8 @@
 package ports
 
-import (
-	"dx/internal/core/domain"
-)
-
-// SecretStore abstracts Kubernetes secret operations for certificate provisioning.
+// SecretStore abstracts Kubernetes secret read operations for certificate status checks.
 type SecretStore interface {
 	// GetSecretData returns the data from a Kubernetes secret by name.
 	// Returns (nil, nil) if the secret does not exist.
 	GetSecretData(name string) (map[string][]byte, error)
-	// CreateOrUpdateSecret creates or updates a Kubernetes secret.
-	// Only overwrites secrets with the managed-by=dx label.
-	CreateOrUpdateSecret(name string, secretType domain.K8sSecretType, data map[string][]byte) error
-	// DeleteSecret deletes a Kubernetes secret by name.
-	// Only deletes secrets with the managed-by=dx label. Returns nil if the secret does not exist.
-	DeleteSecret(name string) error
 }

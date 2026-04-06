@@ -43,7 +43,7 @@ func TestSaveConfiguration_Success_WithInterception(t *testing.T) {
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	password, err := sut.SaveConfiguration(true, nil)
+	password, err := sut.SaveConfiguration(true)
 
 	assert.NoError(t, err)
 	assert.Len(t, password, 32, "Password should be 32 hex characters")
@@ -68,7 +68,7 @@ func TestSaveConfiguration_Success_WithoutInterception(t *testing.T) {
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	password, err := sut.SaveConfiguration(false, nil)
+	password, err := sut.SaveConfiguration(false)
 
 	assert.NoError(t, err)
 	assert.Empty(t, password)
@@ -89,7 +89,7 @@ func TestSaveConfiguration_LoadConfigError(t *testing.T) {
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	_, err := sut.SaveConfiguration(false, nil)
+	_, err := sut.SaveConfiguration(false)
 
 	assert.Error(t, err)
 	assert.Equal(t, expectedErr, err)
@@ -109,7 +109,7 @@ func TestSaveConfiguration_WriteHaproxyConfigError(t *testing.T) {
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	_, err := sut.SaveConfiguration(false, nil)
+	_, err := sut.SaveConfiguration(false)
 
 	assert.Error(t, err)
 	assert.Equal(t, expectedErr, err)
@@ -132,7 +132,7 @@ func TestSaveConfiguration_WriteHaproxyDockerfileError(t *testing.T) {
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	_, err := sut.SaveConfiguration(false, nil)
+	_, err := sut.SaveConfiguration(false)
 
 	assert.Error(t, err)
 	assert.Equal(t, expectedErr, err)
@@ -156,7 +156,7 @@ func TestSaveConfiguration_RemoveAllError(t *testing.T) {
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	_, err := sut.SaveConfiguration(false, nil)
+	_, err := sut.SaveConfiguration(false)
 
 	assert.Error(t, err)
 	assert.Equal(t, expectedErr, err)
@@ -181,7 +181,7 @@ func TestSaveConfiguration_WriteMitmproxyDockerfileError(t *testing.T) {
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
 	// interceptHttp=true so mitmproxy Dockerfile is written
-	_, err := sut.SaveConfiguration(true, nil)
+	_, err := sut.SaveConfiguration(true)
 
 	assert.Error(t, err)
 	assert.Equal(t, expectedErr, err)
@@ -206,7 +206,7 @@ func TestSaveConfiguration_WriteHelmChartError(t *testing.T) {
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	_, err := sut.SaveConfiguration(false, nil)
+	_, err := sut.SaveConfiguration(false)
 
 	assert.Error(t, err)
 	assert.Equal(t, expectedErr, err)
@@ -232,7 +232,7 @@ func TestSaveConfiguration_WriteDevProxyManifestsError(t *testing.T) {
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	_, err := sut.SaveConfiguration(false, nil)
+	_, err := sut.SaveConfiguration(false)
 
 	assert.Error(t, err)
 	assert.Equal(t, expectedErr, err)
@@ -628,7 +628,7 @@ func TestShouldRebuildDevProxy_NoExistingDeployment(t *testing.T) {
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	shouldRebuild, err := sut.ShouldRebuildDevProxy(false, nil)
+	shouldRebuild, err := sut.ShouldRebuildDevProxy(false)
 
 	assert.NoError(t, err)
 	assert.True(t, shouldRebuild)
@@ -649,7 +649,7 @@ func TestShouldRebuildDevProxy_ChecksumChanged(t *testing.T) {
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	shouldRebuild, err := sut.ShouldRebuildDevProxy(false, nil)
+	shouldRebuild, err := sut.ShouldRebuildDevProxy(false)
 
 	assert.NoError(t, err)
 	assert.True(t, shouldRebuild)
@@ -666,7 +666,7 @@ func TestShouldRebuildDevProxy_InterceptHttpChange(t *testing.T) {
 
 	configContext := createTestConfigContext()
 	// Checksum was generated without interception
-	oldChecksum := configGenerator.GenerateChecksum(configContext, false, nil)
+	oldChecksum := configGenerator.GenerateChecksum(configContext, false)
 
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	containerOrchestrator.On("GetDevProxyChecksum").Return(oldChecksum, nil)
@@ -674,7 +674,7 @@ func TestShouldRebuildDevProxy_InterceptHttpChange(t *testing.T) {
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
 	// Now running with interception enabled - should trigger rebuild
-	shouldRebuild, err := sut.ShouldRebuildDevProxy(true, nil)
+	shouldRebuild, err := sut.ShouldRebuildDevProxy(true)
 
 	assert.NoError(t, err)
 	assert.True(t, shouldRebuild)
@@ -691,14 +691,14 @@ func TestShouldRebuildDevProxy_ChecksumUnchanged(t *testing.T) {
 
 	configContext := createTestConfigContext()
 	// Generate the expected checksum from the test config context
-	expectedChecksum := configGenerator.GenerateChecksum(configContext, false, nil)
+	expectedChecksum := configGenerator.GenerateChecksum(configContext, false)
 
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	containerOrchestrator.On("GetDevProxyChecksum").Return(expectedChecksum, nil)
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	shouldRebuild, err := sut.ShouldRebuildDevProxy(false, nil)
+	shouldRebuild, err := sut.ShouldRebuildDevProxy(false)
 
 	assert.NoError(t, err)
 	assert.False(t, shouldRebuild)
@@ -715,14 +715,14 @@ func TestShouldRebuildDevProxy_ChecksumUnchanged_WithInterception(t *testing.T) 
 
 	configContext := createTestConfigContext()
 	// Generate the expected checksum from the test config context with interception enabled
-	expectedChecksum := configGenerator.GenerateChecksum(configContext, true, nil)
+	expectedChecksum := configGenerator.GenerateChecksum(configContext, true)
 
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	containerOrchestrator.On("GetDevProxyChecksum").Return(expectedChecksum, nil)
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	shouldRebuild, err := sut.ShouldRebuildDevProxy(true, nil)
+	shouldRebuild, err := sut.ShouldRebuildDevProxy(true)
 
 	assert.NoError(t, err)
 	assert.False(t, shouldRebuild)
@@ -741,7 +741,7 @@ func TestShouldRebuildDevProxy_LoadConfigError(t *testing.T) {
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	shouldRebuild, err := sut.ShouldRebuildDevProxy(false, nil)
+	shouldRebuild, err := sut.ShouldRebuildDevProxy(false)
 
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, expectedErr)
@@ -765,7 +765,7 @@ func TestShouldRebuildDevProxy_GetChecksumError(t *testing.T) {
 
 	sut := ProvideDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
-	shouldRebuild, err := sut.ShouldRebuildDevProxy(false, nil)
+	shouldRebuild, err := sut.ShouldRebuildDevProxy(false)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get current dev-proxy checksum")

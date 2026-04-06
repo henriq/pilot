@@ -76,135 +76,7 @@ func TestCACommandHandler_HandlePrint_NoCA(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestCACommandHandler_HandleReissue_Success(t *testing.T) {
-	configContext := &domain.ConfigurationContext{
-		Name: "test-ctx",
-		Services: []domain.Service{
-			{
-				Name: "svc",
-				Certificates: []domain.CertificateRequest{
-					{
-						Type:     domain.CertificateTypeServer,
-						DNSNames: []string{"foo.localhost"},
-						K8sSecret: domain.K8sSecretConfig{
-							Name: "foo-tls",
-							Type: domain.K8sSecretTypeTLS,
-						},
-					},
-				},
-			},
-		},
-	}
-
-	configRepository := new(testutil.MockConfigRepository)
-	environmentEnsurer := passingEnvironmentEnsurer(configRepository, configContext)
-
-	mockCA := new(testutil.MockCertificateAuthority)
-	mockOrch := new(testutil.MockSecretStore)
-	mockKeyring := new(testutil.MockKeyring)
-	mockEncryptor := new(testutil.MockSymmetricEncryptor)
-
-	// Reissue checks that a CA exists before proceeding
-	mockCA.On("GetCACertificatePEM", "test-ctx").Return([]byte("cert"), nil)
-
-	// Set up the provisioner's passphrase flow
-	mockKeyring.On("HasKey", "test-ctx-ca-key").Return(true, nil)
-	mockKeyring.On("GetKey", "test-ctx-ca-key").Return("test-passphrase", nil)
-
-	issued := &domain.IssuedCertificate{
-		CertPEM: []byte("cert"), KeyPEM: []byte("key"), CAPEM: []byte("ca"),
-	}
-	mockCA.On("IssueCertificate", mock.Anything, mock.Anything, mock.Anything).Return(issued, nil)
-	mockOrch.On("CreateOrUpdateSecret", mock.Anything, domain.K8sSecretTypeTLS, mock.Anything).Return(nil)
-
-	provisioner := core.ProvideCertificateProvisioner(mockCA, mockOrch, mockKeyring, mockEncryptor)
-
-	sut := ProvideCACommandHandler(
-		configRepository,
-		mockCA,
-		provisioner,
-		new(testutil.MockTerminalInput),
-		environmentEnsurer,
-	)
-
-	err := sut.HandleReissue()
-	assert.NoError(t, err)
-
-	mockCA.AssertExpectations(t)
-	mockOrch.AssertExpectations(t)
-}
-
-func TestCACommandHandler_HandleReissue_NoCAExists(t *testing.T) {
-	configContext := &domain.ConfigurationContext{
-		Name: "test-ctx",
-		Services: []domain.Service{
-			{Name: "svc", Certificates: []domain.CertificateRequest{
-				{Type: domain.CertificateTypeServer, DNSNames: []string{"foo.localhost"},
-					K8sSecret: domain.K8sSecretConfig{Name: "foo-tls", Type: domain.K8sSecretTypeTLS}},
-			}},
-		},
-	}
-
-	configRepository := new(testutil.MockConfigRepository)
-	environmentEnsurer := passingEnvironmentEnsurer(configRepository, configContext)
-
-	mockCA := new(testutil.MockCertificateAuthority)
-	mockCA.On("GetCACertificatePEM", "test-ctx").Return(nil, assert.AnError)
-
-	sut := ProvideCACommandHandler(
-		configRepository,
-		mockCA,
-		noCertProvisioner(),
-		new(testutil.MockTerminalInput),
-		environmentEnsurer,
-	)
-
-	err := sut.HandleReissue()
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "no certificate authority exists")
-	assert.Contains(t, err.Error(), "dx ca recreate")
-}
-
-func TestCACommandHandler_HandleReissue_NoUserCertsStillReissuesInternalTLS(t *testing.T) {
-	configContext := &domain.ConfigurationContext{
-		Name:     "test-ctx",
-		Services: []domain.Service{{Name: "svc"}},
-	}
-
-	configRepository := new(testutil.MockConfigRepository)
-	environmentEnsurer := passingEnvironmentEnsurer(configRepository, configContext)
-
-	mockCA := new(testutil.MockCertificateAuthority)
-	mockOrch := new(testutil.MockSecretStore)
-	mockKeyring := new(testutil.MockKeyring)
-
-	// Reissue checks that a CA exists before proceeding
-	mockCA.On("GetCACertificatePEM", "test-ctx").Return([]byte("cert"), nil)
-
-	mockKeyring.On("HasKey", "test-ctx-ca-key").Return(true, nil)
-	mockKeyring.On("GetKey", "test-ctx-ca-key").Return("pass", nil)
-
-	issued := &domain.IssuedCertificate{CertPEM: []byte("c"), KeyPEM: []byte("k"), CAPEM: []byte("a")}
-	mockCA.On("IssueCertificate", mock.Anything, mock.Anything, mock.Anything).Return(issued, nil)
-	mockOrch.On("CreateOrUpdateSecret", core.InternalTLSSecretName, domain.K8sSecretTypeTLS, mock.Anything).Return(nil)
-
-	provisioner := core.ProvideCertificateProvisioner(mockCA, mockOrch, mockKeyring, nil)
-
-	sut := ProvideCACommandHandler(
-		configRepository,
-		mockCA,
-		provisioner,
-		new(testutil.MockTerminalInput),
-		environmentEnsurer,
-	)
-
-	err := sut.HandleReissue()
-	assert.NoError(t, err)
-
-	mockOrch.AssertExpectations(t)
-}
-
-func TestCACommandHandler_HandleRecreate_NonTTYWithoutYes(t *testing.T) {
+func TestCACommandHandler_HandleDelete_NonTTYWithoutYes(t *testing.T) {
 	configContext := &domain.ConfigurationContext{
 		Name: "test-ctx",
 		Services: []domain.Service{
@@ -232,12 +104,12 @@ func TestCACommandHandler_HandleRecreate_NonTTYWithoutYes(t *testing.T) {
 		environmentEnsurer,
 	)
 
-	err := sut.HandleRecreate(false)
+	err := sut.HandleDelete(false)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "requires confirmation. Use --yes")
+	assert.Contains(t, err.Error(), "deleting the CA requires confirmation")
 }
 
-func TestCACommandHandler_HandleRecreate_UserCancels(t *testing.T) {
+func TestCACommandHandler_HandleDelete_UserCancels(t *testing.T) {
 	configContext := &domain.ConfigurationContext{
 		Name: "test-ctx",
 		Services: []domain.Service{
@@ -266,11 +138,11 @@ func TestCACommandHandler_HandleRecreate_UserCancels(t *testing.T) {
 		environmentEnsurer,
 	)
 
-	err := sut.HandleRecreate(false)
+	err := sut.HandleDelete(false)
 	assert.NoError(t, err) // cancelled, not an error
 }
 
-func TestCACommandHandler_HandleRecreate_InteractiveYes(t *testing.T) {
+func TestCACommandHandler_HandleDelete_InteractiveYes(t *testing.T) {
 	configContext := &domain.ConfigurationContext{
 		Name: "test-ctx",
 		Services: []domain.Service{
@@ -285,27 +157,13 @@ func TestCACommandHandler_HandleRecreate_InteractiveYes(t *testing.T) {
 	environmentEnsurer := passingEnvironmentEnsurer(configRepository, configContext)
 
 	mockCA := new(testutil.MockCertificateAuthority)
-	mockOrch := new(testutil.MockSecretStore)
 	mockKeyring := new(testutil.MockKeyring)
-	mockEncryptor := new(testutil.MockSymmetricEncryptor)
 
 	mockCA.On("GetCACertificatePEM", "test-ctx").Return([]byte("cert"), nil)
 	mockCA.On("DeleteCA", "test-ctx").Return(nil)
 	mockKeyring.On("DeleteKey", "test-ctx-ca-key").Return(nil)
 
-	// ReissueCertificates flow
-	mockKeyring.On("HasKey", "test-ctx-ca-key").Return(false, nil)
-	mockEncryptor.On("CreateKey").Return([]byte("new-pass"), nil)
-	mockKeyring.On("SetKey", "test-ctx-ca-key", "new-pass").Return(nil)
-	mockKeyring.On("GetKey", "test-ctx-ca-key").Return("new-pass", nil)
-
-	issued := &domain.IssuedCertificate{
-		CertPEM: []byte("cert"), KeyPEM: []byte("key"), CAPEM: []byte("ca"),
-	}
-	mockCA.On("IssueCertificate", mock.Anything, mock.Anything, mock.Anything).Return(issued, nil)
-	mockOrch.On("CreateOrUpdateSecret", mock.Anything, domain.K8sSecretTypeTLS, mock.Anything).Return(nil)
-
-	provisioner := core.ProvideCertificateProvisioner(mockCA, mockOrch, mockKeyring, mockEncryptor)
+	provisioner := core.ProvideCertificateProvisioner(mockCA, new(testutil.MockSecretStore), mockKeyring, nil)
 
 	mockTerminal := new(testutil.MockTerminalInput)
 	mockTerminal.On("IsTerminal").Return(true)
@@ -319,35 +177,14 @@ func TestCACommandHandler_HandleRecreate_InteractiveYes(t *testing.T) {
 		environmentEnsurer,
 	)
 
-	err := sut.HandleRecreate(false)
+	err := sut.HandleDelete(false)
 	assert.NoError(t, err)
 
 	mockCA.AssertCalled(t, "DeleteCA", "test-ctx")
 	mockCA.AssertExpectations(t)
-	mockOrch.AssertExpectations(t)
 }
 
-func TestCACommandHandler_HandleReissue_EnvironmentEnsurer_LoadConfigError(t *testing.T) {
-	configRepository := new(testutil.MockConfigRepository)
-	containerOrchestrator := new(testutil.MockContainerOrchestrator)
-	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("any-key", nil)
-	configRepository.On("LoadCurrentConfigurationContext").Return(nil, assert.AnError)
-
-	environmentEnsurer := core.ProvideEnvironmentEnsurer(configRepository, containerOrchestrator)
-
-	sut := ProvideCACommandHandler(
-		configRepository,
-		new(testutil.MockCertificateAuthority),
-		noCertProvisioner(),
-		new(testutil.MockTerminalInput),
-		environmentEnsurer,
-	)
-
-	err := sut.HandleReissue()
-	assert.Error(t, err)
-}
-
-func TestCACommandHandler_HandleRecreate_SkipConfirmation(t *testing.T) {
+func TestCACommandHandler_HandleDelete_SkipConfirmation(t *testing.T) {
 	configContext := &domain.ConfigurationContext{
 		Name: "test-ctx",
 		Services: []domain.Service{
@@ -362,27 +199,13 @@ func TestCACommandHandler_HandleRecreate_SkipConfirmation(t *testing.T) {
 	environmentEnsurer := passingEnvironmentEnsurer(configRepository, configContext)
 
 	mockCA := new(testutil.MockCertificateAuthority)
-	mockOrch := new(testutil.MockSecretStore)
 	mockKeyring := new(testutil.MockKeyring)
-	mockEncryptor := new(testutil.MockSymmetricEncryptor)
 
 	mockCA.On("GetCACertificatePEM", "test-ctx").Return([]byte("cert"), nil)
 	mockCA.On("DeleteCA", "test-ctx").Return(nil)
 	mockKeyring.On("DeleteKey", "test-ctx-ca-key").Return(nil)
 
-	// ReissueCertificates flow
-	mockKeyring.On("HasKey", "test-ctx-ca-key").Return(false, nil)
-	mockEncryptor.On("CreateKey").Return([]byte("new-pass"), nil)
-	mockKeyring.On("SetKey", "test-ctx-ca-key", "new-pass").Return(nil)
-	mockKeyring.On("GetKey", "test-ctx-ca-key").Return("new-pass", nil)
-
-	issued := &domain.IssuedCertificate{
-		CertPEM: []byte("cert"), KeyPEM: []byte("key"), CAPEM: []byte("ca"),
-	}
-	mockCA.On("IssueCertificate", mock.Anything, mock.Anything, mock.Anything).Return(issued, nil)
-	mockOrch.On("CreateOrUpdateSecret", mock.Anything, domain.K8sSecretTypeTLS, mock.Anything).Return(nil)
-
-	provisioner := core.ProvideCertificateProvisioner(mockCA, mockOrch, mockKeyring, mockEncryptor)
+	provisioner := core.ProvideCertificateProvisioner(mockCA, new(testutil.MockSecretStore), mockKeyring, nil)
 
 	mockTerminal := new(testutil.MockTerminalInput)
 
@@ -394,13 +217,79 @@ func TestCACommandHandler_HandleRecreate_SkipConfirmation(t *testing.T) {
 		environmentEnsurer,
 	)
 
-	err := sut.HandleRecreate(true)
+	err := sut.HandleDelete(true)
 	assert.NoError(t, err)
 
 	mockCA.AssertExpectations(t)
-	mockOrch.AssertExpectations(t)
 	// ReadLine should never be called with skipConfirmation=true
 	mockTerminal.AssertNotCalled(t, "ReadLine", mock.Anything)
+}
+
+func TestCACommandHandler_HandleDelete_DeleteCAError(t *testing.T) {
+	configContext := &domain.ConfigurationContext{
+		Name: "test-ctx",
+		Services: []domain.Service{
+			{Name: "svc", Certificates: []domain.CertificateRequest{
+				{Type: domain.CertificateTypeServer, DNSNames: []string{"foo.localhost"},
+					K8sSecret: domain.K8sSecretConfig{Name: "foo-tls", Type: domain.K8sSecretTypeTLS}},
+			}},
+		},
+	}
+
+	configRepository := new(testutil.MockConfigRepository)
+	environmentEnsurer := passingEnvironmentEnsurer(configRepository, configContext)
+
+	mockCA := new(testutil.MockCertificateAuthority)
+	mockCA.On("GetCACertificatePEM", "test-ctx").Return([]byte("cert"), nil)
+	mockCA.On("DeleteCA", "test-ctx").Return(assert.AnError)
+
+	sut := ProvideCACommandHandler(
+		configRepository,
+		mockCA,
+		noCertProvisioner(),
+		new(testutil.MockTerminalInput),
+		environmentEnsurer,
+	)
+
+	err := sut.HandleDelete(true)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to remove existing CA")
+}
+
+func TestCACommandHandler_HandleDelete_DeletePassphraseError(t *testing.T) {
+	configContext := &domain.ConfigurationContext{
+		Name: "test-ctx",
+		Services: []domain.Service{
+			{Name: "svc", Certificates: []domain.CertificateRequest{
+				{Type: domain.CertificateTypeServer, DNSNames: []string{"foo.localhost"},
+					K8sSecret: domain.K8sSecretConfig{Name: "foo-tls", Type: domain.K8sSecretTypeTLS}},
+			}},
+		},
+	}
+
+	configRepository := new(testutil.MockConfigRepository)
+	environmentEnsurer := passingEnvironmentEnsurer(configRepository, configContext)
+
+	mockCA := new(testutil.MockCertificateAuthority)
+	mockKeyring := new(testutil.MockKeyring)
+
+	mockCA.On("GetCACertificatePEM", "test-ctx").Return([]byte("cert"), nil)
+	mockCA.On("DeleteCA", "test-ctx").Return(nil)
+	mockKeyring.On("DeleteKey", "test-ctx-ca-key").Return(assert.AnError)
+
+	provisioner := core.ProvideCertificateProvisioner(mockCA, new(testutil.MockSecretStore), mockKeyring, nil)
+
+	sut := ProvideCACommandHandler(
+		configRepository,
+		mockCA,
+		provisioner,
+		new(testutil.MockTerminalInput),
+		environmentEnsurer,
+	)
+
+	err := sut.HandleDelete(true)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to remove CA passphrase")
 }
 
 func TestCACommandHandler_HandleStatus_NoCA(t *testing.T) {
@@ -538,7 +427,7 @@ func TestCACommandHandler_HandleStatus_ExpiringSoonCA(t *testing.T) {
 	mockCA.AssertExpectations(t)
 }
 
-func TestCACommandHandler_HandleRecreate_NoExistingCA(t *testing.T) {
+func TestCACommandHandler_HandleDelete_NoExistingCA(t *testing.T) {
 	configContext := &domain.ConfigurationContext{
 		Name: "test-ctx",
 		Services: []domain.Service{
@@ -553,46 +442,24 @@ func TestCACommandHandler_HandleRecreate_NoExistingCA(t *testing.T) {
 	environmentEnsurer := passingEnvironmentEnsurer(configRepository, configContext)
 
 	mockCA := new(testutil.MockCertificateAuthority)
-	mockOrch := new(testutil.MockSecretStore)
-	mockKeyring := new(testutil.MockKeyring)
-	mockEncryptor := new(testutil.MockSymmetricEncryptor)
-
-	// No CA exists
 	mockCA.On("GetCACertificatePEM", "test-ctx").Return(nil, assert.AnError)
 
-	// Should proceed without confirmation and without deleting
-	mockKeyring.On("HasKey", "test-ctx-ca-key").Return(false, nil)
-	mockEncryptor.On("CreateKey").Return([]byte("new-pass"), nil)
-	mockKeyring.On("SetKey", "test-ctx-ca-key", "new-pass").Return(nil)
-	mockKeyring.On("GetKey", "test-ctx-ca-key").Return("new-pass", nil)
-
-	issued := &domain.IssuedCertificate{
-		CertPEM: []byte("cert"), KeyPEM: []byte("key"), CAPEM: []byte("ca"),
-	}
-	mockCA.On("IssueCertificate", mock.Anything, mock.Anything, mock.Anything).Return(issued, nil)
-	mockOrch.On("CreateOrUpdateSecret", mock.Anything, domain.K8sSecretTypeTLS, mock.Anything).Return(nil)
-
-	provisioner := core.ProvideCertificateProvisioner(mockCA, mockOrch, mockKeyring, mockEncryptor)
 	mockTerminal := new(testutil.MockTerminalInput)
 
 	sut := ProvideCACommandHandler(
 		configRepository,
 		mockCA,
-		provisioner,
+		noCertProvisioner(),
 		mockTerminal,
 		environmentEnsurer,
 	)
 
-	err := sut.HandleRecreate(false)
+	err := sut.HandleDelete(false)
 	assert.NoError(t, err)
 
-	// Should never prompt for confirmation
+	// Should never prompt for confirmation or delete CA
 	mockTerminal.AssertNotCalled(t, "ReadLine", mock.Anything)
-	// Should never delete CA
 	mockCA.AssertNotCalled(t, "DeleteCA", mock.Anything)
-
-	mockCA.AssertExpectations(t)
-	mockOrch.AssertExpectations(t)
 }
 
 func TestCACommandHandler_HandlePrint_LoadContextNameError(t *testing.T) {
@@ -612,7 +479,7 @@ func TestCACommandHandler_HandlePrint_LoadContextNameError(t *testing.T) {
 	configRepository.AssertExpectations(t)
 }
 
-func TestCACommandHandler_HandleRecreate_EnvironmentEnsurer_LoadConfigError(t *testing.T) {
+func TestCACommandHandler_HandleDelete_EnvironmentEnsurer_LoadConfigError(t *testing.T) {
 	configRepository := new(testutil.MockConfigRepository)
 	containerOrchestrator := new(testutil.MockContainerOrchestrator)
 	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("any-key", nil)
@@ -628,7 +495,7 @@ func TestCACommandHandler_HandleRecreate_EnvironmentEnsurer_LoadConfigError(t *t
 		environmentEnsurer,
 	)
 
-	err := sut.HandleRecreate(false)
+	err := sut.HandleDelete(false)
 	assert.Error(t, err)
 	configRepository.AssertExpectations(t)
 }
@@ -712,7 +579,7 @@ func TestCACommandHandler_HandleStatus_EnvironmentMismatch(t *testing.T) {
 	assert.Contains(t, err.Error(), "environment key mismatch")
 }
 
-func TestCACommandHandler_HandleReissue_EnvironmentMismatch(t *testing.T) {
+func TestCACommandHandler_HandleDelete_EnvironmentMismatch(t *testing.T) {
 	configContext := &domain.ConfigurationContext{Name: "test-ctx"}
 	configRepository := new(testutil.MockConfigRepository)
 	environmentEnsurer := failingEnvironmentEnsurer(configRepository, configContext)
@@ -725,25 +592,7 @@ func TestCACommandHandler_HandleReissue_EnvironmentMismatch(t *testing.T) {
 		environmentEnsurer,
 	)
 
-	err := sut.HandleReissue()
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "environment key mismatch")
-}
-
-func TestCACommandHandler_HandleRecreate_EnvironmentMismatch(t *testing.T) {
-	configContext := &domain.ConfigurationContext{Name: "test-ctx"}
-	configRepository := new(testutil.MockConfigRepository)
-	environmentEnsurer := failingEnvironmentEnsurer(configRepository, configContext)
-
-	sut := ProvideCACommandHandler(
-		configRepository,
-		new(testutil.MockCertificateAuthority),
-		noCertProvisioner(),
-		new(testutil.MockTerminalInput),
-		environmentEnsurer,
-	)
-
-	err := sut.HandleRecreate(false)
+	err := sut.HandleDelete(false)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "environment key mismatch")
 }

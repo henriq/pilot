@@ -197,12 +197,11 @@ DX can automatically issue TLS certificates for your services using a private ce
 dx ca status                  # Show CA status and expiry
 dx ca print                   # Print CA certificate in PEM format
 dx ca print > ca.crt          # Save CA certificate to a file
-dx ca reissue                 # Re-issue all certificates (keeps existing CA)
-dx ca recreate                # Delete and recreate CA and all certificates
-dx ca recreate --yes          # Skip confirmation prompt
+dx ca delete                  # Delete CA (new one created on next dx install)
+dx ca delete --yes            # Skip confirmation prompt
 ```
 
-The CA is created automatically on the first `dx install`. Leaf certificates have a 30-day validity period and are automatically renewed during `dx install` when they have less than 14 days remaining.
+The CA is created automatically on the first `dx install`. Leaf certificates have a 30-day validity period and are always freshly issued during `dx install`.
 
 To trust the certificates locally, extract the CA certificate and add it to your system's trust store:
 
