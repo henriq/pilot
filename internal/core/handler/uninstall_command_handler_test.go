@@ -34,7 +34,15 @@ func TestUninstallCommandHandler_HandleUninstallsAllServices(t *testing.T) {
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	containerOrchestrator := new(testutil.MockContainerOrchestrator)
 	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("any-key", nil)
-	containerOrchestrator.On("UninstallService", mock.Anything).Return(nil)
+	containerOrchestrator.On("UninstallService", mock.MatchedBy(func(s *domain.Service) bool {
+		return s.Name == "service-1"
+	})).Return(nil).Once()
+	containerOrchestrator.On("UninstallService", mock.MatchedBy(func(s *domain.Service) bool {
+		return s.Name == "service-2"
+	})).Return(nil).Once()
+	containerOrchestrator.On("UninstallService", mock.MatchedBy(func(s *domain.Service) bool {
+		return s.Name == "dev-proxy"
+	})).Return(nil).Once()
 	containerOrchestrator.On("HasDeployedServices").Return(false, nil)
 	fileSystem := new(testutil.MockFileSystem)
 	fileSystem.On("HomeDir").Return("/home/test", nil)
@@ -64,7 +72,6 @@ func TestUninstallCommandHandler_HandleUninstallsAllServices(t *testing.T) {
 	containerImageRepository.AssertExpectations(t)
 	fileSystem.AssertExpectations(t)
 	containerOrchestrator.AssertExpectations(t)
-	containerOrchestrator.AssertNumberOfCalls(t, "UninstallService", 3)
 }
 
 func TestUninstallCommandHandler_HandleUninstallsOnlySelectedService(t *testing.T) {
@@ -118,4 +125,74 @@ func TestUninstallCommandHandler_HandleUninstallsOnlySelectedService(t *testing.
 	assert.Nil(t, result)
 	containerImageRepository.AssertExpectations(t)
 	containerOrchestrator.AssertExpectations(t)
+}
+
+func TestUninstallCommandHandler_Handle_EnsureExpectedClusterError(t *testing.T) {
+	configRepository := new(testutil.MockConfigRepository)
+	containerOrchestrator := new(testutil.MockContainerOrchestrator)
+	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("", assert.AnError)
+	fileSystem := new(testutil.MockFileSystem)
+	containerImageRepository := new(testutil.MockContainerImageRepository)
+	configGenerator := core.ProvideDevProxyConfigGenerator()
+	devProxyManager := core.ProvideDevProxyManager(
+		configRepository,
+		fileSystem,
+		containerImageRepository,
+		containerOrchestrator,
+		configGenerator,
+	)
+	environmentEnsurer := core.ProvideEnvironmentEnsurer(
+		configRepository,
+		containerOrchestrator,
+	)
+	sut := ProvideUninstallCommandHandler(
+		configRepository,
+		containerOrchestrator,
+		environmentEnsurer,
+		devProxyManager,
+	)
+
+	result := sut.Handle([]string{}, "all")
+
+	assert.Error(t, result)
+	assert.Contains(t, result.Error(), "failed to generate current environment key")
+	containerOrchestrator.AssertNotCalled(t, "UninstallService", mock.Anything)
+}
+
+func TestUninstallCommandHandler_Handle_LoadConfigError(t *testing.T) {
+	configContext := &domain.ConfigurationContext{
+		Name: "Test",
+	}
+	configRepository := new(testutil.MockConfigRepository)
+	configRepository.On("LoadEnvKey", mock.Anything).Return("any-key", nil)
+	// First call succeeds (inside EnsureExpectedClusterIsSelected), second call fails (in Handle)
+	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil).Once()
+	configRepository.On("LoadCurrentConfigurationContext").Return(nil, assert.AnError).Once()
+	containerOrchestrator := new(testutil.MockContainerOrchestrator)
+	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("any-key", nil)
+	fileSystem := new(testutil.MockFileSystem)
+	containerImageRepository := new(testutil.MockContainerImageRepository)
+	configGenerator := core.ProvideDevProxyConfigGenerator()
+	devProxyManager := core.ProvideDevProxyManager(
+		configRepository,
+		fileSystem,
+		containerImageRepository,
+		containerOrchestrator,
+		configGenerator,
+	)
+	environmentEnsurer := core.ProvideEnvironmentEnsurer(
+		configRepository,
+		containerOrchestrator,
+	)
+	sut := ProvideUninstallCommandHandler(
+		configRepository,
+		containerOrchestrator,
+		environmentEnsurer,
+		devProxyManager,
+	)
+
+	result := sut.Handle([]string{}, "all")
+
+	assert.ErrorIs(t, result, assert.AnError)
+	containerOrchestrator.AssertNotCalled(t, "UninstallService", mock.Anything)
 }

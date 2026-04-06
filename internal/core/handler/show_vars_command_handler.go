@@ -6,16 +6,17 @@ import (
 	"strings"
 
 	"dx/internal/core"
+	"dx/internal/ports"
 )
 
 type ShowVarsCommandHandler struct {
-	secretsRepository core.SecretsRepository
-	configRepository  core.ConfigRepository
+	secretsRepository ports.SecretsRepository
+	configRepository  ports.ConfigRepository
 }
 
 func ProvideShowVarsCommandHandler(
-	secretsRepository core.SecretsRepository,
-	configRepository core.ConfigRepository,
+	secretsRepository ports.SecretsRepository,
+	configRepository ports.ConfigRepository,
 ) ShowVarsCommandHandler {
 	return ShowVarsCommandHandler{
 		secretsRepository: secretsRepository,
@@ -55,13 +56,15 @@ func prettyPrintMap(values map[string]interface{}, indent int, hidden bool) {
 			} else {
 				fmt.Printf("%s%s: %s\n", indentString, key, value)
 			}
-		} else {
+		} else if nested, ok := value.(map[string]interface{}); ok {
 			fmt.Printf("%s%s:\n", indentString, key)
 			if strings.Contains(key, "Secrets") {
-				prettyPrintMap(value.(map[string]interface{}), indent+2, true)
+				prettyPrintMap(nested, indent+2, true)
 			} else {
-				prettyPrintMap(value.(map[string]interface{}), indent+2, hidden)
+				prettyPrintMap(nested, indent+2, hidden)
 			}
+		} else {
+			fmt.Printf("%s%s: %v\n", indentString, key, value)
 		}
 	}
 }

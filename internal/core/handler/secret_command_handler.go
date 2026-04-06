@@ -12,14 +12,14 @@ import (
 )
 
 type SecretCommandHandler struct {
-	secretsRepository core.SecretsRepository
-	configRepository  core.ConfigRepository
+	secretsRepository ports.SecretsRepository
+	configRepository  ports.ConfigRepository
 	terminalInput     ports.TerminalInput
 }
 
 func ProvideSecretCommandHandler(
-	secretsRepository core.SecretsRepository,
-	configRepository core.ConfigRepository,
+	secretsRepository ports.SecretsRepository,
+	configRepository ports.ConfigRepository,
 	terminalInput ports.TerminalInput,
 ) SecretCommandHandler {
 	return SecretCommandHandler{

@@ -49,6 +49,71 @@ func TestConfigurationContext_GetService(t *testing.T) {
 	assert.Nil(t, actual)
 }
 
+func TestConfigurationContext_FilterServices_ByProfile(t *testing.T) {
+	ctx := ConfigurationContext{
+		Services: []Service{
+			{Name: "svc-a", Profiles: []string{"infra", "all"}},
+			{Name: "svc-b", Profiles: []string{"app", "all"}},
+			{Name: "svc-c", Profiles: []string{"infra", "all"}},
+		},
+	}
+
+	result := ctx.FilterServices(nil, "infra")
+
+	assert.Len(t, result, 2)
+	assert.Equal(t, "svc-a", result[0].Name)
+	assert.Equal(t, "svc-c", result[1].Name)
+}
+
+func TestConfigurationContext_FilterServices_ByNames(t *testing.T) {
+	ctx := ConfigurationContext{
+		Services: []Service{
+			{Name: "svc-a", Profiles: []string{"infra"}},
+			{Name: "svc-b", Profiles: []string{"app"}},
+			{Name: "svc-c", Profiles: []string{"infra"}},
+		},
+	}
+
+	result := ctx.FilterServices([]string{"svc-b", "svc-c"}, "infra")
+
+	assert.Len(t, result, 2)
+	assert.Equal(t, "svc-b", result[0].Name)
+	assert.Equal(t, "svc-c", result[1].Name)
+}
+
+func TestConfigurationContext_FilterServices_NamesNotFound(t *testing.T) {
+	ctx := ConfigurationContext{
+		Services: []Service{
+			{Name: "svc-a", Profiles: []string{"all"}},
+		},
+	}
+
+	result := ctx.FilterServices([]string{"nonexistent"}, "all")
+
+	assert.Empty(t, result)
+}
+
+func TestConfigurationContext_FilterServices_EmptyServices(t *testing.T) {
+	ctx := ConfigurationContext{}
+
+	result := ctx.FilterServices(nil, "all")
+
+	assert.Empty(t, result)
+}
+
+func TestConfigurationContext_FilterServices_AllProfile(t *testing.T) {
+	ctx := ConfigurationContext{
+		Services: []Service{
+			{Name: "svc-a", Profiles: []string{"infra", "all"}},
+			{Name: "svc-b", Profiles: []string{"app", "all"}},
+		},
+	}
+
+	result := ctx.FilterServices(nil, "all")
+
+	assert.Len(t, result, 2)
+}
+
 func TestCreateDefaultConfigReturnsConfig(t *testing.T) {
 	defaultConfig := CreateDefaultConfig()
 	assert.NotNil(t, defaultConfig)

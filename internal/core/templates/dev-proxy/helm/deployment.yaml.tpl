@@ -21,7 +21,7 @@ spec:
           type: RuntimeDefault
       containers:
       - name: haproxy
-        image: henriq/haproxy-{{ .Name }}
+        image: {{ .ImagePrefix }}/haproxy-{{ .Name }}
         imagePullPolicy: Never
         ports:
         - containerPort: 8080
@@ -39,7 +39,7 @@ spec:
           mountPath: /var/lib/haproxy
 {{- if .InterceptHttp }}
       - name: mitmproxy
-        image: henriq/mitmproxy-{{ .Name }}
+        image: {{ .ImagePrefix }}/mitmproxy-{{ .Name }}
         imagePullPolicy: Never
         tty: true
         stdin: true

@@ -12,8 +12,6 @@ import (
 
 func TestContextCommandHandler_HandleSet_Success(t *testing.T) {
 	configRepository := new(testutil.MockConfigRepository)
-	scm := new(testutil.MockScm)
-	containerImageRepository := new(testutil.MockContainerImageRepository)
 
 	config := &domain.Config{
 		Contexts: []domain.ConfigurationContext{
@@ -25,7 +23,7 @@ func TestContextCommandHandler_HandleSet_Success(t *testing.T) {
 	configRepository.On("LoadConfig").Return(config, nil)
 	configRepository.On("SaveCurrentContextName", "production").Return(nil)
 
-	sut := ProvideContextCommandHandler(configRepository, scm, containerImageRepository)
+	sut := ProvideContextCommandHandler(configRepository)
 
 	err := sut.HandleSet("production")
 
@@ -35,13 +33,11 @@ func TestContextCommandHandler_HandleSet_Success(t *testing.T) {
 
 func TestContextCommandHandler_HandleSet_LoadConfigError(t *testing.T) {
 	configRepository := new(testutil.MockConfigRepository)
-	scm := new(testutil.MockScm)
-	containerImageRepository := new(testutil.MockContainerImageRepository)
 
 	expectedErr := errors.New("load config error")
 	configRepository.On("LoadConfig").Return(nil, expectedErr)
 
-	sut := ProvideContextCommandHandler(configRepository, scm, containerImageRepository)
+	sut := ProvideContextCommandHandler(configRepository)
 
 	err := sut.HandleSet("production")
 
@@ -52,8 +48,6 @@ func TestContextCommandHandler_HandleSet_LoadConfigError(t *testing.T) {
 
 func TestContextCommandHandler_HandleSet_ContextNotFound(t *testing.T) {
 	configRepository := new(testutil.MockConfigRepository)
-	scm := new(testutil.MockScm)
-	containerImageRepository := new(testutil.MockContainerImageRepository)
 
 	config := &domain.Config{
 		Contexts: []domain.ConfigurationContext{
@@ -63,7 +57,7 @@ func TestContextCommandHandler_HandleSet_ContextNotFound(t *testing.T) {
 
 	configRepository.On("LoadConfig").Return(config, nil)
 
-	sut := ProvideContextCommandHandler(configRepository, scm, containerImageRepository)
+	sut := ProvideContextCommandHandler(configRepository)
 
 	err := sut.HandleSet("non-existent")
 
@@ -74,8 +68,6 @@ func TestContextCommandHandler_HandleSet_ContextNotFound(t *testing.T) {
 
 func TestContextCommandHandler_HandleSet_SaveError(t *testing.T) {
 	configRepository := new(testutil.MockConfigRepository)
-	scm := new(testutil.MockScm)
-	containerImageRepository := new(testutil.MockContainerImageRepository)
 
 	config := &domain.Config{
 		Contexts: []domain.ConfigurationContext{
@@ -88,7 +80,7 @@ func TestContextCommandHandler_HandleSet_SaveError(t *testing.T) {
 	configRepository.On("LoadConfig").Return(config, nil)
 	configRepository.On("SaveCurrentContextName", "production").Return(expectedErr)
 
-	sut := ProvideContextCommandHandler(configRepository, scm, containerImageRepository)
+	sut := ProvideContextCommandHandler(configRepository)
 
 	err := sut.HandleSet("production")
 
@@ -99,8 +91,6 @@ func TestContextCommandHandler_HandleSet_SaveError(t *testing.T) {
 
 func TestContextCommandHandler_HandleList_Success(t *testing.T) {
 	configRepository := new(testutil.MockConfigRepository)
-	scm := new(testutil.MockScm)
-	containerImageRepository := new(testutil.MockContainerImageRepository)
 
 	config := &domain.Config{
 		Contexts: []domain.ConfigurationContext{
@@ -112,7 +102,7 @@ func TestContextCommandHandler_HandleList_Success(t *testing.T) {
 	configRepository.On("LoadConfig").Return(config, nil)
 	configRepository.On("LoadCurrentContextName").Return("default", nil)
 
-	sut := ProvideContextCommandHandler(configRepository, scm, containerImageRepository)
+	sut := ProvideContextCommandHandler(configRepository)
 
 	err := sut.HandleList()
 
@@ -122,8 +112,6 @@ func TestContextCommandHandler_HandleList_Success(t *testing.T) {
 
 func TestContextCommandHandler_HandleList_Empty(t *testing.T) {
 	configRepository := new(testutil.MockConfigRepository)
-	scm := new(testutil.MockScm)
-	containerImageRepository := new(testutil.MockContainerImageRepository)
 
 	config := &domain.Config{
 		Contexts: []domain.ConfigurationContext{},
@@ -132,7 +120,7 @@ func TestContextCommandHandler_HandleList_Empty(t *testing.T) {
 	configRepository.On("LoadConfig").Return(config, nil)
 	configRepository.On("LoadCurrentContextName").Return("", nil)
 
-	sut := ProvideContextCommandHandler(configRepository, scm, containerImageRepository)
+	sut := ProvideContextCommandHandler(configRepository)
 
 	err := sut.HandleList()
 
@@ -142,13 +130,11 @@ func TestContextCommandHandler_HandleList_Empty(t *testing.T) {
 
 func TestContextCommandHandler_HandleList_LoadConfigError(t *testing.T) {
 	configRepository := new(testutil.MockConfigRepository)
-	scm := new(testutil.MockScm)
-	containerImageRepository := new(testutil.MockContainerImageRepository)
 
 	expectedErr := errors.New("load config error")
 	configRepository.On("LoadConfig").Return(nil, expectedErr)
 
-	sut := ProvideContextCommandHandler(configRepository, scm, containerImageRepository)
+	sut := ProvideContextCommandHandler(configRepository)
 
 	err := sut.HandleList()
 
@@ -161,8 +147,6 @@ func TestContextCommandHandler_HandleList_LoadCurrentContextNameError(t *testing
 	// Documents behavior: LoadCurrentContextName error is intentionally ignored
 	// The list still displays but without marking any context as current
 	configRepository := new(testutil.MockConfigRepository)
-	scm := new(testutil.MockScm)
-	containerImageRepository := new(testutil.MockContainerImageRepository)
 
 	config := &domain.Config{
 		Contexts: []domain.ConfigurationContext{
@@ -174,7 +158,7 @@ func TestContextCommandHandler_HandleList_LoadCurrentContextNameError(t *testing
 	configRepository.On("LoadConfig").Return(config, nil)
 	configRepository.On("LoadCurrentContextName").Return("", errors.New("context name error"))
 
-	sut := ProvideContextCommandHandler(configRepository, scm, containerImageRepository)
+	sut := ProvideContextCommandHandler(configRepository)
 
 	err := sut.HandleList()
 
@@ -185,8 +169,6 @@ func TestContextCommandHandler_HandleList_LoadCurrentContextNameError(t *testing
 
 func TestContextCommandHandler_HandlePrint_Success(t *testing.T) {
 	configRepository := new(testutil.MockConfigRepository)
-	scm := new(testutil.MockScm)
-	containerImageRepository := new(testutil.MockContainerImageRepository)
 
 	configContext := &domain.ConfigurationContext{
 		Name: "test-context",
@@ -197,7 +179,7 @@ func TestContextCommandHandler_HandlePrint_Success(t *testing.T) {
 
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 
-	sut := ProvideContextCommandHandler(configRepository, scm, containerImageRepository)
+	sut := ProvideContextCommandHandler(configRepository)
 
 	err := sut.HandlePrint()
 
@@ -207,13 +189,11 @@ func TestContextCommandHandler_HandlePrint_Success(t *testing.T) {
 
 func TestContextCommandHandler_HandlePrint_LoadConfigError(t *testing.T) {
 	configRepository := new(testutil.MockConfigRepository)
-	scm := new(testutil.MockScm)
-	containerImageRepository := new(testutil.MockContainerImageRepository)
 
 	expectedErr := errors.New("load config error")
 	configRepository.On("LoadCurrentConfigurationContext").Return(nil, expectedErr)
 
-	sut := ProvideContextCommandHandler(configRepository, scm, containerImageRepository)
+	sut := ProvideContextCommandHandler(configRepository)
 
 	err := sut.HandlePrint()
 

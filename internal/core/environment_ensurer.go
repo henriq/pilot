@@ -7,12 +7,12 @@ import (
 )
 
 type EnvironmentEnsurer struct {
-	configRepository      ConfigRepository
+	configRepository      ports.ConfigRepository
 	containerOrchestrator ports.ContainerOrchestrator
 }
 
 func ProvideEnvironmentEnsurer(
-	configRepository ConfigRepository,
+	configRepository ports.ConfigRepository,
 	kubernetesService ports.ContainerOrchestrator,
 ) EnvironmentEnsurer {
 	return EnvironmentEnsurer{

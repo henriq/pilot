@@ -18,6 +18,8 @@ const (
 	DevProxyHAProxyStartPort = 8080
 	// DevProxyMitmproxyStartPort is the starting port for mitmproxy backends.
 	DevProxyMitmproxyStartPort = 18080
+	// DevProxyImagePrefix is the Docker image namespace for dev-proxy images.
+	DevProxyImagePrefix = "henriq"
 )
 
 //go:embed templates/dev-proxy/*/*.tpl
@@ -136,6 +138,7 @@ func (g *DevProxyConfigGenerator) buildTemplateValues(configContext *domain.Conf
 		"InterceptHttp": interceptHttp,
 		"Password":      password,
 		"TLSSecretName": InternalTLSSecretName,
+		"ImagePrefix":   DevProxyImagePrefix,
 	}
 }
 

@@ -11,16 +11,16 @@ import (
 )
 
 type RunCommandHandler struct {
-	configRepository  core.ConfigRepository
-	secretsRepository core.SecretsRepository
+	configRepository  ports.ConfigRepository
+	secretsRepository ports.SecretsRepository
 	templater         ports.Templater
 	scm               ports.Scm
 	commandRunner     ports.CommandRunner
 }
 
 func ProvideRunCommandHandler(
-	configRepository core.ConfigRepository,
-	secretsRepository core.SecretsRepository,
+	configRepository ports.ConfigRepository,
+	secretsRepository ports.SecretsRepository,
 	templater ports.Templater,
 	scm ports.Scm,
 	commandRunner ports.CommandRunner,

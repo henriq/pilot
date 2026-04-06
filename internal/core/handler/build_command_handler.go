@@ -8,19 +8,18 @@ import (
 
 	"dx/internal/cli/output"
 	"dx/internal/cli/progress"
-	"dx/internal/core"
 	"dx/internal/core/domain"
 	"dx/internal/ports"
 )
 
 type BuildCommandHandler struct {
-	configRepository         core.ConfigRepository
+	configRepository         ports.ConfigRepository
 	scm                      ports.Scm
 	containerImageRepository ports.ContainerImageRepository
 }
 
 func ProvideBuildCommandHandler(
-	configRepository core.ConfigRepository,
+	configRepository ports.ConfigRepository,
 	scm ports.Scm,
 	containerImageRepository ports.ContainerImageRepository,
 ) BuildCommandHandler {
@@ -40,15 +39,7 @@ func (h *BuildCommandHandler) Handle(services []string, selectedProfile string) 
 		return err
 	}
 
-	for _, service := range configContext.Services {
-		if len(services) == 0 && !slices.Contains(service.Profiles, selectedProfile) {
-			continue
-		}
-
-		if len(services) > 0 && !slices.ContainsFunc(services, func(s string) bool { return s == service.Name }) {
-			continue
-		}
-
+	for _, service := range configContext.FilterServices(services, selectedProfile) {
 		dockerImagesToBuild = append(dockerImagesToBuild, service.DockerImages...)
 		dockerImagesToPull = append(dockerImagesToPull, service.RemoteImages...)
 	}

@@ -6,9 +6,8 @@ import (
 
 // SecretStore abstracts Kubernetes secret operations for certificate provisioning.
 type SecretStore interface {
-	// SecretExists checks whether a Kubernetes secret exists by name in the current namespace.
-	SecretExists(name string) (bool, error)
 	// GetSecretData returns the data from a Kubernetes secret by name.
+	// Returns (nil, nil) if the secret does not exist.
 	GetSecretData(name string) (map[string][]byte, error)
 	// CreateOrUpdateSecret creates or updates a Kubernetes secret.
 	// Only overwrites secrets with the managed-by=dx label.

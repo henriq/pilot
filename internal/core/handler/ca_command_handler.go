@@ -11,7 +11,7 @@ import (
 )
 
 type CACommandHandler struct {
-	configRepository       core.ConfigRepository
+	configRepository       ports.ConfigRepository
 	certificateAuthority   ports.CertificateAuthority
 	certificateProvisioner *core.CertificateProvisioner
 	terminalInput          ports.TerminalInput
@@ -19,7 +19,7 @@ type CACommandHandler struct {
 }
 
 func ProvideCACommandHandler(
-	configRepository core.ConfigRepository,
+	configRepository ports.ConfigRepository,
 	certificateAuthority ports.CertificateAuthority,
 	certificateProvisioner *core.CertificateProvisioner,
 	terminalInput ports.TerminalInput,

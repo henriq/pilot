@@ -13,15 +13,15 @@ import (
 var _ ports.ContainerImageRepository = (*DockerRepository)(nil)
 
 type DockerRepository struct {
-	configRepository  core.ConfigRepository
-	secretsRepository core.SecretsRepository
+	configRepository  ports.ConfigRepository
+	secretsRepository ports.SecretsRepository
 	templater         ports.Templater
 	commandRunner     ports.CommandRunner
 }
 
 func ProvideDockerRepository(
-	configRepository core.ConfigRepository,
-	secretsRepository core.SecretsRepository,
+	configRepository ports.ConfigRepository,
+	secretsRepository ports.SecretsRepository,
 	templater ports.Templater,
 	commandRunner ports.CommandRunner,
 ) *DockerRepository {

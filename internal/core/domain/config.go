@@ -2,6 +2,7 @@ package domain
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -104,6 +105,22 @@ func (c *Config) ContextExists(name string) bool {
 		}
 	}
 	return false
+}
+
+// FilterServices returns services matching the given names, or if no names are provided,
+// services belonging to the given profile.
+func (c *ConfigurationContext) FilterServices(names []string, profile string) []Service {
+	var result []Service
+	for _, service := range c.Services {
+		if len(names) == 0 && !slices.Contains(service.Profiles, profile) {
+			continue
+		}
+		if len(names) > 0 && !slices.Contains(names, service.Name) {
+			continue
+		}
+		result = append(result, service)
+	}
+	return result
 }
 
 func (c *Config) GetContext(name string) (*ConfigurationContext, error) {
