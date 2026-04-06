@@ -1,7 +1,6 @@
 package testutil
 
 import (
-	"dx/internal/core/domain"
 	"dx/internal/ports"
 
 	"github.com/stretchr/testify/mock"
@@ -19,14 +18,4 @@ func (m *MockSecretStore) GetSecretData(name string) (map[string][]byte, error) 
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(map[string][]byte), args.Error(1)
-}
-
-func (m *MockSecretStore) CreateOrUpdateSecret(name string, secretType domain.K8sSecretType, data map[string][]byte) error {
-	args := m.Called(name, secretType, data)
-	return args.Error(0)
-}
-
-func (m *MockSecretStore) DeleteSecret(name string) error {
-	args := m.Called(name)
-	return args.Error(0)
 }

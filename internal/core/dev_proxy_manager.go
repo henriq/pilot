@@ -39,7 +39,7 @@ func ProvideDevProxyManager(
 
 // ShouldRebuildDevProxy determines if the dev-proxy needs to be rebuilt.
 // Returns true if the dev-proxy doesn't exist or if the configuration has changed.
-func (d *DevProxyManager) ShouldRebuildDevProxy(interceptHttp bool, certificateSecrets []byte) (bool, error) {
+func (d *DevProxyManager) ShouldRebuildDevProxy(interceptHttp bool) (bool, error) {
 	configContext, err := d.configRepository.LoadCurrentConfigurationContext()
 	if err != nil {
 		return false, fmt.Errorf("failed to load configuration context: %w", err)
@@ -55,7 +55,7 @@ func (d *DevProxyManager) ShouldRebuildDevProxy(interceptHttp bool, certificateS
 		return true, nil
 	}
 
-	newChecksum := d.configGenerator.GenerateChecksum(configContext, interceptHttp, certificateSecrets)
+	newChecksum := d.configGenerator.GenerateChecksum(configContext, interceptHttp)
 	return currentChecksum != newChecksum, nil
 }
 
@@ -63,7 +63,7 @@ func (d *DevProxyManager) ShouldRebuildDevProxy(interceptHttp bool, certificateS
 // to $HOME/.dx/$CONTEXT_NAME/dev-proxy/
 // When interceptHttp is true, mitmproxy configuration is also written.
 // Returns the generated mitmweb password when interceptHttp is true, or empty string otherwise.
-func (d *DevProxyManager) SaveConfiguration(interceptHttp bool, certificateSecrets []byte) (string, error) {
+func (d *DevProxyManager) SaveConfiguration(interceptHttp bool) (string, error) {
 	configContext, err := d.configRepository.LoadCurrentConfigurationContext()
 	if err != nil {
 		return "", err
@@ -77,7 +77,7 @@ func (d *DevProxyManager) SaveConfiguration(interceptHttp bool, certificateSecre
 		}
 	}
 
-	configs, err := d.configGenerator.Generate(configContext, interceptHttp, password, certificateSecrets)
+	configs, err := d.configGenerator.Generate(configContext, interceptHttp, password)
 	if err != nil {
 		return "", err
 	}

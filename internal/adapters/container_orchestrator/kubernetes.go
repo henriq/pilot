@@ -13,7 +13,6 @@ import (
 	"dx/internal/core/domain"
 	"dx/internal/ports"
 
-	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -341,89 +340,6 @@ func (k *Kubernetes) GetSecretData(name string) (map[string][]byte, error) {
 		return nil, fmt.Errorf("failed to get secret %s: %w", name, err)
 	}
 	return secret.Data, nil
-}
-
-// CreateOrUpdateSecret creates or updates a Kubernetes secret in the current namespace.
-func (k *Kubernetes) CreateOrUpdateSecret(name string, secretType domain.K8sSecretType, data map[string][]byte) error {
-	var k8sSecretType corev1.SecretType
-	switch secretType {
-	case domain.K8sSecretTypeTLS:
-		k8sSecretType = corev1.SecretTypeTLS
-	case domain.K8sSecretTypeOpaque:
-		k8sSecretType = corev1.SecretTypeOpaque
-	default:
-		return fmt.Errorf("unsupported secret type: %s", secretType)
-	}
-
-	secret := &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: k.namespace,
-			Labels: map[string]string{
-				"managed-by": "dx",
-			},
-		},
-		Type: k8sSecretType,
-		Data: data,
-	}
-
-	existing, err := k.clientSet.CoreV1().Secrets(k.namespace).Get(
-		context.Background(), name, metav1.GetOptions{},
-	)
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			_, err = k.clientSet.CoreV1().Secrets(k.namespace).Create(
-				context.Background(), secret, metav1.CreateOptions{},
-			)
-			if err != nil {
-				return fmt.Errorf("failed to create secret %s: %w", name, err)
-			}
-			return nil
-		}
-		return fmt.Errorf("failed to get secret %s: %w", name, err)
-	}
-
-	if existing.Labels["managed-by"] != "dx" {
-		return fmt.Errorf("secret '%s' exists but is not managed by DX; refusing to overwrite", name)
-	}
-
-	existing.Type = k8sSecretType
-	existing.Data = data
-
-	_, err = k.clientSet.CoreV1().Secrets(k.namespace).Update(
-		context.Background(), existing, metav1.UpdateOptions{},
-	)
-	if err != nil {
-		return fmt.Errorf("failed to update secret %s: %w", name, err)
-	}
-	return nil
-}
-
-// DeleteSecret deletes a Kubernetes secret by name.
-// Only deletes secrets with the managed-by=dx label. Returns nil if the secret does not exist.
-func (k *Kubernetes) DeleteSecret(name string) error {
-
-	existing, err := k.clientSet.CoreV1().Secrets(k.namespace).Get(
-		context.Background(), name, metav1.GetOptions{},
-	)
-	if err != nil {
-		if apierrors.IsNotFound(err) {
-			return nil
-		}
-		return fmt.Errorf("failed to get secret %s: %w", name, err)
-	}
-
-	if existing.Labels["managed-by"] != "dx" {
-		return fmt.Errorf("secret '%s' exists but is not managed by DX; refusing to delete", name)
-	}
-
-	err = k.clientSet.CoreV1().Secrets(k.namespace).Delete(
-		context.Background(), name, metav1.DeleteOptions{},
-	)
-	if err != nil {
-		return fmt.Errorf("failed to delete secret %s: %w", name, err)
-	}
-	return nil
 }
 
 // validateHelmArgs checks that user-provided helm args don't contain dangerous flags.

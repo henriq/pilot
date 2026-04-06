@@ -1,15 +1,7 @@
 package handler
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"crypto/x509"
-	"crypto/x509/pkix"
-	"encoding/pem"
-	"math/big"
 	"testing"
-	"time"
 
 	"dx/internal/core"
 	"dx/internal/core/domain"
@@ -17,7 +9,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
 )
 
 // noCertProvisioner creates a CertificateProvisioner with unconfigured mocks.
@@ -44,52 +35,10 @@ func internalTLSProvisioner(contextName string) *core.CertificateProvisioner {
 	mockKeyring.On("HasKey", keyName).Return(true, nil)
 	mockKeyring.On("GetKey", keyName).Return("test-pass", nil)
 
-	mockSecretStore.On("GetSecretData", core.InternalTLSSecretName).Return(map[string][]byte(nil), nil)
-
 	issued := &domain.IssuedCertificate{
 		CertPEM: []byte("cert"), KeyPEM: []byte("key"), CAPEM: []byte("ca"),
 	}
 	mockCA.On("IssueCertificate", mock.Anything, mock.Anything, mock.Anything).Return(issued, nil)
-
-	return core.ProvideCertificateProvisioner(mockCA, mockSecretStore, mockKeyring, mockEncryptor)
-}
-
-// generateTestCertPEM creates a self-signed cert PEM with 20 days remaining and the given DNS names.
-func generateTestCertPEM(t *testing.T, dnsNames []string) []byte {
-	t.Helper()
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
-	tmpl := &x509.Certificate{
-		SerialNumber: big.NewInt(1),
-		Subject:      pkix.Name{CommonName: "test"},
-		NotBefore:    time.Now().Add(-time.Hour),
-		NotAfter:     time.Now().AddDate(0, 0, 20),
-		DNSNames:     dnsNames,
-	}
-	certDER, err := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
-	require.NoError(t, err)
-	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
-}
-
-// existingCertProvisioner creates a CertificateProvisioner where the internal TLS
-// certificate already exists and does not need renewal. No new certs are provisioned.
-func existingCertProvisioner(t *testing.T, contextName string, certPEM []byte) *core.CertificateProvisioner {
-	t.Helper()
-
-	mockCA := new(testutil.MockCertificateAuthority)
-	mockSecretStore := new(testutil.MockSecretStore)
-	mockKeyring := new(testutil.MockKeyring)
-	mockEncryptor := new(testutil.MockSymmetricEncryptor)
-
-	keyName := contextName + "-ca-key"
-	mockKeyring.On("HasKey", keyName).Return(true, nil)
-	mockKeyring.On("GetKey", keyName).Return("test-pass", nil)
-
-	mockSecretStore.On("GetSecretData", core.InternalTLSSecretName).Return(map[string][]byte{
-		"tls.crt": certPEM,
-		"tls.key": []byte("key"),
-		"ca.crt":  []byte("ca"),
-	}, nil)
 
 	return core.ProvideCertificateProvisioner(mockCA, mockSecretStore, mockKeyring, mockEncryptor)
 }
@@ -339,17 +288,7 @@ func TestInstallCommandHandler_HandleSkipsDevProxyWhenChecksumUnchanged(t *testi
 		},
 	}
 	configGenerator := core.ProvideDevProxyConfigGenerator()
-
-	// Build the same cert secrets that the provisioner will return, so the checksum matches.
-	validCertPEM := generateTestCertPEM(t, core.InternalTLSDNSNames(configContext))
-	internalTLSReq := core.InternalTLSCertificateRequest(configContext)
-	devProxyCertSecrets, err := core.RenderCertificateSecretManifests([]domain.ProvisionedCertificate{{
-		Request: *internalTLSReq,
-		Data:    map[string][]byte{"tls.crt": validCertPEM, "tls.key": []byte("key"), "ca.crt": []byte("ca")},
-	}})
-	require.NoError(t, err)
-
-	expectedChecksum := configGenerator.GenerateChecksum(configContext, false, devProxyCertSecrets)
+	expectedChecksum := configGenerator.GenerateChecksum(configContext, false)
 
 	configRepository := new(testutil.MockConfigRepository)
 	configRepository.On("LoadEnvKey", mock.Anything).Return("any-key", nil)
@@ -357,9 +296,11 @@ func TestInstallCommandHandler_HandleSkipsDevProxyWhenChecksumUnchanged(t *testi
 	containerOrchestrator := new(testutil.MockContainerOrchestrator)
 	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("any-key", nil)
 	containerOrchestrator.On("InstallService", mock.Anything, mock.Anything).Return(nil)
-	// Return matching checksum - dev-proxy should be skipped
+	containerOrchestrator.On("InstallDevProxy", mock.Anything, mock.Anything).Return(nil)
+	// Return matching checksum - dev-proxy should not be rebuilt
 	containerOrchestrator.On("GetDevProxyChecksum").Return(expectedChecksum, nil)
 	fileSystem := new(testutil.MockFileSystem)
+	fileSystem.On("HomeDir").Return("/home/test", nil)
 	scm := new(testutil.MockScm)
 	scm.On(
 		"Download",
@@ -380,8 +321,6 @@ func TestInstallCommandHandler_HandleSkipsDevProxyWhenChecksumUnchanged(t *testi
 		configRepository,
 		containerOrchestrator,
 	)
-	// Use a provisioner where the internal TLS cert already exists and is valid,
-	// so no new certs are provisioned and the dev-proxy install is skipped.
 	sut := ProvideInstallCommandHandler(
 		configRepository,
 		containerImageRepository,
@@ -389,7 +328,7 @@ func TestInstallCommandHandler_HandleSkipsDevProxyWhenChecksumUnchanged(t *testi
 		devProxyManager,
 		environmentEnsurer,
 		scm,
-		existingCertProvisioner(t, "Test", validCertPEM),
+		internalTLSProvisioner("Test"),
 	)
 
 	result := sut.Handle([]string{}, "default", false)
@@ -397,10 +336,10 @@ func TestInstallCommandHandler_HandleSkipsDevProxyWhenChecksumUnchanged(t *testi
 	assert.Nil(t, result)
 	// Verify BuildImage was NOT called since dev-proxy checksum matched
 	containerImageRepository.AssertNumberOfCalls(t, "BuildImage", 0)
-	// Verify InstallDevProxy was NOT called (no config change, no new certs)
-	containerOrchestrator.AssertNumberOfCalls(t, "InstallDevProxy", 0)
 	// Verify WriteFile was NOT called for dev-proxy config
 	fileSystem.AssertNumberOfCalls(t, "WriteFile", 0)
+	// Verify dev-proxy was still installed (Helm) to apply cert secrets
+	containerOrchestrator.AssertNumberOfCalls(t, "InstallDevProxy", 1)
 	// Verify user service was still installed
 	containerOrchestrator.AssertNumberOfCalls(t, "InstallService", 1)
 	scm.AssertNumberOfCalls(t, "Download", 1)
@@ -513,8 +452,6 @@ func TestInstallCommandHandler_HandleProvisionsCertificatesDuringInstall(t *test
 	containerOrchestrator.On("GetDevProxyChecksum").Return("", nil)
 
 	mockSecretStore := new(testutil.MockSecretStore)
-	mockSecretStore.On("GetSecretData", "foo-tls").Return(map[string][]byte(nil), nil)
-	mockSecretStore.On("GetSecretData", core.InternalTLSSecretName).Return(map[string][]byte(nil), nil)
 
 	mockCA := new(testutil.MockCertificateAuthority)
 	mockKeyring := new(testutil.MockKeyring)
@@ -552,7 +489,6 @@ func TestInstallCommandHandler_HandleProvisionsCertificatesDuringInstall(t *test
 	result := sut.Handle([]string{}, "all", false)
 
 	assert.Nil(t, result)
-	mockSecretStore.AssertCalled(t, "GetSecretData", "foo-tls")
 	mockCA.AssertExpectations(t)
 }
 
@@ -666,6 +602,60 @@ func TestInstallCommandHandler_HandleReturnsErrorFromShouldRebuildDevProxy(t *te
 	assert.Error(t, result)
 	containerOrchestrator.AssertNumberOfCalls(t, "InstallService", 0)
 	containerOrchestrator.AssertNumberOfCalls(t, "InstallDevProxy", 0)
+}
+
+func TestInstallCommandHandler_Handle_InstallDevProxyError(t *testing.T) {
+	configContext := &domain.ConfigurationContext{
+		Name: "Test",
+		Services: []domain.Service{
+			{
+				Name:         "service-1",
+				HelmRepoPath: "any-repo-1",
+				HelmBranch:   "any-branch-1",
+				Profiles:     []string{"default"},
+			},
+		},
+	}
+	configGenerator := core.ProvideDevProxyConfigGenerator()
+	expectedChecksum := configGenerator.GenerateChecksum(configContext, false)
+
+	configRepository := new(testutil.MockConfigRepository)
+	configRepository.On("LoadEnvKey", mock.Anything).Return("any-key", nil)
+	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
+	containerOrchestrator := new(testutil.MockContainerOrchestrator)
+	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("any-key", nil)
+	// Checksum matches — no rebuild, but InstallDevProxy still called and fails
+	containerOrchestrator.On("GetDevProxyChecksum").Return(expectedChecksum, nil)
+	containerOrchestrator.On("InstallDevProxy", mock.Anything, mock.Anything).Return(assert.AnError)
+	fileSystem := new(testutil.MockFileSystem)
+	fileSystem.On("HomeDir").Return("/home/test", nil)
+	containerImageRepository := new(testutil.MockContainerImageRepository)
+	devProxyManager := core.ProvideDevProxyManager(
+		configRepository,
+		fileSystem,
+		containerImageRepository,
+		containerOrchestrator,
+		configGenerator,
+	)
+	environmentEnsurer := core.ProvideEnvironmentEnsurer(
+		configRepository,
+		containerOrchestrator,
+	)
+	sut := ProvideInstallCommandHandler(
+		configRepository,
+		containerImageRepository,
+		containerOrchestrator,
+		devProxyManager,
+		environmentEnsurer,
+		new(testutil.MockScm),
+		internalTLSProvisioner("Test"),
+	)
+
+	result := sut.Handle([]string{}, "default", false)
+
+	assert.Error(t, result)
+	containerImageRepository.AssertNumberOfCalls(t, "BuildImage", 0)
+	containerOrchestrator.AssertNumberOfCalls(t, "InstallService", 0)
 }
 
 func TestInstallCommandHandler_Handle_ScmDownloadError(t *testing.T) {

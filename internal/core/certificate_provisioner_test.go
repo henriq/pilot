@@ -23,12 +23,6 @@ import (
 // testCertPEM generates a self-signed cert PEM that expires at the given time.
 func testCertPEM(t *testing.T, notAfter time.Time) []byte {
 	t.Helper()
-	return testCertPEMWithSANs(t, notAfter, nil)
-}
-
-// testCertPEMWithSANs generates a self-signed cert PEM with specific DNS SANs and expiry.
-func testCertPEMWithSANs(t *testing.T, notAfter time.Time, dnsNames []string) []byte {
-	t.Helper()
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 	template := &x509.Certificate{
@@ -36,66 +30,20 @@ func testCertPEMWithSANs(t *testing.T, notAfter time.Time, dnsNames []string) []
 		Subject:      pkix.Name{CommonName: "test"},
 		NotBefore:    time.Now().Add(-time.Hour),
 		NotAfter:     notAfter,
-		DNSNames:     dnsNames,
 	}
 	certDER, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
 	require.NoError(t, err)
 	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
 }
 
-func TestCertificateProvisioner_ProvisionCertificateData_SkipsExistingSecrets(t *testing.T) {
-	mockCA := new(testutil.MockCertificateAuthority)
-	mockOrch := new(testutil.MockSecretStore)
-	mockKeyring := new(testutil.MockKeyring)
-	mockEncryptor := new(testutil.MockSymmetricEncryptor)
-
-	sut := ProvideCertificateProvisioner(mockCA, mockOrch, mockKeyring, mockEncryptor)
-
-	mockKeyring.On("HasKey", "ctx-ca-key").Return(true, nil)
-	mockKeyring.On("GetKey", "ctx-ca-key").Return("test-passphrase", nil)
-
-	// Return a cert with matching DNS names and 20 days remaining (above the 14-day threshold)
-	validCert := testCertPEMWithSANs(t, time.Now().AddDate(0, 0, 20), []string{"foo.localhost"})
-	mockOrch.On("GetSecretData", "foo-tls").Return(map[string][]byte{
-		"tls.crt": validCert,
-		"tls.key": []byte("key"),
-		"ca.crt":  []byte("ca"),
-	}, nil)
-
-	services := []domain.ServiceCertificates{{
-		Name: "svc",
-		Certificates: []domain.CertificateRequest{
-			{
-				Type:     domain.CertificateTypeServer,
-				DNSNames: []string{"foo.localhost"},
-				K8sSecret: domain.K8sSecretConfig{
-					Name: "foo-tls",
-					Type: domain.K8sSecretTypeTLS,
-				},
-			},
-		},
-	}}
-
-	_, provisioned, err := sut.ProvisionCertificateData(services, "ctx")
-	assert.NoError(t, err)
-	assert.Empty(t, provisioned)
-
-	mockCA.AssertExpectations(t)
-	mockOrch.AssertExpectations(t)
-}
-
 func TestCertificateProvisioner_ProvisionCertificateData_OpaqueSecretData(t *testing.T) {
 	mockCA := new(testutil.MockCertificateAuthority)
-	mockOrch := new(testutil.MockSecretStore)
 	mockKeyring := new(testutil.MockKeyring)
-	mockEncryptor := new(testutil.MockSymmetricEncryptor)
 
-	sut := ProvideCertificateProvisioner(mockCA, mockOrch, mockKeyring, mockEncryptor)
+	sut := ProvideCertificateProvisioner(mockCA, nil, mockKeyring, nil)
 
 	mockKeyring.On("HasKey", "ctx-ca-key").Return(true, nil)
 	mockKeyring.On("GetKey", "ctx-ca-key").Return("test-passphrase", nil)
-
-	mockOrch.On("GetSecretData", "bar-tls").Return(map[string][]byte(nil), nil)
 
 	issued := &domain.IssuedCertificate{
 		CertPEM: []byte("cert-pem"),
@@ -122,31 +70,27 @@ func TestCertificateProvisioner_ProvisionCertificateData_OpaqueSecretData(t *tes
 		Certificates: []domain.CertificateRequest{certReq},
 	}}
 
-	_, provisioned, err := sut.ProvisionCertificateData(services, "ctx")
+	certsByService, err := sut.ProvisionCertificateData(services, "ctx")
 	assert.NoError(t, err)
-	assert.Equal(t, []string{"bar-tls"}, provisioned)
-
-	mockOrch.AssertExpectations(t)
+	assert.Equal(t, []byte("cert-pem"), certsByService["svc"][0].Data["my-cert"])
+	assert.Equal(t, []byte("key-pem"), certsByService["svc"][0].Data["my-key"])
+	assert.Equal(t, []byte("ca-pem"), certsByService["svc"][0].Data["my-ca"])
 }
 
 func TestCertificateProvisioner_ProvisionCertificateData_CreatesPassphraseIfMissing(t *testing.T) {
 	mockCA := new(testutil.MockCertificateAuthority)
-	mockOrch := new(testutil.MockSecretStore)
 	mockKeyring := new(testutil.MockKeyring)
 	mockEncryptor := new(testutil.MockSymmetricEncryptor)
 
-	sut := ProvideCertificateProvisioner(mockCA, mockOrch, mockKeyring, mockEncryptor)
+	sut := ProvideCertificateProvisioner(mockCA, nil, mockKeyring, mockEncryptor)
 
 	mockKeyring.On("HasKey", "ctx-ca-key").Return(false, nil)
 	mockEncryptor.On("CreateKey").Return([]byte("new-passphrase"), nil)
 	mockKeyring.On("SetKey", "ctx-ca-key", "new-passphrase").Return(nil)
 	mockKeyring.On("GetKey", "ctx-ca-key").Return("new-passphrase", nil)
 
-	// Return a cert with 20 days remaining (above the 14-day threshold) and matching SANs
-	validCert := testCertPEMWithSANs(t, time.Now().AddDate(0, 0, 20), []string{"foo.localhost"})
-	mockOrch.On("GetSecretData", "foo-tls").Return(map[string][]byte{
-		"tls.crt": validCert,
-	}, nil)
+	issued := &domain.IssuedCertificate{CertPEM: []byte("c"), KeyPEM: []byte("k"), CAPEM: []byte("a")}
+	mockCA.On("IssueCertificate", mock.Anything, mock.Anything, mock.Anything).Return(issued, nil)
 
 	services := []domain.ServiceCertificates{{
 		Name: "svc",
@@ -162,73 +106,21 @@ func TestCertificateProvisioner_ProvisionCertificateData_CreatesPassphraseIfMiss
 		},
 	}}
 
-	_, _, err := sut.ProvisionCertificateData(services, "ctx")
+	_, err := sut.ProvisionCertificateData(services, "ctx")
 	assert.NoError(t, err)
 
 	mockEncryptor.AssertExpectations(t)
 	mockKeyring.AssertExpectations(t)
 }
 
-func TestCertificateProvisioner_ReissueCertificates(t *testing.T) {
-	mockCA := new(testutil.MockCertificateAuthority)
-	mockOrch := new(testutil.MockSecretStore)
-	mockKeyring := new(testutil.MockKeyring)
-	mockEncryptor := new(testutil.MockSymmetricEncryptor)
-
-	sut := ProvideCertificateProvisioner(mockCA, mockOrch, mockKeyring, mockEncryptor)
-
-	mockKeyring.On("HasKey", "ctx-ca-key").Return(true, nil)
-	mockKeyring.On("GetKey", "ctx-ca-key").Return("test-passphrase", nil)
-
-	issued := &domain.IssuedCertificate{
-		CertPEM: []byte("cert-pem"),
-		KeyPEM:  []byte("key-pem"),
-		CAPEM:   []byte("ca-pem"),
-	}
-	certReq := domain.CertificateRequest{
-		Type:     domain.CertificateTypeServer,
-		DNSNames: []string{"foo.localhost"},
-		K8sSecret: domain.K8sSecretConfig{
-			Name: "foo-tls",
-			Type: domain.K8sSecretTypeTLS,
-		},
-	}
-	mockCA.On("IssueCertificate", mock.Anything, mock.Anything, certReq).Return(issued, nil)
-
-	expectedData := map[string][]byte{
-		"tls.crt": []byte("cert-pem"),
-		"tls.key": []byte("key-pem"),
-		"ca.crt":  []byte("ca-pem"),
-	}
-	mockOrch.On("CreateOrUpdateSecret", "foo-tls", domain.K8sSecretTypeTLS, expectedData).Return(nil)
-
-	services := []domain.ServiceCertificates{
-		{
-			Name:         "svc",
-			Certificates: []domain.CertificateRequest{certReq},
-		},
-	}
-
-	secrets, err := sut.ReissueCertificates(services, "ctx")
-	assert.NoError(t, err)
-	assert.Equal(t, []string{"foo-tls"}, secrets)
-
-	// Reissue should NOT check GetSecretData (forces overwrite)
-	mockOrch.AssertNotCalled(t, "GetSecretData", mock.Anything)
-	mockCA.AssertExpectations(t)
-	mockOrch.AssertExpectations(t)
-}
-
 func TestCertificateProvisioner_ProvisionCertificateData_IssueCertificateCAError(t *testing.T) {
 	mockCA := new(testutil.MockCertificateAuthority)
-	mockOrch := new(testutil.MockSecretStore)
 	mockKeyring := new(testutil.MockKeyring)
 
-	sut := ProvideCertificateProvisioner(mockCA, mockOrch, mockKeyring, nil)
+	sut := ProvideCertificateProvisioner(mockCA, nil, mockKeyring, nil)
 
 	mockKeyring.On("HasKey", "ctx-ca-key").Return(true, nil)
 	mockKeyring.On("GetKey", "ctx-ca-key").Return("pass", nil)
-	mockOrch.On("GetSecretData", "foo-tls").Return(map[string][]byte(nil), nil)
 	mockCA.On("IssueCertificate", mock.Anything, mock.Anything, mock.Anything).Return(nil, fmt.Errorf("failed to load or create CA: %w", assert.AnError))
 
 	services := []domain.ServiceCertificates{{
@@ -239,7 +131,7 @@ func TestCertificateProvisioner_ProvisionCertificateData_IssueCertificateCAError
 		},
 	}}
 
-	_, _, err := sut.ProvisionCertificateData(services, "ctx")
+	_, err := sut.ProvisionCertificateData(services, "ctx")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to issue certificate")
 }
@@ -259,7 +151,7 @@ func TestCertificateProvisioner_ProvisionCertificateData_KeyringHasKeyError(t *t
 		},
 	}}
 
-	_, _, err := sut.ProvisionCertificateData(services, "ctx")
+	_, err := sut.ProvisionCertificateData(services, "ctx")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to check keyring for key")
 }
@@ -281,7 +173,7 @@ func TestCertificateProvisioner_ProvisionCertificateData_CreateKeyError(t *testi
 		},
 	}}
 
-	_, _, err := sut.ProvisionCertificateData(services, "ctx")
+	_, err := sut.ProvisionCertificateData(services, "ctx")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to create encryption key")
 }
@@ -304,7 +196,7 @@ func TestCertificateProvisioner_ProvisionCertificateData_SetKeyError(t *testing.
 		},
 	}}
 
-	_, _, err := sut.ProvisionCertificateData(services, "ctx")
+	_, err := sut.ProvisionCertificateData(services, "ctx")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to store encryption key")
 }
@@ -328,22 +220,19 @@ func TestCertificateProvisioner_ProvisionCertificateData_GetKeyError(t *testing.
 		},
 	}}
 
-	_, _, err := sut.ProvisionCertificateData(services, "ctx")
+	_, err := sut.ProvisionCertificateData(services, "ctx")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to retrieve encryption key")
 }
 
 func TestCertificateProvisioner_ProvisionCertificateData_MultipleCertificates(t *testing.T) {
 	mockCA := new(testutil.MockCertificateAuthority)
-	mockOrch := new(testutil.MockSecretStore)
 	mockKeyring := new(testutil.MockKeyring)
 
-	sut := ProvideCertificateProvisioner(mockCA, mockOrch, mockKeyring, nil)
+	sut := ProvideCertificateProvisioner(mockCA, nil, mockKeyring, nil)
 
 	mockKeyring.On("HasKey", "ctx-ca-key").Return(true, nil)
 	mockKeyring.On("GetKey", "ctx-ca-key").Return("pass", nil)
-
-	mockOrch.On("GetSecretData", mock.Anything).Return(map[string][]byte(nil), nil)
 
 	issued := &domain.IssuedCertificate{CertPEM: []byte("c"), KeyPEM: []byte("k"), CAPEM: []byte("a")}
 	mockCA.On("IssueCertificate", mock.Anything, mock.Anything, mock.Anything).Return(issued, nil)
@@ -359,81 +248,9 @@ func TestCertificateProvisioner_ProvisionCertificateData_MultipleCertificates(t 
 		},
 	}}
 
-	_, provisioned, err := sut.ProvisionCertificateData(services, "ctx")
+	certsByService, err := sut.ProvisionCertificateData(services, "ctx")
 	assert.NoError(t, err)
-	assert.Equal(t, []string{"foo-tls", "bar-tls"}, provisioned)
-}
-
-func TestCertificateProvisioner_ReissueCertificates_IssueCertificateCAError(t *testing.T) {
-	mockCA := new(testutil.MockCertificateAuthority)
-	mockKeyring := new(testutil.MockKeyring)
-
-	sut := ProvideCertificateProvisioner(mockCA, nil, mockKeyring, nil)
-
-	mockKeyring.On("HasKey", "ctx-ca-key").Return(true, nil)
-	mockKeyring.On("GetKey", "ctx-ca-key").Return("pass", nil)
-	mockCA.On("IssueCertificate", mock.Anything, mock.Anything, mock.Anything).Return(nil, assert.AnError)
-
-	services := []domain.ServiceCertificates{
-		{Name: "svc", Certificates: []domain.CertificateRequest{
-			{Type: domain.CertificateTypeServer, DNSNames: []string{"foo.localhost"},
-				K8sSecret: domain.K8sSecretConfig{Name: "foo-tls", Type: domain.K8sSecretTypeTLS}},
-		}},
-	}
-
-	_, err := sut.ReissueCertificates(services, "ctx")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to issue certificate")
-}
-
-func TestCertificateProvisioner_ReissueCertificates_IssueCertificateError(t *testing.T) {
-	mockCA := new(testutil.MockCertificateAuthority)
-	mockOrch := new(testutil.MockSecretStore)
-	mockKeyring := new(testutil.MockKeyring)
-
-	sut := ProvideCertificateProvisioner(mockCA, mockOrch, mockKeyring, nil)
-
-	mockKeyring.On("HasKey", "ctx-ca-key").Return(true, nil)
-	mockKeyring.On("GetKey", "ctx-ca-key").Return("pass", nil)
-
-	mockCA.On("IssueCertificate", mock.Anything, mock.Anything, mock.Anything).Return(nil, assert.AnError)
-
-	services := []domain.ServiceCertificates{
-		{Name: "svc", Certificates: []domain.CertificateRequest{
-			{Type: domain.CertificateTypeServer, DNSNames: []string{"foo.localhost"},
-				K8sSecret: domain.K8sSecretConfig{Name: "foo-tls", Type: domain.K8sSecretTypeTLS}},
-		}},
-	}
-
-	_, err := sut.ReissueCertificates(services, "ctx")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to issue certificate")
-}
-
-func TestCertificateProvisioner_ReissueCertificates_CreateSecretError(t *testing.T) {
-	mockCA := new(testutil.MockCertificateAuthority)
-	mockOrch := new(testutil.MockSecretStore)
-	mockKeyring := new(testutil.MockKeyring)
-
-	sut := ProvideCertificateProvisioner(mockCA, mockOrch, mockKeyring, nil)
-
-	mockKeyring.On("HasKey", "ctx-ca-key").Return(true, nil)
-	mockKeyring.On("GetKey", "ctx-ca-key").Return("pass", nil)
-
-	issued := &domain.IssuedCertificate{CertPEM: []byte("c"), KeyPEM: []byte("k"), CAPEM: []byte("a")}
-	mockCA.On("IssueCertificate", mock.Anything, mock.Anything, mock.Anything).Return(issued, nil)
-	mockOrch.On("CreateOrUpdateSecret", "foo-tls", domain.K8sSecretTypeTLS, mock.Anything).Return(assert.AnError)
-
-	services := []domain.ServiceCertificates{
-		{Name: "svc", Certificates: []domain.CertificateRequest{
-			{Type: domain.CertificateTypeServer, DNSNames: []string{"foo.localhost"},
-				K8sSecret: domain.K8sSecretConfig{Name: "foo-tls", Type: domain.K8sSecretTypeTLS}},
-		}},
-	}
-
-	_, err := sut.ReissueCertificates(services, "ctx")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to create secret")
+	assert.Len(t, certsByService["svc"], 2)
 }
 
 func TestCertificateProvisioner_DeletePassphrase(t *testing.T) {
@@ -458,292 +275,6 @@ func TestCertificateProvisioner_DeletePassphrase_Error(t *testing.T) {
 
 	err := sut.DeletePassphrase("ctx")
 	assert.ErrorIs(t, err, assert.AnError)
-}
-
-func TestCertificateProvisioner_ProvisionCertificateData_RenewsExpiringCert(t *testing.T) {
-	mockCA := new(testutil.MockCertificateAuthority)
-	mockOrch := new(testutil.MockSecretStore)
-	mockKeyring := new(testutil.MockKeyring)
-
-	sut := ProvideCertificateProvisioner(mockCA, mockOrch, mockKeyring, nil)
-
-	mockKeyring.On("HasKey", "ctx-ca-key").Return(true, nil)
-	mockKeyring.On("GetKey", "ctx-ca-key").Return("pass", nil)
-
-	// Cert expires in 10 days — below the 14-day threshold (SANs match so only expiry triggers renewal)
-	expiringCert := testCertPEMWithSANs(t, time.Now().AddDate(0, 0, 10), []string{"foo.localhost"})
-	mockOrch.On("GetSecretData", "foo-tls").Return(map[string][]byte{
-		"tls.crt": expiringCert,
-	}, nil)
-
-	issued := &domain.IssuedCertificate{CertPEM: []byte("new-cert"), KeyPEM: []byte("new-key"), CAPEM: []byte("ca")}
-	certReq := domain.CertificateRequest{
-		Type:     domain.CertificateTypeServer,
-		DNSNames: []string{"foo.localhost"},
-		K8sSecret: domain.K8sSecretConfig{
-			Name: "foo-tls",
-			Type: domain.K8sSecretTypeTLS,
-		},
-	}
-	mockCA.On("IssueCertificate", mock.Anything, mock.Anything, certReq).Return(issued, nil)
-
-	services := []domain.ServiceCertificates{{
-		Name:         "svc",
-		Certificates: []domain.CertificateRequest{certReq},
-	}}
-
-	_, provisioned, err := sut.ProvisionCertificateData(services, "ctx")
-	assert.NoError(t, err)
-	assert.Equal(t, []string{"foo-tls"}, provisioned)
-
-	mockCA.AssertExpectations(t)
-	mockOrch.AssertExpectations(t)
-}
-
-func TestCertificateProvisioner_ProvisionCertificateData_RenewsWhenCertKeyMissing(t *testing.T) {
-	mockCA := new(testutil.MockCertificateAuthority)
-	mockOrch := new(testutil.MockSecretStore)
-	mockKeyring := new(testutil.MockKeyring)
-
-	sut := ProvideCertificateProvisioner(mockCA, mockOrch, mockKeyring, nil)
-
-	mockKeyring.On("HasKey", "ctx-ca-key").Return(true, nil)
-	mockKeyring.On("GetKey", "ctx-ca-key").Return("pass", nil)
-
-	// Secret exists but has no tls.crt key
-	mockOrch.On("GetSecretData", "foo-tls").Return(map[string][]byte{
-		"tls.key": []byte("key"),
-	}, nil)
-
-	issued := &domain.IssuedCertificate{CertPEM: []byte("c"), KeyPEM: []byte("k"), CAPEM: []byte("a")}
-	mockCA.On("IssueCertificate", mock.Anything, mock.Anything, mock.Anything).Return(issued, nil)
-
-	services := []domain.ServiceCertificates{{
-		Name: "svc",
-		Certificates: []domain.CertificateRequest{
-			{Type: domain.CertificateTypeServer, DNSNames: []string{"foo.localhost"},
-				K8sSecret: domain.K8sSecretConfig{Name: "foo-tls", Type: domain.K8sSecretTypeTLS}},
-		},
-	}}
-
-	_, provisioned, err := sut.ProvisionCertificateData(services, "ctx")
-	assert.NoError(t, err)
-	assert.Equal(t, []string{"foo-tls"}, provisioned)
-}
-
-func TestCertificateProvisioner_ProvisionCertificateData_RenewsWhenPEMInvalid(t *testing.T) {
-	mockCA := new(testutil.MockCertificateAuthority)
-	mockOrch := new(testutil.MockSecretStore)
-	mockKeyring := new(testutil.MockKeyring)
-
-	sut := ProvideCertificateProvisioner(mockCA, mockOrch, mockKeyring, nil)
-
-	mockKeyring.On("HasKey", "ctx-ca-key").Return(true, nil)
-	mockKeyring.On("GetKey", "ctx-ca-key").Return("pass", nil)
-
-	// Secret has garbage data that can't be PEM-decoded
-	mockOrch.On("GetSecretData", "foo-tls").Return(map[string][]byte{
-		"tls.crt": []byte("not-valid-pem"),
-	}, nil)
-
-	issued := &domain.IssuedCertificate{CertPEM: []byte("c"), KeyPEM: []byte("k"), CAPEM: []byte("a")}
-	mockCA.On("IssueCertificate", mock.Anything, mock.Anything, mock.Anything).Return(issued, nil)
-
-	services := []domain.ServiceCertificates{{
-		Name: "svc",
-		Certificates: []domain.CertificateRequest{
-			{Type: domain.CertificateTypeServer, DNSNames: []string{"foo.localhost"},
-				K8sSecret: domain.K8sSecretConfig{Name: "foo-tls", Type: domain.K8sSecretTypeTLS}},
-		},
-	}}
-
-	_, provisioned, err := sut.ProvisionCertificateData(services, "ctx")
-	assert.NoError(t, err)
-	assert.Equal(t, []string{"foo-tls"}, provisioned)
-}
-
-func TestCertificateProvisioner_ProvisionCertificateData_GetSecretDataError_ExistingSecret(t *testing.T) {
-	mockCA := new(testutil.MockCertificateAuthority)
-	mockOrch := new(testutil.MockSecretStore)
-	mockKeyring := new(testutil.MockKeyring)
-
-	sut := ProvideCertificateProvisioner(mockCA, mockOrch, mockKeyring, nil)
-
-	mockKeyring.On("HasKey", "ctx-ca-key").Return(true, nil)
-	mockKeyring.On("GetKey", "ctx-ca-key").Return("pass", nil)
-
-	// GetSecretData returns a real error (e.g., RBAC issue) — should surface, not silently re-issue
-	mockOrch.On("GetSecretData", "foo-tls").Return(nil, assert.AnError)
-
-	services := []domain.ServiceCertificates{{
-		Name: "svc",
-		Certificates: []domain.CertificateRequest{
-			{Type: domain.CertificateTypeServer, DNSNames: []string{"foo.localhost"},
-				K8sSecret: domain.K8sSecretConfig{Name: "foo-tls", Type: domain.K8sSecretTypeTLS}},
-		},
-	}}
-
-	_, _, err := sut.ProvisionCertificateData(services, "ctx")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to check secret foo-tls")
-	mockCA.AssertNotCalled(t, "IssueCertificate", mock.Anything, mock.Anything, mock.Anything)
-}
-
-func TestCertificateProvisioner_ProvisionCertificateData_RenewsOpaqueExpiringCert(t *testing.T) {
-	mockCA := new(testutil.MockCertificateAuthority)
-	mockOrch := new(testutil.MockSecretStore)
-	mockKeyring := new(testutil.MockKeyring)
-
-	sut := ProvideCertificateProvisioner(mockCA, mockOrch, mockKeyring, nil)
-
-	mockKeyring.On("HasKey", "ctx-ca-key").Return(true, nil)
-	mockKeyring.On("GetKey", "ctx-ca-key").Return("pass", nil)
-
-	// Opaque secret with cert expiring in 5 days (SANs match so only expiry triggers renewal)
-	expiringCert := testCertPEMWithSANs(t, time.Now().AddDate(0, 0, 5), []string{"bar.localhost"})
-	mockOrch.On("GetSecretData", "bar-tls").Return(map[string][]byte{
-		"my-cert": expiringCert,
-	}, nil)
-
-	issued := &domain.IssuedCertificate{CertPEM: []byte("c"), KeyPEM: []byte("k"), CAPEM: []byte("a")}
-	certReq := domain.CertificateRequest{
-		Type:     domain.CertificateTypeClient,
-		DNSNames: []string{"bar.localhost"},
-		K8sSecret: domain.K8sSecretConfig{
-			Name: "bar-tls",
-			Type: domain.K8sSecretTypeOpaque,
-			Keys: &domain.OpaqueSecretKeys{PrivateKey: "my-key", Cert: "my-cert", CA: "my-ca"},
-		},
-	}
-	mockCA.On("IssueCertificate", mock.Anything, mock.Anything, certReq).Return(issued, nil)
-
-	services := []domain.ServiceCertificates{{
-		Name:         "svc",
-		Certificates: []domain.CertificateRequest{certReq},
-	}}
-
-	_, provisioned, err := sut.ProvisionCertificateData(services, "ctx")
-	assert.NoError(t, err)
-	assert.Equal(t, []string{"bar-tls"}, provisioned)
-
-	mockOrch.AssertExpectations(t)
-}
-
-func TestCertificateProvisioner_ProvisionCertificateData_ReissuesWhenDNSNamesAdded(t *testing.T) {
-	mockCA := new(testutil.MockCertificateAuthority)
-	mockOrch := new(testutil.MockSecretStore)
-	mockKeyring := new(testutil.MockKeyring)
-
-	sut := ProvideCertificateProvisioner(mockCA, mockOrch, mockKeyring, nil)
-
-	mockKeyring.On("HasKey", "ctx-ca-key").Return(true, nil)
-	mockKeyring.On("GetKey", "ctx-ca-key").Return("pass", nil)
-
-	// Existing cert has only ["foo.localhost"], but config now has ["foo.localhost", "*.foo.localhost"]
-	existingCert := testCertPEMWithSANs(t, time.Now().AddDate(0, 0, 20), []string{"foo.localhost"})
-	mockOrch.On("GetSecretData", "foo-tls").Return(map[string][]byte{
-		"tls.crt": existingCert,
-	}, nil)
-
-	issued := &domain.IssuedCertificate{CertPEM: []byte("new-cert"), KeyPEM: []byte("key"), CAPEM: []byte("ca")}
-	mockCA.On("IssueCertificate", mock.Anything, mock.Anything, mock.Anything).Return(issued, nil)
-
-	services := []domain.ServiceCertificates{{
-		Name: "svc",
-		Certificates: []domain.CertificateRequest{
-			{
-				Type:     domain.CertificateTypeServer,
-				DNSNames: []string{"foo.localhost", "*.foo.localhost"},
-				K8sSecret: domain.K8sSecretConfig{
-					Name: "foo-tls",
-					Type: domain.K8sSecretTypeTLS,
-				},
-			},
-		},
-	}}
-
-	_, provisioned, err := sut.ProvisionCertificateData(services, "ctx")
-	assert.NoError(t, err)
-	assert.Equal(t, []string{"foo-tls"}, provisioned)
-
-	mockCA.AssertExpectations(t)
-	mockOrch.AssertExpectations(t)
-}
-
-func TestCertificateProvisioner_ProvisionCertificateData_ReissuesWhenDNSNameRemoved(t *testing.T) {
-	mockCA := new(testutil.MockCertificateAuthority)
-	mockOrch := new(testutil.MockSecretStore)
-	mockKeyring := new(testutil.MockKeyring)
-
-	sut := ProvideCertificateProvisioner(mockCA, mockOrch, mockKeyring, nil)
-
-	mockKeyring.On("HasKey", "ctx-ca-key").Return(true, nil)
-	mockKeyring.On("GetKey", "ctx-ca-key").Return("pass", nil)
-
-	// Existing cert has ["foo.localhost", "bar.localhost"], config now only has ["foo.localhost"]
-	existingCert := testCertPEMWithSANs(t, time.Now().AddDate(0, 0, 20), []string{"foo.localhost", "bar.localhost"})
-	mockOrch.On("GetSecretData", "foo-tls").Return(map[string][]byte{
-		"tls.crt": existingCert,
-	}, nil)
-
-	issued := &domain.IssuedCertificate{CertPEM: []byte("new-cert"), KeyPEM: []byte("key"), CAPEM: []byte("ca")}
-	mockCA.On("IssueCertificate", mock.Anything, mock.Anything, mock.Anything).Return(issued, nil)
-
-	services := []domain.ServiceCertificates{{
-		Name: "svc",
-		Certificates: []domain.CertificateRequest{
-			{
-				Type:     domain.CertificateTypeServer,
-				DNSNames: []string{"foo.localhost"},
-				K8sSecret: domain.K8sSecretConfig{
-					Name: "foo-tls",
-					Type: domain.K8sSecretTypeTLS,
-				},
-			},
-		},
-	}}
-
-	_, provisioned, err := sut.ProvisionCertificateData(services, "ctx")
-	assert.NoError(t, err)
-	assert.Equal(t, []string{"foo-tls"}, provisioned)
-
-	mockCA.AssertExpectations(t)
-	mockOrch.AssertExpectations(t)
-}
-
-func TestCertificateProvisioner_ProvisionCertificateData_SkipsWhenDNSNamesMatch(t *testing.T) {
-	mockCA := new(testutil.MockCertificateAuthority)
-	mockOrch := new(testutil.MockSecretStore)
-	mockKeyring := new(testutil.MockKeyring)
-
-	sut := ProvideCertificateProvisioner(mockCA, mockOrch, mockKeyring, nil)
-
-	mockKeyring.On("HasKey", "ctx-ca-key").Return(true, nil)
-	mockKeyring.On("GetKey", "ctx-ca-key").Return("pass", nil)
-
-	// Existing cert SANs match config (order-independent)
-	existingCert := testCertPEMWithSANs(t, time.Now().AddDate(0, 0, 20), []string{"bar.localhost", "foo.localhost"})
-	mockOrch.On("GetSecretData", "foo-tls").Return(map[string][]byte{
-		"tls.crt": existingCert,
-	}, nil)
-
-	services := []domain.ServiceCertificates{{
-		Name: "svc",
-		Certificates: []domain.CertificateRequest{
-			{
-				Type:     domain.CertificateTypeServer,
-				DNSNames: []string{"foo.localhost", "bar.localhost"},
-				K8sSecret: domain.K8sSecretConfig{
-					Name: "foo-tls",
-					Type: domain.K8sSecretTypeTLS,
-				},
-			},
-		},
-	}}
-
-	_, provisioned, err := sut.ProvisionCertificateData(services, "ctx")
-	assert.NoError(t, err)
-	assert.Empty(t, provisioned)
 }
 
 func TestCertificateProvisioner_GetCertificateStatuses(t *testing.T) {
@@ -879,32 +410,6 @@ func TestCertificateProvisioner_GetCertificateStatuses_MultipleServices(t *testi
 	assert.Equal(t, domain.CertificateTypeClient, statuses[1].CertType)
 }
 
-func TestDnsNamesMatch(t *testing.T) {
-	tests := []struct {
-		name       string
-		configured []string
-		actual     []string
-		expected   bool
-	}{
-		{"both empty", nil, nil, true},
-		{"both empty slices", []string{}, []string{}, true},
-		{"single match", []string{"a.localhost"}, []string{"a.localhost"}, true},
-		{"order independent", []string{"b.localhost", "a.localhost"}, []string{"a.localhost", "b.localhost"}, true},
-		{"different lengths", []string{"a.localhost"}, []string{"a.localhost", "b.localhost"}, false},
-		{"added name", []string{"a.localhost", "b.localhost"}, []string{"a.localhost"}, false},
-		{"different names", []string{"a.localhost"}, []string{"b.localhost"}, false},
-		{"duplicates in configured", []string{"a.localhost", "a.localhost"}, []string{"a.localhost", "b.localhost"}, false},
-		{"nil vs empty", nil, []string{}, true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := dnsNamesMatch(tt.configured, tt.actual)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
 func TestBuildSecretData_UnsupportedType(t *testing.T) {
 	req := domain.CertificateRequest{
 		K8sSecret: domain.K8sSecretConfig{
@@ -985,16 +490,12 @@ func TestCollectAllCertificates_AlwaysAppendsInternalTLS(t *testing.T) {
 
 func TestCertificateProvisioner_ProvisionCertificateData_IssuesNewCert(t *testing.T) {
 	mockCA := new(testutil.MockCertificateAuthority)
-	mockOrch := new(testutil.MockSecretStore)
 	mockKeyring := new(testutil.MockKeyring)
-	mockEncryptor := new(testutil.MockSymmetricEncryptor)
 
-	sut := ProvideCertificateProvisioner(mockCA, mockOrch, mockKeyring, mockEncryptor)
+	sut := ProvideCertificateProvisioner(mockCA, nil, mockKeyring, nil)
 
 	mockKeyring.On("HasKey", "ctx-ca-key").Return(true, nil)
 	mockKeyring.On("GetKey", "ctx-ca-key").Return("test-passphrase", nil)
-
-	mockOrch.On("GetSecretData", "foo-tls").Return(map[string][]byte(nil), nil)
 
 	issued := &domain.IssuedCertificate{
 		CertPEM: []byte("cert-pem"),
@@ -1016,74 +517,24 @@ func TestCertificateProvisioner_ProvisionCertificateData_IssuesNewCert(t *testin
 		Certificates: []domain.CertificateRequest{certReq},
 	}}
 
-	certsByService, provisioned, err := sut.ProvisionCertificateData(services, "ctx")
+	certsByService, err := sut.ProvisionCertificateData(services, "ctx")
 
 	assert.NoError(t, err)
-	assert.Equal(t, []string{"foo-tls"}, provisioned)
 	require.Len(t, certsByService["svc"], 1)
 	assert.Equal(t, certReq, certsByService["svc"][0].Request)
 	assert.Equal(t, []byte("cert-pem"), certsByService["svc"][0].Data["tls.crt"])
 	assert.Equal(t, []byte("key-pem"), certsByService["svc"][0].Data["tls.key"])
 	assert.Equal(t, []byte("ca-pem"), certsByService["svc"][0].Data["ca.crt"])
-
-	mockOrch.AssertNotCalled(t, "CreateOrUpdateSecret", mock.Anything, mock.Anything, mock.Anything)
-}
-
-func TestCertificateProvisioner_ProvisionCertificateData_ReusesExistingCert(t *testing.T) {
-	mockCA := new(testutil.MockCertificateAuthority)
-	mockOrch := new(testutil.MockSecretStore)
-	mockKeyring := new(testutil.MockKeyring)
-	mockEncryptor := new(testutil.MockSymmetricEncryptor)
-
-	sut := ProvideCertificateProvisioner(mockCA, mockOrch, mockKeyring, mockEncryptor)
-
-	mockKeyring.On("HasKey", "ctx-ca-key").Return(true, nil)
-	mockKeyring.On("GetKey", "ctx-ca-key").Return("test-passphrase", nil)
-
-	validCert := testCertPEMWithSANs(t, time.Now().AddDate(0, 0, 20), []string{"foo.localhost"})
-	existingData := map[string][]byte{
-		"tls.crt": validCert,
-		"tls.key": []byte("existing-key"),
-		"ca.crt":  []byte("existing-ca"),
-	}
-	mockOrch.On("GetSecretData", "foo-tls").Return(existingData, nil)
-
-	certReq := domain.CertificateRequest{
-		Type:     domain.CertificateTypeServer,
-		DNSNames: []string{"foo.localhost"},
-		K8sSecret: domain.K8sSecretConfig{
-			Name: "foo-tls",
-			Type: domain.K8sSecretTypeTLS,
-		},
-	}
-	services := []domain.ServiceCertificates{{
-		Name:         "svc",
-		Certificates: []domain.CertificateRequest{certReq},
-	}}
-
-	certsByService, provisioned, err := sut.ProvisionCertificateData(services, "ctx")
-
-	assert.NoError(t, err)
-	assert.Empty(t, provisioned)
-	require.Len(t, certsByService["svc"], 1)
-	assert.Equal(t, existingData, certsByService["svc"][0].Data)
-
-	mockCA.AssertNotCalled(t, "IssueCertificate", mock.Anything, mock.Anything, mock.Anything)
-	mockOrch.AssertNotCalled(t, "CreateOrUpdateSecret", mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestCertificateProvisioner_ProvisionCertificateData_GroupsByService(t *testing.T) {
 	mockCA := new(testutil.MockCertificateAuthority)
-	mockOrch := new(testutil.MockSecretStore)
 	mockKeyring := new(testutil.MockKeyring)
-	mockEncryptor := new(testutil.MockSymmetricEncryptor)
 
-	sut := ProvideCertificateProvisioner(mockCA, mockOrch, mockKeyring, mockEncryptor)
+	sut := ProvideCertificateProvisioner(mockCA, nil, mockKeyring, nil)
 
 	mockKeyring.On("HasKey", "ctx-ca-key").Return(true, nil)
 	mockKeyring.On("GetKey", "ctx-ca-key").Return("test-passphrase", nil)
-
-	mockOrch.On("GetSecretData", mock.Anything).Return(map[string][]byte(nil), nil)
 
 	issued := &domain.IssuedCertificate{
 		CertPEM: []byte("cert"), KeyPEM: []byte("key"), CAPEM: []byte("ca"),
@@ -1107,10 +558,9 @@ func TestCertificateProvisioner_ProvisionCertificateData_GroupsByService(t *test
 		},
 	}
 
-	certsByService, provisioned, err := sut.ProvisionCertificateData(services, "ctx")
+	certsByService, err := sut.ProvisionCertificateData(services, "ctx")
 
 	assert.NoError(t, err)
-	assert.Len(t, provisioned, 2)
 	assert.Len(t, certsByService, 2)
 	require.Len(t, certsByService["svc-a"], 1)
 	require.Len(t, certsByService["svc-b"], 1)
@@ -1126,51 +576,20 @@ func TestCertificateProvisioner_ProvisionCertificateData_EmptyServices(t *testin
 		new(testutil.MockSymmetricEncryptor),
 	)
 
-	certsByService, provisioned, err := sut.ProvisionCertificateData(nil, "ctx")
+	certsByService, err := sut.ProvisionCertificateData(nil, "ctx")
 
 	assert.NoError(t, err)
 	assert.Nil(t, certsByService)
-	assert.Nil(t, provisioned)
-}
-
-func TestCertificateProvisioner_ProvisionCertificateData_GetSecretDataError(t *testing.T) {
-	mockCA := new(testutil.MockCertificateAuthority)
-	mockOrch := new(testutil.MockSecretStore)
-	mockKeyring := new(testutil.MockKeyring)
-	mockEncryptor := new(testutil.MockSymmetricEncryptor)
-
-	sut := ProvideCertificateProvisioner(mockCA, mockOrch, mockKeyring, mockEncryptor)
-
-	mockKeyring.On("HasKey", "ctx-ca-key").Return(true, nil)
-	mockKeyring.On("GetKey", "ctx-ca-key").Return("test-passphrase", nil)
-
-	mockOrch.On("GetSecretData", "foo-tls").Return(nil, assert.AnError)
-
-	services := []domain.ServiceCertificates{{
-		Name: "svc",
-		Certificates: []domain.CertificateRequest{{
-			Type: domain.CertificateTypeServer, DNSNames: []string{"foo.localhost"},
-			K8sSecret: domain.K8sSecretConfig{Name: "foo-tls", Type: domain.K8sSecretTypeTLS},
-		}},
-	}}
-
-	_, _, err := sut.ProvisionCertificateData(services, "ctx")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to check secret foo-tls")
-	mockCA.AssertNotCalled(t, "IssueCertificate", mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestCertificateProvisioner_ProvisionCertificateData_IssueCertificateError(t *testing.T) {
 	mockCA := new(testutil.MockCertificateAuthority)
-	mockOrch := new(testutil.MockSecretStore)
 	mockKeyring := new(testutil.MockKeyring)
-	mockEncryptor := new(testutil.MockSymmetricEncryptor)
 
-	sut := ProvideCertificateProvisioner(mockCA, mockOrch, mockKeyring, mockEncryptor)
+	sut := ProvideCertificateProvisioner(mockCA, nil, mockKeyring, nil)
 
 	mockKeyring.On("HasKey", "ctx-ca-key").Return(true, nil)
 	mockKeyring.On("GetKey", "ctx-ca-key").Return("test-passphrase", nil)
-	mockOrch.On("GetSecretData", "foo-tls").Return(map[string][]byte(nil), nil)
 	mockCA.On("IssueCertificate", mock.Anything, mock.Anything, mock.Anything).Return(nil, assert.AnError)
 
 	services := []domain.ServiceCertificates{{
@@ -1181,7 +600,7 @@ func TestCertificateProvisioner_ProvisionCertificateData_IssueCertificateError(t
 		}},
 	}}
 
-	_, _, err := sut.ProvisionCertificateData(services, "ctx")
+	_, err := sut.ProvisionCertificateData(services, "ctx")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to issue certificate for foo-tls")
 }

@@ -44,7 +44,7 @@ func (h *CACommandHandler) HandlePrint() error {
 	certPEM, err := h.certificateAuthority.GetCACertificatePEM(contextName)
 	if err != nil {
 		return fmt.Errorf(
-			"no certificate authority exists for context '%s'; run 'dx install' or 'dx ca recreate' to create one",
+			"no certificate authority exists for context '%s'; run 'dx install' to create one",
 			contextName,
 		)
 	}
@@ -53,52 +53,8 @@ func (h *CACommandHandler) HandlePrint() error {
 	return nil
 }
 
-// HandleReissue re-issues all certificates using the existing CA.
-func (h *CACommandHandler) HandleReissue() error {
-	if err := h.environmentEnsurer.EnsureExpectedClusterIsSelected(); err != nil {
-		return err
-	}
-
-	configContext, err := h.configRepository.LoadCurrentConfigurationContext()
-	if err != nil {
-		return err
-	}
-
-	_, caErr := h.certificateAuthority.GetCACertificatePEM(configContext.Name)
-	if caErr != nil {
-		return fmt.Errorf(
-			"no certificate authority exists for context '%s'; run 'dx install' or 'dx ca recreate' to create one",
-			configContext.Name,
-		)
-	}
-
-	services := core.CollectAllCertificates(configContext.Services, configContext)
-
-	output.PrintHeader("Re-issuing certificates")
-	output.PrintNewline()
-
-	secrets, err := h.certificateProvisioner.ReissueCertificates(services, configContext.Name)
-	if err != nil {
-		return err
-	}
-
-	for _, name := range secrets {
-		output.PrintBullet(name)
-	}
-	output.PrintNewline()
-	output.PrintSuccess(
-		fmt.Sprintf(
-			"Re-issued %d %s",
-			len(secrets), output.Plural(len(secrets), "certificate", "certificates"),
-		),
-	)
-	output.PrintInfo("Run 'dx install' to apply the new certificates")
-
-	return nil
-}
-
-// HandleRecreate deletes the CA and recreates it, then re-issues all certificates.
-func (h *CACommandHandler) HandleRecreate(skipConfirmation bool) error {
+// HandleDelete deletes the existing CA so a new one is created on the next install.
+func (h *CACommandHandler) HandleDelete(skipConfirmation bool) error {
 	if err := h.environmentEnsurer.EnsureExpectedClusterIsSelected(); err != nil {
 		return err
 	}
@@ -113,14 +69,19 @@ func (h *CACommandHandler) HandleRecreate(skipConfirmation bool) error {
 	_, caErr := h.certificateAuthority.GetCACertificatePEM(contextName)
 	caExists := caErr == nil
 
-	if caExists && !skipConfirmation {
+	if !caExists {
+		output.PrintInfo("No CA exists for this context; one will be created automatically on 'dx install'")
+		return nil
+	}
+
+	if !skipConfirmation {
 		if !h.terminalInput.IsTerminal() {
-			return fmt.Errorf("recreating the CA requires confirmation. Use --yes to skip in non-interactive mode")
+			return fmt.Errorf("deleting the CA requires confirmation. Use --yes to skip in non-interactive mode")
 		}
 
 		output.PrintWarning(
 			fmt.Sprintf(
-				"This will delete the existing CA and all certificates for context '%s'.",
+				"This will delete the local CA files for context '%s'.",
 				contextName,
 			),
 		)
@@ -130,7 +91,7 @@ func (h *CACommandHandler) HandleRecreate(skipConfirmation bool) error {
 				output.PrintWarningDetail(cert.K8sSecret.Name)
 			}
 		}
-		output.PrintWarningSecondary("After recreating, you must re-trust the new CA certificate.")
+		output.PrintWarningSecondary("After running 'dx install', you must re-trust the new CA certificate.")
 		output.PrintWarningNewline()
 
 		response, err := h.terminalInput.ReadLine("Continue? [y/N] ")
@@ -140,60 +101,26 @@ func (h *CACommandHandler) HandleRecreate(skipConfirmation bool) error {
 
 		response = strings.ToLower(strings.TrimSpace(response))
 		if response != "y" && response != "yes" {
-			output.PrintInfo("Recreate cancelled")
+			output.PrintInfo("Delete cancelled")
 			return nil
 		}
 		output.PrintNewline()
 	}
 
-	if caExists {
-		output.PrintHeader("Recreating certificate authority")
-	} else {
-		output.PrintHeader("Creating certificate authority")
-	}
+	output.PrintHeader("Deleting certificate authority")
 	output.PrintNewline()
 
-	// Delete existing CA and passphrase
-	if caExists {
-		output.PrintStep("Removing existing CA")
-		if err := h.certificateAuthority.DeleteCA(contextName); err != nil {
-			return fmt.Errorf("failed to remove existing CA: %w", err)
-		}
-		if err := h.certificateProvisioner.DeletePassphrase(contextName); err != nil {
-			return fmt.Errorf("failed to remove CA passphrase: %w", err)
-		}
+	output.PrintStep("Removing existing CA")
+	if err := h.certificateAuthority.DeleteCA(contextName); err != nil {
+		return fmt.Errorf("failed to remove existing CA: %w", err)
+	}
+	if err := h.certificateProvisioner.DeletePassphrase(contextName); err != nil {
+		return fmt.Errorf("failed to remove CA passphrase: %w", err)
 	}
 
-	// Re-issue all certificates (this will create a new CA via LoadOrCreateCA)
-	output.PrintStep("Creating new CA")
-
-	services := core.CollectAllCertificates(configContext.Services, configContext)
-	secrets, err := h.certificateProvisioner.ReissueCertificates(services, contextName)
-	if err != nil {
-		return err
-	}
-
-	for _, name := range secrets {
-		output.PrintBullet(name)
-	}
 	output.PrintNewline()
-	if caExists {
-		output.PrintSuccess(
-			fmt.Sprintf(
-				"Recreated CA and re-issued %d %s",
-				len(secrets), output.Plural(len(secrets), "certificate", "certificates"),
-			),
-		)
-	} else {
-		output.PrintSuccess(
-			fmt.Sprintf(
-				"Created CA and issued %d %s",
-				len(secrets), output.Plural(len(secrets), "certificate", "certificates"),
-			),
-		)
-	}
-
-	output.PrintInfo("Run 'dx install' to apply the new certificates")
+	output.PrintSuccess("Deleted CA for context '" + contextName + "'")
+	output.PrintInfo("Run 'dx install' to create a new CA and apply certificates")
 	output.PrintInfo("Run 'dx ca print' to retrieve the new CA certificate for your trust store")
 
 	return nil
