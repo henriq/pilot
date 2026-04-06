@@ -12,7 +12,7 @@ var _ ports.Templater = (*TextTemplater)(nil)
 
 type TextTemplater struct{}
 
-func ProvideTextTemplater() ports.Templater {
+func ProvideTextTemplater() *TextTemplater {
 	return &TextTemplater{}
 }
 
@@ -36,6 +36,7 @@ func (t TextTemplater) Render(templateText string, templateName string, values m
 			return "", err
 		}
 		fmt.Fprintf(os.Stderr, "WARN: %v\n", originalErr)
+		return resultWithMissingKeys.String(), nil
 	}
 
 	return result.String(), nil

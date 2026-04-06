@@ -44,7 +44,7 @@ func internalTLSProvisioner(contextName string) *core.CertificateProvisioner {
 	mockKeyring.On("HasKey", keyName).Return(true, nil)
 	mockKeyring.On("GetKey", keyName).Return("test-pass", nil)
 
-	mockSecretStore.On("SecretExists", core.InternalTLSSecretName).Return(false, nil)
+	mockSecretStore.On("GetSecretData", core.InternalTLSSecretName).Return(map[string][]byte(nil), nil)
 
 	issued := &domain.IssuedCertificate{
 		CertPEM: []byte("cert"), KeyPEM: []byte("key"), CAPEM: []byte("ca"),
@@ -85,7 +85,6 @@ func existingCertProvisioner(t *testing.T, contextName string, certPEM []byte) *
 	mockKeyring.On("HasKey", keyName).Return(true, nil)
 	mockKeyring.On("GetKey", keyName).Return("test-pass", nil)
 
-	mockSecretStore.On("SecretExists", core.InternalTLSSecretName).Return(true, nil)
 	mockSecretStore.On("GetSecretData", core.InternalTLSSecretName).Return(map[string][]byte{
 		"tls.crt": certPEM,
 		"tls.key": []byte("key"),
@@ -514,8 +513,8 @@ func TestInstallCommandHandler_HandleProvisionsCertificatesDuringInstall(t *test
 	containerOrchestrator.On("GetDevProxyChecksum").Return("", nil)
 
 	mockSecretStore := new(testutil.MockSecretStore)
-	mockSecretStore.On("SecretExists", "foo-tls").Return(false, nil)
-	mockSecretStore.On("SecretExists", core.InternalTLSSecretName).Return(false, nil)
+	mockSecretStore.On("GetSecretData", "foo-tls").Return(map[string][]byte(nil), nil)
+	mockSecretStore.On("GetSecretData", core.InternalTLSSecretName).Return(map[string][]byte(nil), nil)
 
 	mockCA := new(testutil.MockCertificateAuthority)
 	mockKeyring := new(testutil.MockKeyring)
@@ -553,7 +552,7 @@ func TestInstallCommandHandler_HandleProvisionsCertificatesDuringInstall(t *test
 	result := sut.Handle([]string{}, "all", false)
 
 	assert.Nil(t, result)
-	mockSecretStore.AssertCalled(t, "SecretExists", "foo-tls")
+	mockSecretStore.AssertCalled(t, "GetSecretData", "foo-tls")
 	mockCA.AssertExpectations(t)
 }
 
@@ -667,4 +666,126 @@ func TestInstallCommandHandler_HandleReturnsErrorFromShouldRebuildDevProxy(t *te
 	assert.Error(t, result)
 	containerOrchestrator.AssertNumberOfCalls(t, "InstallService", 0)
 	containerOrchestrator.AssertNumberOfCalls(t, "InstallDevProxy", 0)
+}
+
+func TestInstallCommandHandler_Handle_ScmDownloadError(t *testing.T) {
+	configContext := &domain.ConfigurationContext{
+		Name: "Test",
+		Services: []domain.Service{
+			{
+				Name:         "service-1",
+				HelmRepoPath: "any-repo-1",
+				HelmBranch:   "any-branch-1",
+				Profiles:     []string{"all"},
+			},
+		},
+	}
+	configRepository := new(testutil.MockConfigRepository)
+	configRepository.On("LoadEnvKey", mock.Anything).Return("any-key", nil)
+	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
+	containerOrchestrator := new(testutil.MockContainerOrchestrator)
+	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("any-key", nil)
+	containerOrchestrator.On("InstallDevProxy", mock.Anything, mock.Anything).Return(nil)
+	containerOrchestrator.On("GetDevProxyChecksum").Return("", nil)
+	fileSystem := new(testutil.MockFileSystem)
+	fileSystem.On("WriteFile", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	fileSystem.On("HomeDir").Return("/home/test", nil)
+	fileSystem.On("RemoveAll", mock.Anything).Return(nil)
+	scm := new(testutil.MockScm)
+	scm.On(
+		"Download",
+		configContext.Services[0].HelmRepoPath,
+		configContext.Services[0].HelmBranch,
+		configContext.Services[0].HelmPath,
+	).Return(assert.AnError)
+	containerImageRepository := new(testutil.MockContainerImageRepository)
+	containerImageRepository.On("BuildImage", mock.Anything).Return(nil)
+	configGenerator := core.ProvideDevProxyConfigGenerator()
+	devProxyManager := core.ProvideDevProxyManager(
+		configRepository,
+		fileSystem,
+		containerImageRepository,
+		containerOrchestrator,
+		configGenerator,
+	)
+	environmentEnsurer := core.ProvideEnvironmentEnsurer(
+		configRepository,
+		containerOrchestrator,
+	)
+	sut := ProvideInstallCommandHandler(
+		configRepository,
+		containerImageRepository,
+		containerOrchestrator,
+		devProxyManager,
+		environmentEnsurer,
+		scm,
+		internalTLSProvisioner("Test"),
+	)
+
+	result := sut.Handle([]string{}, "all", false)
+
+	assert.ErrorIs(t, result, assert.AnError)
+	containerOrchestrator.AssertNotCalled(t, "InstallService", mock.Anything, mock.Anything)
+}
+
+func TestInstallCommandHandler_Handle_InstallServiceError(t *testing.T) {
+	configContext := &domain.ConfigurationContext{
+		Name: "Test",
+		Services: []domain.Service{
+			{
+				Name:         "service-1",
+				HelmRepoPath: "any-repo-1",
+				HelmBranch:   "any-branch-1",
+				Profiles:     []string{"all"},
+			},
+		},
+	}
+	configRepository := new(testutil.MockConfigRepository)
+	configRepository.On("LoadEnvKey", mock.Anything).Return("any-key", nil)
+	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
+	containerOrchestrator := new(testutil.MockContainerOrchestrator)
+	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("any-key", nil)
+	containerOrchestrator.On("InstallDevProxy", mock.Anything, mock.Anything).Return(nil)
+	containerOrchestrator.On("InstallService", mock.Anything, mock.Anything).Return(assert.AnError)
+	containerOrchestrator.On("GetDevProxyChecksum").Return("", nil)
+	fileSystem := new(testutil.MockFileSystem)
+	fileSystem.On("WriteFile", mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	fileSystem.On("HomeDir").Return("/home/test", nil)
+	fileSystem.On("RemoveAll", mock.Anything).Return(nil)
+	scm := new(testutil.MockScm)
+	scm.On(
+		"Download",
+		configContext.Services[0].HelmRepoPath,
+		configContext.Services[0].HelmBranch,
+		configContext.Services[0].HelmPath,
+	).Return(nil)
+	containerImageRepository := new(testutil.MockContainerImageRepository)
+	containerImageRepository.On("BuildImage", mock.Anything).Return(nil)
+	configGenerator := core.ProvideDevProxyConfigGenerator()
+	devProxyManager := core.ProvideDevProxyManager(
+		configRepository,
+		fileSystem,
+		containerImageRepository,
+		containerOrchestrator,
+		configGenerator,
+	)
+	environmentEnsurer := core.ProvideEnvironmentEnsurer(
+		configRepository,
+		containerOrchestrator,
+	)
+	sut := ProvideInstallCommandHandler(
+		configRepository,
+		containerImageRepository,
+		containerOrchestrator,
+		devProxyManager,
+		environmentEnsurer,
+		scm,
+		internalTLSProvisioner("Test"),
+	)
+
+	result := sut.Handle([]string{}, "all", false)
+
+	assert.Error(t, result)
+	assert.Contains(t, result.Error(), "failed to install service")
+	scm.AssertExpectations(t)
 }

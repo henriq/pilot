@@ -120,6 +120,56 @@ func TestShowVarsCommandHandler_Handle_LoadSecretsError(t *testing.T) {
 	secretsRepository.AssertExpectations(t)
 }
 
+func TestPrettyPrintMap_NonStringNonMapValues(t *testing.T) {
+	// Verify that non-string, non-map values are printed without panicking
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	prettyPrintMap(map[string]interface{}{
+		"count":   42,
+		"enabled": true,
+		"items":   []string{"a", "b"},
+		"nothing": nil,
+	}, 0, false)
+
+	w.Close() //nolint:errcheck,gosec // test pipe close
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	_, copyErr := io.Copy(&buf, r)
+	require.NoError(t, copyErr)
+	output := buf.String()
+
+	assert.Contains(t, output, "count: 42")
+	assert.Contains(t, output, "enabled: true")
+	assert.Contains(t, output, "items: [a b]")
+	assert.Contains(t, output, "nothing: <nil>")
+}
+
+func TestPrettyPrintMap_SecretsKeyHidesNestedValues(t *testing.T) {
+	oldStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	prettyPrintMap(map[string]interface{}{
+		"Secrets": map[string]interface{}{
+			"DB_PASSWORD": "supersecret",
+		},
+	}, 0, false)
+
+	w.Close() //nolint:errcheck,gosec // test pipe close
+	os.Stdout = oldStdout
+
+	var buf bytes.Buffer
+	_, copyErr := io.Copy(&buf, r)
+	require.NoError(t, copyErr)
+	output := buf.String()
+
+	assert.Contains(t, output, "DB_PASSWORD: ******")
+	assert.NotContains(t, output, "supersecret")
+}
+
 func TestShowVarsCommandHandler_Handle_SortedOutput(t *testing.T) {
 	secretsRepository := new(testutil.MockSecretsRepository)
 	configRepository := new(testutil.MockConfigRepository)

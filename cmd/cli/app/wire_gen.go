@@ -9,12 +9,14 @@ package app
 import (
 	"dx/internal/adapters/certificate_authority"
 	"dx/internal/adapters/command_runner"
+	"dx/internal/adapters/config_repository"
 	"dx/internal/adapters/container_image_repository"
 	"dx/internal/adapters/container_orchestrator"
 	"dx/internal/adapters/filesystem"
 	"dx/internal/adapters/keyring"
 	"dx/internal/adapters/kustomize"
 	"dx/internal/adapters/scm"
+	"dx/internal/adapters/secret_repository"
 	"dx/internal/adapters/symmetric_encryptor"
 	"dx/internal/adapters/templater"
 	"dx/internal/adapters/terminal"
@@ -26,52 +28,52 @@ import (
 
 // Injectors from wire.go:
 
-func InjectConfigRepo() (core.ConfigRepository, error) {
+func InjectConfigRepo() (ports.ConfigRepository, error) {
 	osFileSystem := filesystem.ProvideOsFileSystem()
-	portsKeyring := keyring.ProvideZalandoKeyring()
+	zalandoKeyring := keyring.ProvideZalandoKeyring()
 	aesGcmEncryptor := symmetric_encryptor.ProvideAesGcmEncryptor()
-	secretsRepository := core.ProvideEncryptedFileSecretRepository(osFileSystem, portsKeyring, aesGcmEncryptor)
-	portsTemplater := templater.ProvideTextTemplater()
-	fileSystemConfigRepository := core.ProvideFileSystemConfigRepository(osFileSystem, secretsRepository, portsTemplater)
+	encryptedFileSecretRepository := secret_repository.ProvideEncryptedFileSecretRepository(osFileSystem, zalandoKeyring, aesGcmEncryptor)
+	textTemplater := templater.ProvideTextTemplater()
+	fileSystemConfigRepository := config_repository.ProvideFileSystemConfigRepository(osFileSystem, encryptedFileSecretRepository, textTemplater)
 	return fileSystemConfigRepository, nil
 }
 
-func InjectSecretRepository() (core.SecretsRepository, error) {
+func InjectSecretRepository() (ports.SecretsRepository, error) {
 	osFileSystem := filesystem.ProvideOsFileSystem()
-	portsKeyring := keyring.ProvideZalandoKeyring()
+	zalandoKeyring := keyring.ProvideZalandoKeyring()
 	aesGcmEncryptor := symmetric_encryptor.ProvideAesGcmEncryptor()
-	secretsRepository := core.ProvideEncryptedFileSecretRepository(osFileSystem, portsKeyring, aesGcmEncryptor)
-	return secretsRepository, nil
+	encryptedFileSecretRepository := secret_repository.ProvideEncryptedFileSecretRepository(osFileSystem, zalandoKeyring, aesGcmEncryptor)
+	return encryptedFileSecretRepository, nil
 }
 
 func InjectBuildCommandHandler() (handler.BuildCommandHandler, error) {
 	osFileSystem := filesystem.ProvideOsFileSystem()
-	portsKeyring := keyring.ProvideZalandoKeyring()
+	zalandoKeyring := keyring.ProvideZalandoKeyring()
 	aesGcmEncryptor := symmetric_encryptor.ProvideAesGcmEncryptor()
-	secretsRepository := core.ProvideEncryptedFileSecretRepository(osFileSystem, portsKeyring, aesGcmEncryptor)
-	portsTemplater := templater.ProvideTextTemplater()
-	fileSystemConfigRepository := core.ProvideFileSystemConfigRepository(osFileSystem, secretsRepository, portsTemplater)
+	encryptedFileSecretRepository := secret_repository.ProvideEncryptedFileSecretRepository(osFileSystem, zalandoKeyring, aesGcmEncryptor)
+	textTemplater := templater.ProvideTextTemplater()
+	fileSystemConfigRepository := config_repository.ProvideFileSystemConfigRepository(osFileSystem, encryptedFileSecretRepository, textTemplater)
 	osCommandRunner := command_runner.ProvideOsCommandRunner()
 	gitClient := scm.ProvideGitClient(osCommandRunner, osFileSystem)
 	git := scm.ProvideGit(gitClient, osFileSystem)
-	dockerRepository := container_image_repository.ProvideDockerRepository(fileSystemConfigRepository, secretsRepository, portsTemplater, osCommandRunner)
+	dockerRepository := container_image_repository.ProvideDockerRepository(fileSystemConfigRepository, encryptedFileSecretRepository, textTemplater, osCommandRunner)
 	buildCommandHandler := handler.ProvideBuildCommandHandler(fileSystemConfigRepository, git, dockerRepository)
 	return buildCommandHandler, nil
 }
 
 func InjectInstallCommandHandler() (handler.InstallCommandHandler, error) {
 	osFileSystem := filesystem.ProvideOsFileSystem()
-	portsKeyring := keyring.ProvideZalandoKeyring()
+	zalandoKeyring := keyring.ProvideZalandoKeyring()
 	aesGcmEncryptor := symmetric_encryptor.ProvideAesGcmEncryptor()
-	secretsRepository := core.ProvideEncryptedFileSecretRepository(osFileSystem, portsKeyring, aesGcmEncryptor)
-	portsTemplater := templater.ProvideTextTemplater()
-	fileSystemConfigRepository := core.ProvideFileSystemConfigRepository(osFileSystem, secretsRepository, portsTemplater)
+	encryptedFileSecretRepository := secret_repository.ProvideEncryptedFileSecretRepository(osFileSystem, zalandoKeyring, aesGcmEncryptor)
+	textTemplater := templater.ProvideTextTemplater()
+	fileSystemConfigRepository := config_repository.ProvideFileSystemConfigRepository(osFileSystem, encryptedFileSecretRepository, textTemplater)
 	osCommandRunner := command_runner.ProvideOsCommandRunner()
-	dockerRepository := container_image_repository.ProvideDockerRepository(fileSystemConfigRepository, secretsRepository, portsTemplater, osCommandRunner)
+	dockerRepository := container_image_repository.ProvideDockerRepository(fileSystemConfigRepository, encryptedFileSecretRepository, textTemplater, osCommandRunner)
 	helmClient := container_orchestrator.ProvideHelmClient(osCommandRunner)
 	client := kustomize.ProvideKustomizeClient(osCommandRunner, osFileSystem)
 	chartWrapper := core.ProvideChartWrapper(osFileSystem)
-	kubernetes, err := container_orchestrator.ProvideKubernetes(fileSystemConfigRepository, secretsRepository, portsTemplater, osFileSystem, helmClient, client, chartWrapper)
+	kubernetes, err := container_orchestrator.ProvideKubernetes(fileSystemConfigRepository, encryptedFileSecretRepository, textTemplater, osFileSystem, helmClient, client, chartWrapper)
 	if err != nil {
 		return handler.InstallCommandHandler{}, err
 	}
@@ -81,28 +83,28 @@ func InjectInstallCommandHandler() (handler.InstallCommandHandler, error) {
 	gitClient := scm.ProvideGitClient(osCommandRunner, osFileSystem)
 	git := scm.ProvideGit(gitClient, osFileSystem)
 	x509CertificateAuthority := certificate_authority.ProvideX509CertificateAuthority(osFileSystem, aesGcmEncryptor)
-	certificateProvisioner := core.ProvideCertificateProvisioner(x509CertificateAuthority, kubernetes, portsKeyring, aesGcmEncryptor)
+	certificateProvisioner := core.ProvideCertificateProvisioner(x509CertificateAuthority, kubernetes, zalandoKeyring, aesGcmEncryptor)
 	installCommandHandler := handler.ProvideInstallCommandHandler(fileSystemConfigRepository, dockerRepository, kubernetes, devProxyManager, environmentEnsurer, git, certificateProvisioner)
 	return installCommandHandler, nil
 }
 
 func InjectUninstallCommandHandler() (handler.UninstallCommandHandler, error) {
 	osFileSystem := filesystem.ProvideOsFileSystem()
-	portsKeyring := keyring.ProvideZalandoKeyring()
+	zalandoKeyring := keyring.ProvideZalandoKeyring()
 	aesGcmEncryptor := symmetric_encryptor.ProvideAesGcmEncryptor()
-	secretsRepository := core.ProvideEncryptedFileSecretRepository(osFileSystem, portsKeyring, aesGcmEncryptor)
-	portsTemplater := templater.ProvideTextTemplater()
-	fileSystemConfigRepository := core.ProvideFileSystemConfigRepository(osFileSystem, secretsRepository, portsTemplater)
+	encryptedFileSecretRepository := secret_repository.ProvideEncryptedFileSecretRepository(osFileSystem, zalandoKeyring, aesGcmEncryptor)
+	textTemplater := templater.ProvideTextTemplater()
+	fileSystemConfigRepository := config_repository.ProvideFileSystemConfigRepository(osFileSystem, encryptedFileSecretRepository, textTemplater)
 	osCommandRunner := command_runner.ProvideOsCommandRunner()
 	helmClient := container_orchestrator.ProvideHelmClient(osCommandRunner)
 	client := kustomize.ProvideKustomizeClient(osCommandRunner, osFileSystem)
 	chartWrapper := core.ProvideChartWrapper(osFileSystem)
-	kubernetes, err := container_orchestrator.ProvideKubernetes(fileSystemConfigRepository, secretsRepository, portsTemplater, osFileSystem, helmClient, client, chartWrapper)
+	kubernetes, err := container_orchestrator.ProvideKubernetes(fileSystemConfigRepository, encryptedFileSecretRepository, textTemplater, osFileSystem, helmClient, client, chartWrapper)
 	if err != nil {
 		return handler.UninstallCommandHandler{}, err
 	}
 	environmentEnsurer := core.ProvideEnvironmentEnsurer(fileSystemConfigRepository, kubernetes)
-	dockerRepository := container_image_repository.ProvideDockerRepository(fileSystemConfigRepository, secretsRepository, portsTemplater, osCommandRunner)
+	dockerRepository := container_image_repository.ProvideDockerRepository(fileSystemConfigRepository, encryptedFileSecretRepository, textTemplater, osCommandRunner)
 	devProxyConfigGenerator := core.ProvideDevProxyConfigGenerator()
 	devProxyManager := core.ProvideDevProxyManager(fileSystemConfigRepository, osFileSystem, dockerRepository, kubernetes, devProxyConfigGenerator)
 	uninstallCommandHandler := handler.ProvideUninstallCommandHandler(fileSystemConfigRepository, kubernetes, environmentEnsurer, devProxyManager)
@@ -111,16 +113,16 @@ func InjectUninstallCommandHandler() (handler.UninstallCommandHandler, error) {
 
 func InjectGenEnvKeyCommandHandler() (handler.GenEnvKeyCommandHandler, error) {
 	osFileSystem := filesystem.ProvideOsFileSystem()
-	portsKeyring := keyring.ProvideZalandoKeyring()
+	zalandoKeyring := keyring.ProvideZalandoKeyring()
 	aesGcmEncryptor := symmetric_encryptor.ProvideAesGcmEncryptor()
-	secretsRepository := core.ProvideEncryptedFileSecretRepository(osFileSystem, portsKeyring, aesGcmEncryptor)
-	portsTemplater := templater.ProvideTextTemplater()
-	fileSystemConfigRepository := core.ProvideFileSystemConfigRepository(osFileSystem, secretsRepository, portsTemplater)
+	encryptedFileSecretRepository := secret_repository.ProvideEncryptedFileSecretRepository(osFileSystem, zalandoKeyring, aesGcmEncryptor)
+	textTemplater := templater.ProvideTextTemplater()
+	fileSystemConfigRepository := config_repository.ProvideFileSystemConfigRepository(osFileSystem, encryptedFileSecretRepository, textTemplater)
 	osCommandRunner := command_runner.ProvideOsCommandRunner()
 	helmClient := container_orchestrator.ProvideHelmClient(osCommandRunner)
 	client := kustomize.ProvideKustomizeClient(osCommandRunner, osFileSystem)
 	chartWrapper := core.ProvideChartWrapper(osFileSystem)
-	kubernetes, err := container_orchestrator.ProvideKubernetes(fileSystemConfigRepository, secretsRepository, portsTemplater, osFileSystem, helmClient, client, chartWrapper)
+	kubernetes, err := container_orchestrator.ProvideKubernetes(fileSystemConfigRepository, encryptedFileSecretRepository, textTemplater, osFileSystem, helmClient, client, chartWrapper)
 	if err != nil {
 		return handler.GenEnvKeyCommandHandler{}, err
 	}
@@ -130,87 +132,83 @@ func InjectGenEnvKeyCommandHandler() (handler.GenEnvKeyCommandHandler, error) {
 
 func InjectContextCommandHandler() (handler.ContextCommandHandler, error) {
 	osFileSystem := filesystem.ProvideOsFileSystem()
-	portsKeyring := keyring.ProvideZalandoKeyring()
+	zalandoKeyring := keyring.ProvideZalandoKeyring()
 	aesGcmEncryptor := symmetric_encryptor.ProvideAesGcmEncryptor()
-	secretsRepository := core.ProvideEncryptedFileSecretRepository(osFileSystem, portsKeyring, aesGcmEncryptor)
-	portsTemplater := templater.ProvideTextTemplater()
-	fileSystemConfigRepository := core.ProvideFileSystemConfigRepository(osFileSystem, secretsRepository, portsTemplater)
-	osCommandRunner := command_runner.ProvideOsCommandRunner()
-	gitClient := scm.ProvideGitClient(osCommandRunner, osFileSystem)
-	git := scm.ProvideGit(gitClient, osFileSystem)
-	dockerRepository := container_image_repository.ProvideDockerRepository(fileSystemConfigRepository, secretsRepository, portsTemplater, osCommandRunner)
-	contextCommandHandler := handler.ProvideContextCommandHandler(fileSystemConfigRepository, git, dockerRepository)
+	encryptedFileSecretRepository := secret_repository.ProvideEncryptedFileSecretRepository(osFileSystem, zalandoKeyring, aesGcmEncryptor)
+	textTemplater := templater.ProvideTextTemplater()
+	fileSystemConfigRepository := config_repository.ProvideFileSystemConfigRepository(osFileSystem, encryptedFileSecretRepository, textTemplater)
+	contextCommandHandler := handler.ProvideContextCommandHandler(fileSystemConfigRepository)
 	return contextCommandHandler, nil
 }
 
 func InjectInitializeCommandHandler() (handler.InitializeCommandHandler, error) {
 	osFileSystem := filesystem.ProvideOsFileSystem()
-	portsKeyring := keyring.ProvideZalandoKeyring()
+	zalandoKeyring := keyring.ProvideZalandoKeyring()
 	aesGcmEncryptor := symmetric_encryptor.ProvideAesGcmEncryptor()
-	secretsRepository := core.ProvideEncryptedFileSecretRepository(osFileSystem, portsKeyring, aesGcmEncryptor)
-	portsTemplater := templater.ProvideTextTemplater()
-	fileSystemConfigRepository := core.ProvideFileSystemConfigRepository(osFileSystem, secretsRepository, portsTemplater)
+	encryptedFileSecretRepository := secret_repository.ProvideEncryptedFileSecretRepository(osFileSystem, zalandoKeyring, aesGcmEncryptor)
+	textTemplater := templater.ProvideTextTemplater()
+	fileSystemConfigRepository := config_repository.ProvideFileSystemConfigRepository(osFileSystem, encryptedFileSecretRepository, textTemplater)
 	initializeCommandHandler := handler.ProvideInitializeCommandHandler(fileSystemConfigRepository)
 	return initializeCommandHandler, nil
 }
 
 func InjectSecretCommandHandler() (handler.SecretCommandHandler, error) {
 	osFileSystem := filesystem.ProvideOsFileSystem()
-	portsKeyring := keyring.ProvideZalandoKeyring()
+	zalandoKeyring := keyring.ProvideZalandoKeyring()
 	aesGcmEncryptor := symmetric_encryptor.ProvideAesGcmEncryptor()
-	secretsRepository := core.ProvideEncryptedFileSecretRepository(osFileSystem, portsKeyring, aesGcmEncryptor)
-	portsTemplater := templater.ProvideTextTemplater()
-	fileSystemConfigRepository := core.ProvideFileSystemConfigRepository(osFileSystem, secretsRepository, portsTemplater)
+	encryptedFileSecretRepository := secret_repository.ProvideEncryptedFileSecretRepository(osFileSystem, zalandoKeyring, aesGcmEncryptor)
+	textTemplater := templater.ProvideTextTemplater()
+	fileSystemConfigRepository := config_repository.ProvideFileSystemConfigRepository(osFileSystem, encryptedFileSecretRepository, textTemplater)
 	terminalInput := terminal.ProvideTerminalInput()
-	secretCommandHandler := handler.ProvideSecretCommandHandler(secretsRepository, fileSystemConfigRepository, terminalInput)
+	secretCommandHandler := handler.ProvideSecretCommandHandler(encryptedFileSecretRepository, fileSystemConfigRepository, terminalInput)
 	return secretCommandHandler, nil
 }
 
 func InjectRunCommandHandler() (handler.RunCommandHandler, error) {
 	osFileSystem := filesystem.ProvideOsFileSystem()
-	portsKeyring := keyring.ProvideZalandoKeyring()
+	zalandoKeyring := keyring.ProvideZalandoKeyring()
 	aesGcmEncryptor := symmetric_encryptor.ProvideAesGcmEncryptor()
-	secretsRepository := core.ProvideEncryptedFileSecretRepository(osFileSystem, portsKeyring, aesGcmEncryptor)
-	portsTemplater := templater.ProvideTextTemplater()
-	fileSystemConfigRepository := core.ProvideFileSystemConfigRepository(osFileSystem, secretsRepository, portsTemplater)
+	encryptedFileSecretRepository := secret_repository.ProvideEncryptedFileSecretRepository(osFileSystem, zalandoKeyring, aesGcmEncryptor)
+	textTemplater := templater.ProvideTextTemplater()
+	fileSystemConfigRepository := config_repository.ProvideFileSystemConfigRepository(osFileSystem, encryptedFileSecretRepository, textTemplater)
 	osCommandRunner := command_runner.ProvideOsCommandRunner()
 	gitClient := scm.ProvideGitClient(osCommandRunner, osFileSystem)
 	git := scm.ProvideGit(gitClient, osFileSystem)
-	runCommandHandler := handler.ProvideRunCommandHandler(fileSystemConfigRepository, secretsRepository, portsTemplater, git, osCommandRunner)
+	runCommandHandler := handler.ProvideRunCommandHandler(fileSystemConfigRepository, encryptedFileSecretRepository, textTemplater, git, osCommandRunner)
 	return runCommandHandler, nil
 }
 
 func InjectShowVarsCommandHandler() (handler.ShowVarsCommandHandler, error) {
 	osFileSystem := filesystem.ProvideOsFileSystem()
-	portsKeyring := keyring.ProvideZalandoKeyring()
+	zalandoKeyring := keyring.ProvideZalandoKeyring()
 	aesGcmEncryptor := symmetric_encryptor.ProvideAesGcmEncryptor()
-	secretsRepository := core.ProvideEncryptedFileSecretRepository(osFileSystem, portsKeyring, aesGcmEncryptor)
-	portsTemplater := templater.ProvideTextTemplater()
-	fileSystemConfigRepository := core.ProvideFileSystemConfigRepository(osFileSystem, secretsRepository, portsTemplater)
-	showVarsCommandHandler := handler.ProvideShowVarsCommandHandler(secretsRepository, fileSystemConfigRepository)
+	encryptedFileSecretRepository := secret_repository.ProvideEncryptedFileSecretRepository(osFileSystem, zalandoKeyring, aesGcmEncryptor)
+	textTemplater := templater.ProvideTextTemplater()
+	fileSystemConfigRepository := config_repository.ProvideFileSystemConfigRepository(osFileSystem, encryptedFileSecretRepository, textTemplater)
+	showVarsCommandHandler := handler.ProvideShowVarsCommandHandler(encryptedFileSecretRepository, fileSystemConfigRepository)
 	return showVarsCommandHandler, nil
 }
 
 func InjectGenerateCommandHandler() (handler.GenerateCommandHandler, error) {
 	osFileSystem := filesystem.ProvideOsFileSystem()
-	portsKeyring := keyring.ProvideZalandoKeyring()
+	zalandoKeyring := keyring.ProvideZalandoKeyring()
 	aesGcmEncryptor := symmetric_encryptor.ProvideAesGcmEncryptor()
-	secretsRepository := core.ProvideEncryptedFileSecretRepository(osFileSystem, portsKeyring, aesGcmEncryptor)
-	portsTemplater := templater.ProvideTextTemplater()
-	fileSystemConfigRepository := core.ProvideFileSystemConfigRepository(osFileSystem, secretsRepository, portsTemplater)
+	encryptedFileSecretRepository := secret_repository.ProvideEncryptedFileSecretRepository(osFileSystem, zalandoKeyring, aesGcmEncryptor)
+	textTemplater := templater.ProvideTextTemplater()
+	fileSystemConfigRepository := config_repository.ProvideFileSystemConfigRepository(osFileSystem, encryptedFileSecretRepository, textTemplater)
 	generateCommandHandler := handler.ProvideGenerateCommandHandler(fileSystemConfigRepository)
 	return generateCommandHandler, nil
 }
 
 func InjectPullCommandHandler() (handler.PullCommandHandler, error) {
 	osFileSystem := filesystem.ProvideOsFileSystem()
-	portsKeyring := keyring.ProvideZalandoKeyring()
+	zalandoKeyring := keyring.ProvideZalandoKeyring()
 	aesGcmEncryptor := symmetric_encryptor.ProvideAesGcmEncryptor()
-	secretsRepository := core.ProvideEncryptedFileSecretRepository(osFileSystem, portsKeyring, aesGcmEncryptor)
-	portsTemplater := templater.ProvideTextTemplater()
-	fileSystemConfigRepository := core.ProvideFileSystemConfigRepository(osFileSystem, secretsRepository, portsTemplater)
+	encryptedFileSecretRepository := secret_repository.ProvideEncryptedFileSecretRepository(osFileSystem, zalandoKeyring, aesGcmEncryptor)
+	textTemplater := templater.ProvideTextTemplater()
+	fileSystemConfigRepository := config_repository.ProvideFileSystemConfigRepository(osFileSystem, encryptedFileSecretRepository, textTemplater)
 	osCommandRunner := command_runner.ProvideOsCommandRunner()
-	dockerRepository := container_image_repository.ProvideDockerRepository(fileSystemConfigRepository, secretsRepository, portsTemplater, osCommandRunner)
+	dockerRepository := container_image_repository.ProvideDockerRepository(fileSystemConfigRepository, encryptedFileSecretRepository, textTemplater, osCommandRunner)
 	terminalInput := terminal.ProvideTerminalInput()
 	pullCommandHandler := handler.ProvidePullCommandHandler(fileSystemConfigRepository, dockerRepository, terminalInput)
 	return pullCommandHandler, nil
@@ -218,21 +216,21 @@ func InjectPullCommandHandler() (handler.PullCommandHandler, error) {
 
 func InjectCACommandHandler() (handler.CACommandHandler, error) {
 	osFileSystem := filesystem.ProvideOsFileSystem()
-	portsKeyring := keyring.ProvideZalandoKeyring()
+	zalandoKeyring := keyring.ProvideZalandoKeyring()
 	aesGcmEncryptor := symmetric_encryptor.ProvideAesGcmEncryptor()
-	secretsRepository := core.ProvideEncryptedFileSecretRepository(osFileSystem, portsKeyring, aesGcmEncryptor)
-	portsTemplater := templater.ProvideTextTemplater()
-	fileSystemConfigRepository := core.ProvideFileSystemConfigRepository(osFileSystem, secretsRepository, portsTemplater)
+	encryptedFileSecretRepository := secret_repository.ProvideEncryptedFileSecretRepository(osFileSystem, zalandoKeyring, aesGcmEncryptor)
+	textTemplater := templater.ProvideTextTemplater()
+	fileSystemConfigRepository := config_repository.ProvideFileSystemConfigRepository(osFileSystem, encryptedFileSecretRepository, textTemplater)
 	x509CertificateAuthority := certificate_authority.ProvideX509CertificateAuthority(osFileSystem, aesGcmEncryptor)
 	osCommandRunner := command_runner.ProvideOsCommandRunner()
 	helmClient := container_orchestrator.ProvideHelmClient(osCommandRunner)
 	client := kustomize.ProvideKustomizeClient(osCommandRunner, osFileSystem)
 	chartWrapper := core.ProvideChartWrapper(osFileSystem)
-	kubernetes, err := container_orchestrator.ProvideKubernetes(fileSystemConfigRepository, secretsRepository, portsTemplater, osFileSystem, helmClient, client, chartWrapper)
+	kubernetes, err := container_orchestrator.ProvideKubernetes(fileSystemConfigRepository, encryptedFileSecretRepository, textTemplater, osFileSystem, helmClient, client, chartWrapper)
 	if err != nil {
 		return handler.CACommandHandler{}, err
 	}
-	certificateProvisioner := core.ProvideCertificateProvisioner(x509CertificateAuthority, kubernetes, portsKeyring, aesGcmEncryptor)
+	certificateProvisioner := core.ProvideCertificateProvisioner(x509CertificateAuthority, kubernetes, zalandoKeyring, aesGcmEncryptor)
 	terminalInput := terminal.ProvideTerminalInput()
 	environmentEnsurer := core.ProvideEnvironmentEnsurer(fileSystemConfigRepository, kubernetes)
 	caCommandHandler := handler.ProvideCACommandHandler(fileSystemConfigRepository, x509CertificateAuthority, certificateProvisioner, terminalInput, environmentEnsurer)
@@ -241,10 +239,10 @@ func InjectCACommandHandler() (handler.CACommandHandler, error) {
 
 // wire.go:
 
-var Adapter = wire.NewSet(command_runner.ProvideOsCommandRunner, wire.Bind(new(ports.CommandRunner), new(*command_runner.OsCommandRunner)), scm.ProvideGitClient, scm.ProvideGit, wire.Bind(new(ports.Scm), new(*scm.Git)), container_image_repository.ProvideDockerRepository, wire.Bind(new(ports.ContainerImageRepository), new(*container_image_repository.DockerRepository)), container_orchestrator.ProvideHelmClient, wire.Bind(new(ports.HelmClient), new(*container_orchestrator.HelmClient)), kustomize.ProvideKustomizeClient, wire.Bind(new(ports.KustomizeClient), new(*kustomize.Client)), container_orchestrator.ProvideKubernetes, wire.Bind(new(ports.ContainerOrchestrator), new(*container_orchestrator.Kubernetes)), wire.Bind(new(ports.SecretStore), new(*container_orchestrator.Kubernetes)), filesystem.ProvideOsFileSystem, wire.Bind(new(ports.FileSystem), new(*filesystem.OsFileSystem)), keyring.ProvideZalandoKeyring, symmetric_encryptor.ProvideAesGcmEncryptor, wire.Bind(new(ports.SymmetricEncryptor), new(*symmetric_encryptor.AesGcmEncryptor)), templater.ProvideTextTemplater, terminal.ProvideTerminalInput, wire.Bind(new(ports.TerminalInput), new(*terminal.TerminalInput)), certificate_authority.ProvideX509CertificateAuthority, wire.Bind(new(ports.CertificateAuthority), new(*certificate_authority.X509CertificateAuthority)))
+var Adapter = wire.NewSet(command_runner.ProvideOsCommandRunner, wire.Bind(new(ports.CommandRunner), new(*command_runner.OsCommandRunner)), scm.ProvideGitClient, scm.ProvideGit, wire.Bind(new(ports.Scm), new(*scm.Git)), container_image_repository.ProvideDockerRepository, wire.Bind(new(ports.ContainerImageRepository), new(*container_image_repository.DockerRepository)), container_orchestrator.ProvideHelmClient, wire.Bind(new(ports.HelmClient), new(*container_orchestrator.HelmClient)), kustomize.ProvideKustomizeClient, wire.Bind(new(ports.KustomizeClient), new(*kustomize.Client)), container_orchestrator.ProvideKubernetes, wire.Bind(new(ports.ContainerOrchestrator), new(*container_orchestrator.Kubernetes)), wire.Bind(new(ports.SecretStore), new(*container_orchestrator.Kubernetes)), filesystem.ProvideOsFileSystem, wire.Bind(new(ports.FileSystem), new(*filesystem.OsFileSystem)), keyring.ProvideZalandoKeyring, wire.Bind(new(ports.Keyring), new(*keyring.ZalandoKeyring)), symmetric_encryptor.ProvideAesGcmEncryptor, wire.Bind(new(ports.SymmetricEncryptor), new(*symmetric_encryptor.AesGcmEncryptor)), templater.ProvideTextTemplater, wire.Bind(new(ports.Templater), new(*templater.TextTemplater)), terminal.ProvideTerminalInput, wire.Bind(new(ports.TerminalInput), new(*terminal.TerminalInput)), certificate_authority.ProvideX509CertificateAuthority, wire.Bind(new(ports.CertificateAuthority), new(*certificate_authority.X509CertificateAuthority)), config_repository.ProvideFileSystemConfigRepository, wire.Bind(new(ports.ConfigRepository), new(*config_repository.FileSystemConfigRepository)), secret_repository.ProvideEncryptedFileSecretRepository, wire.Bind(new(ports.SecretsRepository), new(*secret_repository.EncryptedFileSecretRepository)))
 
 // CoreSet provides domain/core dependencies
-var CoreSet = wire.NewSet(core.ProvideFileSystemConfigRepository, wire.Bind(new(core.ConfigRepository), new(*core.FileSystemConfigRepository)), core.ProvideDevProxyConfigGenerator, core.ProvideDevProxyManager, core.ProvideEncryptedFileSecretRepository, core.ProvideEnvironmentEnsurer, core.ProvideChartWrapper, core.ProvideCertificateProvisioner)
+var CoreSet = wire.NewSet(core.ProvideDevProxyConfigGenerator, core.ProvideDevProxyManager, core.ProvideEnvironmentEnsurer, core.ProvideChartWrapper, core.ProvideCertificateProvisioner)
 
 // CommandHandlerSet combines all sets needed for command handlers
 var CommandHandlerSet = wire.NewSet(

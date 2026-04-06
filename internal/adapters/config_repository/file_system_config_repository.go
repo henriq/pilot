@@ -1,4 +1,4 @@
-package core
+package config_repository
 
 import (
 	"crypto/sha256"
@@ -14,29 +14,21 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+var _ ports.ConfigRepository = (*FileSystemConfigRepository)(nil)
+
 var configFilePath = filepath.Join("~", ".dx-config.yaml")
 var currentContextPath = filepath.Join("~", ".dx", "current-context")
 
-type ConfigRepository interface {
-	LoadConfig() (*domain.Config, error)
-	SaveConfig(*domain.Config) error
-	ConfigExists() (bool, error)
-	LoadCurrentConfigurationContext() (*domain.ConfigurationContext, error)
-	LoadCurrentContextName() (string, error)
-	SaveCurrentContextName(string) error
-	LoadEnvKey(contextName string) (string, error)
-}
-
 type FileSystemConfigRepository struct {
 	fileService       ports.FileSystem
-	secretsRepository SecretsRepository
+	secretsRepository ports.SecretsRepository
 	templater         ports.Templater
 	config            *domain.Config
 }
 
 func ProvideFileSystemConfigRepository(
 	fileService ports.FileSystem,
-	secretsRepository SecretsRepository,
+	secretsRepository ports.SecretsRepository,
 	templater ports.Templater,
 ) *FileSystemConfigRepository {
 	return &FileSystemConfigRepository{
@@ -44,82 +36,6 @@ func ProvideFileSystemConfigRepository(
 		secretsRepository: secretsRepository,
 		templater:         templater,
 	}
-}
-
-func CreateTemplatingValues(
-	configRepository ConfigRepository,
-	secretsRepository SecretsRepository,
-) (map[string]interface{}, error) {
-	contextName, err := configRepository.LoadCurrentContextName()
-	if err != nil {
-		return nil, err
-	}
-	configContext, err := configRepository.LoadCurrentConfigurationContext()
-	if err != nil {
-		return nil, err
-	}
-	secrets, err := secretsRepository.LoadSecrets(contextName)
-	if err != nil {
-		return nil, err
-	}
-
-	secretsMap := createSecretsMap(secrets)
-	servicesMap := createServicesMap(configContext)
-	values := map[string]interface{}{
-		"Secrets":  secretsMap,
-		"Services": servicesMap,
-	}
-	return values, nil
-}
-
-func createServicesMap(configContext *domain.ConfigurationContext) map[string]interface{} {
-	servicesMap := make(map[string]interface{})
-	for _, service := range configContext.Services {
-		serviceHasValue := false
-		serviceMap := make(map[string]interface{})
-		if service.Path != "" {
-			// Convert backslashes to forward slashes so Windows paths are not
-			// misinterpreted as escape sequences when used in bash scripts.
-			serviceMap["path"] = strings.ReplaceAll(service.Path, "\\", "/")
-			serviceHasValue = true
-		}
-		if service.GitRef != "" {
-			serviceMap["gitRef"] = service.GitRef
-			serviceHasValue = true
-		}
-
-		if serviceHasValue {
-			servicesMap[service.Name] = serviceMap
-		}
-	}
-
-	return servicesMap
-}
-
-// Create secrets map, splitting strings by "." to create nested maps
-func createSecretsMap(secrets []*domain.Secret) map[string]interface{} {
-	secretMap := make(map[string]interface{})
-	for _, secret := range secrets {
-		parts := strings.Split(secret.Key, ".")
-		currentMap := secretMap
-		for i, part := range parts {
-			if i == len(parts)-1 {
-				currentMap[part] = secret.Value
-			} else {
-				if currentMap[part] == nil {
-					currentMap[part] = make(map[string]interface{})
-				}
-				if nested, ok := currentMap[part].(map[string]interface{}); ok {
-					currentMap = nested
-				} else {
-					// Key conflict: a value already exists at this path but isn't a map.
-					// Skip this secret to avoid overwriting the existing value.
-					break
-				}
-			}
-		}
-	}
-	return secretMap
 }
 
 func (c *FileSystemConfigRepository) LoadConfig() (*domain.Config, error) {
@@ -138,7 +54,7 @@ func (c *FileSystemConfigRepository) LoadConfig() (*domain.Config, error) {
 		return nil, fmt.Errorf("failed to parse config file: %v", err)
 	}
 
-	home, err := os.UserHomeDir()
+	home, err := c.fileService.HomeDir()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user home directory: %v", err)
 	}
@@ -171,10 +87,7 @@ func (c *FileSystemConfigRepository) LoadConfig() (*domain.Config, error) {
 			if !slices.Contains(service.Profiles, "all") {
 				service.Profiles = append(service.Profiles, "all")
 			}
-			hasher := sha256.New()
-			fmt.Fprintf(hasher, "%s-%s", service.HelmRepoPath, service.HelmBranch)
-			hashedName := fmt.Sprintf("%x", hasher.Sum(nil))[:12]
-			service.HelmPath = filepath.Join(home, ".dx", context.Name, "charts", hashedName)
+			service.HelmPath = filepath.Join(home, ".dx", context.Name, "charts", shortHash(service.HelmRepoPath, service.HelmBranch))
 			for k := range context.Services[j].DockerImages {
 				image := &config.Contexts[i].Services[j].DockerImages[k]
 				if image.GitRepoPath == "" {
@@ -184,16 +97,10 @@ func (c *FileSystemConfigRepository) LoadConfig() (*domain.Config, error) {
 					image.GitRef = service.GitRef
 				}
 
-				hasher := sha256.New()
-				fmt.Fprintf(hasher, "%s-%s", image.GitRepoPath, image.GitRef)
-				hashedName = fmt.Sprintf("%x", hasher.Sum(nil))[:12]
-				image.Path = filepath.Join(home, ".dx", context.Name, service.Name, hashedName)
+				image.Path = filepath.Join(home, ".dx", context.Name, service.Name, shortHash(image.GitRepoPath, image.GitRef))
 			}
 			if service.GitRepoPath != "" && service.GitRef != "" {
-				hasher := sha256.New()
-				fmt.Fprintf(hasher, "%s-%s", service.GitRepoPath, service.GitRef)
-				hashedName = fmt.Sprintf("%x", hasher.Sum(nil))[:12]
-				service.Path = filepath.Join(home, ".dx", context.Name, service.Name, hashedName)
+				service.Path = filepath.Join(home, ".dx", context.Name, service.Name, shortHash(service.GitRepoPath, service.GitRef))
 			}
 		}
 	}
@@ -258,33 +165,6 @@ func (c *FileSystemConfigRepository) SaveCurrentContextName(currentContextName s
 	return c.fileService.WriteFile(currentContextPath, []byte(currentContextName), ports.ReadWrite)
 }
 
-// expandImportPath expands ~ to home directory for import paths.
-// Import paths can be anywhere on the filesystem, so this is separate from the restricted FileSystem.
-func expandImportPath(path string, home string) string {
-	// Handle both Unix (~/) and Windows (~\) tilde paths
-	if strings.HasPrefix(path, "~/") || strings.HasPrefix(path, "~\\") {
-		return filepath.Join(home, path[2:])
-	}
-	if path == "~" {
-		return home
-	}
-	return path
-}
-
-// validateContextName checks that a context name doesn't contain path traversal characters.
-func validateContextName(name string) error {
-	if name == "" {
-		return fmt.Errorf("context name cannot be empty")
-	}
-	if strings.Contains(name, "..") ||
-		strings.Contains(name, "/") ||
-		strings.Contains(name, "\\") ||
-		strings.Contains(name, "\x00") {
-		return fmt.Errorf("context name contains invalid characters")
-	}
-	return nil
-}
-
 func (c *FileSystemConfigRepository) LoadCurrentConfigurationContext() (*domain.ConfigurationContext, error) {
 	currentContextName, err := c.LoadCurrentContextName()
 	if err != nil {
@@ -321,6 +201,40 @@ func (c *FileSystemConfigRepository) InitConfig() error {
 	}
 
 	return c.fileService.WriteFile(configFilePath, data, ports.ReadWrite)
+}
+
+// shortHash returns a 12-character hex-encoded SHA-256 hash of the given parts joined by "-".
+func shortHash(parts ...string) string {
+	hasher := sha256.New()
+	fmt.Fprintf(hasher, "%s", strings.Join(parts, "-"))
+	return fmt.Sprintf("%x", hasher.Sum(nil))[:12]
+}
+
+// expandImportPath expands ~ to home directory for import paths.
+// Import paths can be anywhere on the filesystem, so this is separate from the restricted FileSystem.
+func expandImportPath(path string, home string) string {
+	// Handle both Unix (~/) and Windows (~\) tilde paths
+	if strings.HasPrefix(path, "~/") || strings.HasPrefix(path, "~\\") {
+		return filepath.Join(home, path[2:])
+	}
+	if path == "~" {
+		return home
+	}
+	return path
+}
+
+// validateContextName checks that a context name doesn't contain path traversal characters.
+func validateContextName(name string) error {
+	if name == "" {
+		return fmt.Errorf("context name cannot be empty")
+	}
+	if strings.Contains(name, "..") ||
+		strings.Contains(name, "/") ||
+		strings.Contains(name, "\\") ||
+		strings.Contains(name, "\x00") {
+		return fmt.Errorf("context name contains invalid characters")
+	}
+	return nil
 }
 
 func mergeConfigurationContexts(

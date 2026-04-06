@@ -5,25 +5,18 @@ import (
 	"fmt"
 
 	"dx/internal/cli/output"
-	"dx/internal/core"
 	"dx/internal/ports"
 )
 
 type ContextCommandHandler struct {
-	configRepository         core.ConfigRepository
-	scm                      ports.Scm
-	containerImageRepository ports.ContainerImageRepository
+	configRepository ports.ConfigRepository
 }
 
 func ProvideContextCommandHandler(
-	configRepository core.ConfigRepository,
-	scm ports.Scm,
-	containerImageRepository ports.ContainerImageRepository,
+	configRepository ports.ConfigRepository,
 ) ContextCommandHandler {
 	return ContextCommandHandler{
-		configRepository:         configRepository,
-		scm:                      scm,
-		containerImageRepository: containerImageRepository,
+		configRepository: configRepository,
 	}
 }
 

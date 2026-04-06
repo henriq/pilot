@@ -3,17 +3,15 @@ package handler
 import (
 	"fmt"
 	"os"
-	"slices"
 
 	"dx/internal/cli/output"
 	"dx/internal/cli/progress"
 	"dx/internal/core"
-	"dx/internal/core/domain"
 	"dx/internal/ports"
 )
 
 type InstallCommandHandler struct {
-	configRepository         core.ConfigRepository
+	configRepository         ports.ConfigRepository
 	containerImageRepository ports.ContainerImageRepository
 	containerOrchestrator    ports.ContainerOrchestrator
 	devProxyManager          *core.DevProxyManager
@@ -23,7 +21,7 @@ type InstallCommandHandler struct {
 }
 
 func ProvideInstallCommandHandler(
-	configRepository core.ConfigRepository,
+	configRepository ports.ConfigRepository,
 	containerImageRepository ports.ContainerImageRepository,
 	containerOrchestrator ports.ContainerOrchestrator,
 	devProxyManager *core.DevProxyManager,
@@ -54,18 +52,9 @@ func (h *InstallCommandHandler) Handle(services []string, selectedProfile string
 	}
 
 	// Collect services to install
-	var servicesToInstall []domain.Service
-	for _, service := range configContext.Services {
-		if len(services) == 0 && !slices.Contains(service.Profiles, selectedProfile) {
-			continue
-		}
-
-		if len(services) > 0 && !slices.ContainsFunc(services, func(s string) bool { return s == service.Name }) {
-			continue
-		}
-
-		service.InterceptHttp = interceptHttp
-		servicesToInstall = append(servicesToInstall, service)
+	servicesToInstall := configContext.FilterServices(services, selectedProfile)
+	for i := range servicesToInstall {
+		servicesToInstall[i].InterceptHttp = interceptHttp
 	}
 
 	// Provision certificate data for services that need them (includes internal TLS for dev-proxy)

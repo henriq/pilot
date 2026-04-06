@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -26,39 +25,37 @@ var _ ports.SecretStore = (*Kubernetes)(nil)
 
 // Kubernetes represents a client for interacting with Kubernetes
 type Kubernetes struct {
-	configRepository  core.ConfigRepository
-	secretsRepository core.SecretsRepository
+	configRepository  ports.ConfigRepository
+	secretsRepository ports.SecretsRepository
 	templater         ports.Templater
 	clientSet         *kubernetes.Clientset
 	helmClient        ports.HelmClient
 	kustomizeClient   ports.KustomizeClient
 	chartWrapper      *core.ChartWrapper
 	fileService       ports.FileSystem
+	namespace         string
 }
 
 func ProvideKubernetes(
-	configRepository core.ConfigRepository,
-	secretsRepository core.SecretsRepository,
+	configRepository ports.ConfigRepository,
+	secretsRepository ports.SecretsRepository,
 	templater ports.Templater,
 	fileService ports.FileSystem,
 	helmClient ports.HelmClient,
 	kustomizeClient ports.KustomizeClient,
 	chartWrapper *core.ChartWrapper,
 ) (*Kubernetes, error) {
-	// Try to load the kubeConfig from the default location
-	home, err := os.UserHomeDir()
+	home, err := fileService.HomeDir()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user home directory: %v", err)
 	}
 	kubeConfigPath := filepath.Join(home, ".kube", "config")
 
-	// Create the config from the kubeConfig file
 	kubeConfig, err := clientcmd.BuildConfigFromFlags("", kubeConfigPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create kubernetes config: %v", err)
 	}
 
-	// Create the clientSet
 	clientSet, err := kubernetes.NewForConfig(kubeConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create kubernetes client: %v", err)
@@ -73,43 +70,29 @@ func ProvideKubernetes(
 		kustomizeClient:   kustomizeClient,
 		chartWrapper:      chartWrapper,
 		fileService:       fileService,
+		namespace:         resolveNamespace(kubeConfigPath),
 	}, nil
 }
 
 // CreateClusterEnvironmentKey creates a string that is used to uniquely identify the cluster and namespace
 func (k *Kubernetes) CreateClusterEnvironmentKey() (string, error) {
-	// Get cluster ID from kube-system namespace UID
 	kubeSystemNS, err := k.clientSet.CoreV1().Namespaces().Get(context.Background(), "kube-system", metav1.GetOptions{})
 	if err != nil {
 		return "", fmt.Errorf("failed to get kube-system namespace: %v", err)
 	}
 	clusterUID := string(kubeSystemNS.UID)
 
-	// Get the current namespace from context
-	namespace := ""
-	config, err := clientcmd.NewDefaultClientConfigLoadingRules().Load()
-	if err == nil && config.CurrentContext != "" {
-		if currentContext, ok := config.Contexts[config.CurrentContext]; ok && currentContext.Namespace != "" {
-			namespace = currentContext.Namespace
-		}
-	}
-
-	// Fail if no namespace is set
-	if namespace == "" {
-		return "", fmt.Errorf("no namespace set in current context")
-	}
-
-	// Create a deterministic key based only on cluster UID and namespace
-	key := fmt.Sprintf("%s-%s", clusterUID, namespace)
+	key := fmt.Sprintf("%s-%s", clusterUID, k.namespace)
 
 	hash := sha256.New()
 	hash.Write([]byte(key))
 	return base64.URLEncoding.EncodeToString(hash.Sum(nil)), nil
 }
 
-// getCurrentNamespace returns the namespace from the current kubeconfig context.
-func (k *Kubernetes) getCurrentNamespace() string {
-	config, err := clientcmd.NewDefaultClientConfigLoadingRules().Load()
+// resolveNamespace reads the namespace from the kubeconfig at the given path.
+func resolveNamespace(kubeConfigPath string) string {
+	rules := &clientcmd.ClientConfigLoadingRules{ExplicitPath: kubeConfigPath}
+	config, err := rules.Load()
 	if err != nil {
 		return "default"
 	}
@@ -124,6 +107,17 @@ func (k *Kubernetes) getCurrentNamespace() string {
 
 // InstallService installs a service using helm with kustomize patches.
 func (k *Kubernetes) InstallService(service *domain.Service, certificateSecrets []byte) error {
+	return k.installChart(service, certificateSecrets, true)
+}
+
+// InstallDevProxy installs the dev-proxy (no kustomize patches).
+func (k *Kubernetes) InstallDevProxy(service *domain.Service, certificateSecrets []byte) error {
+	return k.installChart(service, certificateSecrets, false)
+}
+
+// installChart is the shared implementation for installing a helm chart.
+// When applyPatches is true, kustomize patches are built from LocalServices and applied.
+func (k *Kubernetes) installChart(service *domain.Service, certificateSecrets []byte, applyPatches bool) error {
 	templateValues, err := core.CreateTemplatingValues(k.configRepository, k.secretsRepository)
 	if err != nil {
 		return err
@@ -144,53 +138,53 @@ func (k *Kubernetes) InstallService(service *domain.Service, certificateSecrets 
 	}
 
 	chartPath := filepath.Join(service.HelmPath, service.HelmChartRelativePath)
-	namespace := k.getCurrentNamespace()
 
-	// 1. Render helm chart to get raw manifests
-	rawManifests, err := k.helmClient.Template(service.Name, chartPath, namespace, renderedArgs)
+	// Render helm chart to get raw manifests
+	manifests, err := k.helmClient.Template(service.Name, chartPath, k.namespace, renderedArgs)
 	if err != nil {
 		return fmt.Errorf("failed to template helm chart: %w", err)
 	}
 
-	// 2. Build patches from LocalServices configuration
-	patches, err := k.buildPatches(service.InterceptHttp)
-	if err != nil {
-		return fmt.Errorf("failed to build patches: %w", err)
-	}
-
-	// 3. Get context name for kustomize work dir
 	contextName, err := k.configRepository.LoadCurrentContextName()
 	if err != nil {
 		return fmt.Errorf("failed to get context name: %w", err)
 	}
 
-	// 4. Apply kustomize patches
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return fmt.Errorf("failed to get home directory: %w", err)
-	}
-	kustomizeWorkDir := filepath.Join(homeDir, ".dx", contextName, "kustomize", service.Name)
-	patchedManifests, err := k.kustomizeClient.Apply(rawManifests, patches, kustomizeWorkDir)
-	if err != nil {
-		return fmt.Errorf("failed to apply kustomize patches: %w", err)
+	// Apply kustomize patches if needed
+	if applyPatches {
+		patches, err := k.buildPatches(service.InterceptHttp)
+		if err != nil {
+			return fmt.Errorf("failed to build patches: %w", err)
+		}
+
+		homeDir, err := k.fileService.HomeDir()
+		if err != nil {
+			return fmt.Errorf("failed to get home directory: %w", err)
+		}
+		kustomizeWorkDir := filepath.Join(homeDir, ".dx", contextName, "kustomize", service.Name)
+		manifests, err = k.kustomizeClient.Apply(manifests, patches, kustomizeWorkDir)
+		if err != nil {
+			return fmt.Errorf("failed to apply kustomize patches: %w", err)
+		}
 	}
 
-	// 5. Generate wrapper chart
+	// Generate wrapper chart and install
 	defer k.cleanupBuildArtifacts(contextName, service.Name)
-	wrapperPath, err := k.chartWrapper.Generate(core.WrapperChartConfig{
-		ReleaseName:        service.Name,
-		ContextName:        contextName,
-		PatchedManifests:   patchedManifests,
-		CertificateSecrets: certificateSecrets,
-		OriginalChartName:  service.Name,
-		OriginalChartPath:  chartPath,
-	})
+	wrapperPath, err := k.chartWrapper.Generate(
+		core.WrapperChartConfig{
+			ReleaseName:        service.Name,
+			ContextName:        contextName,
+			PatchedManifests:   manifests,
+			CertificateSecrets: certificateSecrets,
+			OriginalChartName:  service.Name,
+			OriginalChartPath:  chartPath,
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("failed to generate wrapper chart: %w", err)
 	}
 
-	// 6. Install wrapper chart with helm
-	return k.helmClient.UpgradeFromManifests(service.Name, namespace, wrapperPath)
+	return k.helmClient.UpgradeFromManifests(service.Name, k.namespace, wrapperPath)
 }
 
 // buildPatches creates kustomize patches based on LocalServices configuration.
@@ -205,16 +199,18 @@ func (k *Kubernetes) buildPatches(interceptHttp bool) ([]ports.Patch, error) {
 	var patches []ports.Patch
 
 	// Add recreatedAt annotation to all Deployments to force pod recreation
-	patches = append(patches, ports.Patch{
-		Target: ports.PatchTarget{Kind: "Deployment"},
-		Operations: []ports.PatchOperation{
-			{
-				Op:    "add",
-				Path:  "/spec/template/metadata/annotations/kubectl.kubernetes.io~1recreatedAt",
-				Value: time.Now().Format(time.RFC3339),
+	patches = append(
+		patches, ports.Patch{
+			Target: ports.PatchTarget{Kind: "Deployment"},
+			Operations: []ports.PatchOperation{
+				{
+					Op:    "add",
+					Path:  "/spec/template/metadata/annotations/kubectl.kubernetes.io~1recreatedAt",
+					Value: time.Now().Format(time.RFC3339),
+				},
 			},
 		},
-	})
+	)
 
 	// When intercepting, redirect to mitmproxy ports; otherwise redirect to HAProxy frontends
 	startPort := core.DevProxyHAProxyStartPort
@@ -225,75 +221,25 @@ func (k *Kubernetes) buildPatches(interceptHttp bool) ([]ports.Patch, error) {
 	// Add service selector patches for each LocalService
 	targetPort := startPort
 	for _, localService := range configContext.LocalServices {
-		patches = append(patches, ports.Patch{
-			Target: ports.PatchTarget{Kind: "Service", Name: localService.Name},
-			Operations: []ports.PatchOperation{
-				{Op: "replace", Path: "/spec/selector/app", Value: "dev-proxy"},
-				{Op: "replace", Path: "/spec/ports/0/targetPort", Value: targetPort},
+		patches = append(
+			patches, ports.Patch{
+				Target: ports.PatchTarget{Kind: "Service", Name: localService.Name},
+				Operations: []ports.PatchOperation{
+					{Op: "replace", Path: "/spec/selector/app", Value: "dev-proxy"},
+					{Op: "replace", Path: "/spec/ports/0/targetPort", Value: targetPort},
+				},
 			},
-		})
+		)
 		targetPort++
 	}
 
 	return patches, nil
 }
 
-// InstallDevProxy installs the dev-proxy (no patches needed).
-func (k *Kubernetes) InstallDevProxy(service *domain.Service, certificateSecrets []byte) error {
-	templateValues, err := core.CreateTemplatingValues(k.configRepository, k.secretsRepository)
-	if err != nil {
-		return err
-	}
-
-	var renderedArgs []string
-	for i, arg := range service.HelmArgs {
-		renderedArg, err := k.templater.Render(arg, fmt.Sprintf("helm-args.%d", i), templateValues)
-		if err != nil {
-			return err
-		}
-		renderedArgs = append(renderedArgs, renderedArg)
-	}
-
-	// Validate helm args don't contain dangerous flags
-	if err := validateHelmArgs(renderedArgs); err != nil {
-		return err
-	}
-
-	chartPath := filepath.Join(service.HelmPath, service.HelmChartRelativePath)
-	namespace := k.getCurrentNamespace()
-
-	// For dev-proxy, no patches needed - just template and install
-	rawManifests, err := k.helmClient.Template(service.Name, chartPath, namespace, renderedArgs)
-	if err != nil {
-		return fmt.Errorf("failed to template helm chart: %w", err)
-	}
-
-	contextName, err := k.configRepository.LoadCurrentContextName()
-	if err != nil {
-		return fmt.Errorf("failed to get context name: %w", err)
-	}
-
-	// Generate wrapper chart without patches
-	defer k.cleanupBuildArtifacts(contextName, service.Name)
-	wrapperPath, err := k.chartWrapper.Generate(core.WrapperChartConfig{
-		ReleaseName:        service.Name,
-		ContextName:        contextName,
-		PatchedManifests:   rawManifests, // No patches applied
-		CertificateSecrets: certificateSecrets,
-		OriginalChartName:  service.Name,
-		OriginalChartPath:  chartPath,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to generate wrapper chart: %w", err)
-	}
-
-	return k.helmClient.UpgradeFromManifests(service.Name, namespace, wrapperPath)
-}
-
 // UninstallService deletes a service using helm uninstall and cleans up wrapper chart.
 func (k *Kubernetes) UninstallService(service *domain.Service) error {
-	namespace := k.getCurrentNamespace()
-	err := k.helmClient.Uninstall(service.Name, namespace)
+
+	err := k.helmClient.Uninstall(service.Name, k.namespace)
 	if err != nil {
 		return err
 	}
@@ -317,8 +263,7 @@ func (k *Kubernetes) cleanupBuildArtifacts(contextName, serviceName string) {
 }
 
 func (k *Kubernetes) HasDeployedServices() (bool, error) {
-	namespace := k.getCurrentNamespace()
-	releases, err := k.helmClient.List("managed-by=dx", namespace)
+	releases, err := k.helmClient.List("managed-by=dx", k.namespace)
 	if err != nil {
 		return false, err
 	}
@@ -332,9 +277,7 @@ const devProxyChecksumAnnotation = "checksum"
 // GetDevProxyChecksum returns the checksum annotation from the existing dev-proxy deployment.
 // Returns an empty string if the deployment doesn't exist.
 func (k *Kubernetes) GetDevProxyChecksum() (string, error) {
-	namespace := k.getCurrentNamespace()
-
-	deployment, err := k.clientSet.AppsV1().Deployments(namespace).Get(
+	deployment, err := k.clientSet.AppsV1().Deployments(k.namespace).Get(
 		context.Background(),
 		"dev-proxy",
 		metav1.GetOptions{},
@@ -385,28 +328,16 @@ var blockedHelmFlags = []string{
 	"--kube-apiserver", // Could redirect to malicious API server
 }
 
-// SecretExists checks whether a Kubernetes secret exists by name in the current namespace.
-func (k *Kubernetes) SecretExists(name string) (bool, error) {
-	namespace := k.getCurrentNamespace()
-	_, err := k.clientSet.CoreV1().Secrets(namespace).Get(
+// GetSecretData returns the data from a Kubernetes secret by name.
+// Returns (nil, nil) if the secret does not exist.
+func (k *Kubernetes) GetSecretData(name string) (map[string][]byte, error) {
+	secret, err := k.clientSet.CoreV1().Secrets(k.namespace).Get(
 		context.Background(), name, metav1.GetOptions{},
 	)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			return false, nil
+			return nil, nil
 		}
-		return false, fmt.Errorf("failed to check secret %s: %w", name, err)
-	}
-	return true, nil
-}
-
-// GetSecretData returns the data from a Kubernetes secret by name.
-func (k *Kubernetes) GetSecretData(name string) (map[string][]byte, error) {
-	namespace := k.getCurrentNamespace()
-	secret, err := k.clientSet.CoreV1().Secrets(namespace).Get(
-		context.Background(), name, metav1.GetOptions{},
-	)
-	if err != nil {
 		return nil, fmt.Errorf("failed to get secret %s: %w", name, err)
 	}
 	return secret.Data, nil
@@ -414,8 +345,6 @@ func (k *Kubernetes) GetSecretData(name string) (map[string][]byte, error) {
 
 // CreateOrUpdateSecret creates or updates a Kubernetes secret in the current namespace.
 func (k *Kubernetes) CreateOrUpdateSecret(name string, secretType domain.K8sSecretType, data map[string][]byte) error {
-	namespace := k.getCurrentNamespace()
-
 	var k8sSecretType corev1.SecretType
 	switch secretType {
 	case domain.K8sSecretTypeTLS:
@@ -429,7 +358,7 @@ func (k *Kubernetes) CreateOrUpdateSecret(name string, secretType domain.K8sSecr
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: namespace,
+			Namespace: k.namespace,
 			Labels: map[string]string{
 				"managed-by": "dx",
 			},
@@ -438,12 +367,12 @@ func (k *Kubernetes) CreateOrUpdateSecret(name string, secretType domain.K8sSecr
 		Data: data,
 	}
 
-	existing, err := k.clientSet.CoreV1().Secrets(namespace).Get(
+	existing, err := k.clientSet.CoreV1().Secrets(k.namespace).Get(
 		context.Background(), name, metav1.GetOptions{},
 	)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			_, err = k.clientSet.CoreV1().Secrets(namespace).Create(
+			_, err = k.clientSet.CoreV1().Secrets(k.namespace).Create(
 				context.Background(), secret, metav1.CreateOptions{},
 			)
 			if err != nil {
@@ -461,7 +390,7 @@ func (k *Kubernetes) CreateOrUpdateSecret(name string, secretType domain.K8sSecr
 	existing.Type = k8sSecretType
 	existing.Data = data
 
-	_, err = k.clientSet.CoreV1().Secrets(namespace).Update(
+	_, err = k.clientSet.CoreV1().Secrets(k.namespace).Update(
 		context.Background(), existing, metav1.UpdateOptions{},
 	)
 	if err != nil {
@@ -473,8 +402,8 @@ func (k *Kubernetes) CreateOrUpdateSecret(name string, secretType domain.K8sSecr
 // DeleteSecret deletes a Kubernetes secret by name.
 // Only deletes secrets with the managed-by=dx label. Returns nil if the secret does not exist.
 func (k *Kubernetes) DeleteSecret(name string) error {
-	namespace := k.getCurrentNamespace()
-	existing, err := k.clientSet.CoreV1().Secrets(namespace).Get(
+
+	existing, err := k.clientSet.CoreV1().Secrets(k.namespace).Get(
 		context.Background(), name, metav1.GetOptions{},
 	)
 	if err != nil {
@@ -488,7 +417,7 @@ func (k *Kubernetes) DeleteSecret(name string) error {
 		return fmt.Errorf("secret '%s' exists but is not managed by DX; refusing to delete", name)
 	}
 
-	err = k.clientSet.CoreV1().Secrets(namespace).Delete(
+	err = k.clientSet.CoreV1().Secrets(k.namespace).Delete(
 		context.Background(), name, metav1.DeleteOptions{},
 	)
 	if err != nil {

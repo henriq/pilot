@@ -13,7 +13,7 @@ import (
 // DevProxyManager orchestrates dev-proxy operations including configuration saving,
 // image building, and service installation/uninstallation.
 type DevProxyManager struct {
-	configRepository         ConfigRepository
+	configRepository         ports.ConfigRepository
 	fileService              ports.FileSystem
 	containerImageRepository ports.ContainerImageRepository
 	containerOrchestrator    ports.ContainerOrchestrator
@@ -22,7 +22,7 @@ type DevProxyManager struct {
 
 // ProvideDevProxyManager creates a new DevProxyManager with all required dependencies.
 func ProvideDevProxyManager(
-	configRepository ConfigRepository,
+	configRepository ports.ConfigRepository,
 	fileService ports.FileSystem,
 	containerImageRepository ports.ContainerImageRepository,
 	containerOrchestrator ports.ContainerOrchestrator,
@@ -157,7 +157,7 @@ func (d *DevProxyManager) BuildDevProxy(interceptHttp bool) error {
 	}
 	dockerImages := []domain.DockerImage{
 		{
-			Name:                     fmt.Sprintf("henriq/haproxy-%s", configContext.Name),
+			Name:                     fmt.Sprintf("%s/haproxy-%s", DevProxyImagePrefix, configContext.Name),
 			DockerfilePath:           "Dockerfile",
 			BuildContextRelativePath: ".",
 			Path:                     filepath.Join(homeDir, ".dx", configContext.Name, "dev-proxy", "haproxy"),
@@ -166,7 +166,7 @@ func (d *DevProxyManager) BuildDevProxy(interceptHttp bool) error {
 
 	if interceptHttp {
 		dockerImages = append(dockerImages, domain.DockerImage{
-			Name:                     fmt.Sprintf("henriq/mitmproxy-%s", configContext.Name),
+			Name:                     fmt.Sprintf("%s/mitmproxy-%s", DevProxyImagePrefix, configContext.Name),
 			DockerfilePath:           "Dockerfile",
 			BuildContextRelativePath: ".",
 			Path:                     filepath.Join(homeDir, ".dx", configContext.Name, "dev-proxy", "mitmproxy"),

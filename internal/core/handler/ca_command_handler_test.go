@@ -453,8 +453,8 @@ func TestCACommandHandler_HandleStatus_ValidCA(t *testing.T) {
 	mockCA.On("GetCACertificateExpiry", "test-ctx").Return(&expiry, nil)
 
 	mockOrch := new(testutil.MockSecretStore)
-	mockOrch.On("SecretExists", "foo-tls").Return(false, nil)
-	mockOrch.On("SecretExists", core.InternalTLSSecretName).Return(false, nil)
+	mockOrch.On("GetSecretData", "foo-tls").Return(map[string][]byte(nil), nil)
+	mockOrch.On("GetSecretData", core.InternalTLSSecretName).Return(map[string][]byte(nil), nil)
 
 	provisioner := core.ProvideCertificateProvisioner(mockCA, mockOrch, nil, nil)
 
@@ -487,7 +487,7 @@ func TestCACommandHandler_HandleStatus_ExpiredCA(t *testing.T) {
 	mockCA.On("GetCACertificateExpiry", "test-ctx").Return(&expiry, nil)
 
 	mockOrch := new(testutil.MockSecretStore)
-	mockOrch.On("SecretExists", core.InternalTLSSecretName).Return(false, nil)
+	mockOrch.On("GetSecretData", core.InternalTLSSecretName).Return(map[string][]byte(nil), nil)
 
 	provisioner := core.ProvideCertificateProvisioner(mockCA, mockOrch, nil, nil)
 
@@ -520,7 +520,7 @@ func TestCACommandHandler_HandleStatus_ExpiringSoonCA(t *testing.T) {
 	mockCA.On("GetCACertificateExpiry", "test-ctx").Return(&expiry, nil)
 
 	mockOrch := new(testutil.MockSecretStore)
-	mockOrch.On("SecretExists", core.InternalTLSSecretName).Return(false, nil)
+	mockOrch.On("GetSecretData", core.InternalTLSSecretName).Return(map[string][]byte(nil), nil)
 
 	provisioner := core.ProvideCertificateProvisioner(mockCA, mockOrch, nil, nil)
 

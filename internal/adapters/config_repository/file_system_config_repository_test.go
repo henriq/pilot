@@ -1,4 +1,4 @@
-package core
+package config_repository
 
 import (
 	"path/filepath"
@@ -100,46 +100,14 @@ func TestValidateContextName(t *testing.T) {
 		context   string
 		expectErr bool
 	}{
-		{
-			name:      "valid simple name",
-			context:   "production",
-			expectErr: false,
-		},
-		{
-			name:      "valid name with hyphen",
-			context:   "my-context",
-			expectErr: false,
-		},
-		{
-			name:      "valid name with underscore",
-			context:   "my_context",
-			expectErr: false,
-		},
-		{
-			name:      "empty name",
-			context:   "",
-			expectErr: true,
-		},
-		{
-			name:      "path traversal with dots",
-			context:   "../etc",
-			expectErr: true,
-		},
-		{
-			name:      "path with forward slash",
-			context:   "foo/bar",
-			expectErr: true,
-		},
-		{
-			name:      "path with backslash",
-			context:   "foo\\bar",
-			expectErr: true,
-		},
-		{
-			name:      "path with null byte",
-			context:   "foo\x00bar",
-			expectErr: true,
-		},
+		{name: "valid simple name", context: "production", expectErr: false},
+		{name: "valid name with hyphen", context: "my-context", expectErr: false},
+		{name: "valid name with underscore", context: "my_context", expectErr: false},
+		{name: "empty name", context: "", expectErr: true},
+		{name: "path traversal with dots", context: "../etc", expectErr: true},
+		{name: "path with forward slash", context: "foo/bar", expectErr: true},
+		{name: "path with backslash", context: "foo\\bar", expectErr: true},
+		{name: "path with null byte", context: "foo\x00bar", expectErr: true},
 	}
 
 	for _, tt := range tests {
@@ -161,7 +129,7 @@ func (m *mockTemplater) Render(template string, templateName string, values map[
 	return template, nil
 }
 
-// mockSecretsRepository implements SecretsRepository for testing
+// mockSecretsRepository implements ports.SecretsRepository for testing
 type mockSecretsRepository struct {
 	secrets []*domain.Secret
 	err     error
@@ -282,97 +250,6 @@ func TestFileSystemConfigRepository_LoadEnvKey(t *testing.T) {
 	key, err := repo.LoadEnvKey("test-context")
 	require.NoError(t, err)
 	assert.Equal(t, "test-key-value", key)
-}
-
-func TestCreateSecretsMap(t *testing.T) {
-	secrets := []*domain.Secret{
-		{Key: "simple", Value: "value1"},
-		{Key: "nested.key", Value: "value2"},
-		{Key: "deeply.nested.key", Value: "value3"},
-	}
-
-	result := createSecretsMap(secrets)
-
-	assert.Equal(t, "value1", result["simple"])
-	assert.Equal(t, "value2", result["nested"].(map[string]interface{})["key"])
-	assert.Equal(t, "value3", result["deeply"].(map[string]interface{})["nested"].(map[string]interface{})["key"])
-}
-
-func TestCreateSecretsMap_ConflictingKeys(t *testing.T) {
-	// Defensive test for pre-existing data: secret set now rejects conflicting keys at
-	// write time, but secrets stored before that validation was added may still contain
-	// conflicts. createSecretsMap handles this gracefully by skipping the nested key
-	// when a scalar value already exists at the path prefix.
-	secrets := []*domain.Secret{
-		{Key: "db", Value: "connection-string"},
-		{Key: "db.password", Value: "secret123"}, // Conflicts with "db" being a scalar
-	}
-
-	// This should not panic
-	result := createSecretsMap(secrets)
-
-	// The first key should be preserved
-	assert.Equal(t, "connection-string", result["db"])
-
-	// The conflicting nested key should be skipped (db is not a map, so db.password can't be set)
-	// Verify db is still a string, not a map
-	_, isMap := result["db"].(map[string]interface{})
-	assert.False(t, isMap, "db should remain a string, not be converted to a map")
-}
-
-func TestCreateSecretsMap_ConflictingKeys_ReverseOrder(t *testing.T) {
-	// Defensive test for pre-existing data: covers the reverse conflict case where a
-	// nested key is stored before a scalar key at the same path. New secrets are now
-	// validated at write time by secret set/configure, but this test ensures
-	// createSecretsMap still handles legacy data gracefully.
-	secrets := []*domain.Secret{
-		{Key: "db.password", Value: "secret123"}, // Creates db as a map
-		{Key: "db", Value: "connection-string"},  // Overwrites db map with scalar
-	}
-
-	result := createSecretsMap(secrets)
-
-	// The last scalar value should win (last-wins behavior for terminal values)
-	assert.Equal(t, "connection-string", result["db"])
-
-	// db is now a scalar, not a map
-	_, isMap := result["db"].(map[string]interface{})
-	assert.False(t, isMap, "db should be a string after scalar overwrites map")
-}
-
-func TestCreateServicesMap(t *testing.T) {
-	context := &domain.ConfigurationContext{
-		Services: []domain.Service{
-			{Name: "svc1", Path: "/path/to/svc1", GitRef: "main"},
-			{Name: "svc2", Path: "", GitRef: ""}, // No path or gitRef
-		},
-	}
-
-	result := createServicesMap(context)
-
-	// svc1 should have entries
-	svc1, ok := result["svc1"].(map[string]interface{})
-	require.True(t, ok, "svc1 should be present")
-	assert.Equal(t, "/path/to/svc1", svc1["path"])
-	assert.Equal(t, "main", svc1["gitRef"])
-
-	// svc2 should not be present (no values)
-	_, ok = result["svc2"]
-	assert.False(t, ok, "svc2 should not be present when it has no values")
-}
-
-func TestCreateServicesMap_WindowsPathsConvertedToForwardSlashes(t *testing.T) {
-	context := &domain.ConfigurationContext{
-		Services: []domain.Service{
-			{Name: "test-service", Path: `C:\Users\developer\projects\test-service`, GitRef: "main"},
-		},
-	}
-
-	result := createServicesMap(context)
-
-	svc, ok := result["test-service"].(map[string]interface{})
-	require.True(t, ok, "test-service should be present")
-	assert.Equal(t, "C:/Users/developer/projects/test-service", svc["path"])
 }
 
 func TestMergeConfigurationContexts(t *testing.T) {

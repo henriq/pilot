@@ -5,18 +5,17 @@ import (
 	"path/filepath"
 
 	"dx/internal/cli/output"
-	"dx/internal/core"
 	"dx/internal/ports"
 )
 
 type GenEnvKeyCommandHandler struct {
-	configRepository      core.ConfigRepository
+	configRepository      ports.ConfigRepository
 	fileSystem            ports.FileSystem
 	containerOrchestrator ports.ContainerOrchestrator
 }
 
 func ProvideGenEnvKeyCommandHandler(
-	configRepository core.ConfigRepository,
+	configRepository ports.ConfigRepository,
 	fileSystem ports.FileSystem,
 	containerOrchestrator ports.ContainerOrchestrator,
 ) GenEnvKeyCommandHandler {

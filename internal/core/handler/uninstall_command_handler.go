@@ -2,24 +2,22 @@ package handler
 
 import (
 	"fmt"
-	"slices"
 
 	"dx/internal/cli/output"
 	"dx/internal/cli/progress"
 	"dx/internal/core"
-	"dx/internal/core/domain"
 	"dx/internal/ports"
 )
 
 type UninstallCommandHandler struct {
-	configRepository      core.ConfigRepository
+	configRepository      ports.ConfigRepository
 	containerOrchestrator ports.ContainerOrchestrator
 	environmentEnsurer    core.EnvironmentEnsurer
 	devProxyManager       *core.DevProxyManager
 }
 
 func ProvideUninstallCommandHandler(
-	configRepository core.ConfigRepository,
+	configRepository ports.ConfigRepository,
 	containerOrchestrator ports.ContainerOrchestrator,
 	environmentEnsurer core.EnvironmentEnsurer,
 	devProxyManager *core.DevProxyManager,
@@ -44,18 +42,7 @@ func (h *UninstallCommandHandler) Handle(services []string, selectedProfile stri
 	}
 
 	// Collect services to uninstall
-	var servicesToUninstall []domain.Service
-	for _, service := range configContext.Services {
-		if len(services) == 0 && !slices.Contains(service.Profiles, selectedProfile) {
-			continue
-		}
-
-		if len(services) > 0 && !slices.ContainsFunc(services, func(s string) bool { return s == service.Name }) {
-			continue
-		}
-
-		servicesToUninstall = append(servicesToUninstall, service)
-	}
+	servicesToUninstall := configContext.FilterServices(services, selectedProfile)
 
 	if len(servicesToUninstall) > 0 {
 		output.PrintHeader("Uninstalling services")

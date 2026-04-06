@@ -9,6 +9,8 @@ import (
 	"dx/internal/ports"
 )
 
+var sanitizeNameRegex = regexp.MustCompile(`[^a-zA-Z0-9\-_]`)
+
 // WrapperChartConfig contains configuration for generating a wrapper chart.
 type WrapperChartConfig struct {
 	ReleaseName        string
@@ -185,8 +187,7 @@ func sanitizeName(name string) string {
 	name = strings.ReplaceAll(name, "\x00", "")
 
 	// Only allow alphanumeric, dash, and underscore
-	re := regexp.MustCompile(`[^a-zA-Z0-9\-_]`)
-	name = re.ReplaceAllString(name, "")
+	name = sanitizeNameRegex.ReplaceAllString(name, "")
 
 	// Trim leading/trailing dashes and underscores
 	name = strings.Trim(name, "-_")

@@ -4,16 +4,16 @@ import (
 	"fmt"
 
 	"dx/internal/cli/output"
-	"dx/internal/core"
 	"dx/internal/core/domain"
+	"dx/internal/ports"
 )
 
 type InitializeCommandHandler struct {
-	configRepository core.ConfigRepository
+	configRepository ports.ConfigRepository
 }
 
 func ProvideInitializeCommandHandler(
-	configRepository core.ConfigRepository,
+	configRepository ports.ConfigRepository,
 ) InitializeCommandHandler {
 	return InitializeCommandHandler{
 		configRepository: configRepository,

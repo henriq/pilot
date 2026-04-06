@@ -100,111 +100,6 @@ func CollectAllCertificates(
 	})
 }
 
-// ProvisionCertificates issues certificates for the given services and creates Kubernetes secrets.
-// Loads the CA once for all services. Skips certificates whose secrets already exist and
-// are not expiring within 14 days.
-// Returns the secret names of provisioned certificates.
-func (p *CertificateProvisioner) ProvisionCertificates(
-	services []domain.ServiceCertificates,
-	contextName string,
-) ([]string, error) {
-	if len(services) == 0 {
-		return nil, nil
-	}
-
-	passphrase, err := p.getOrCreatePassphrase(contextName)
-	if err != nil {
-		return nil, err
-	}
-
-	var provisioned []string
-	for _, svc := range services {
-		for _, certReq := range svc.Certificates {
-			exists, err := p.secretStore.SecretExists(certReq.K8sSecret.Name)
-			if err != nil {
-				return provisioned, fmt.Errorf("failed to check secret %s: %w", certReq.K8sSecret.Name, err)
-			}
-			if exists {
-				needsRenewal, err := p.needsRenewal(certReq)
-				if err != nil {
-					return provisioned, fmt.Errorf("failed to check certificate expiry for %s: %w", certReq.K8sSecret.Name, err)
-				}
-				if !needsRenewal {
-					continue
-				}
-			}
-
-			issued, err := p.ca.IssueCertificate(contextName, passphrase, certReq)
-			if err != nil {
-				return provisioned, fmt.Errorf("failed to issue certificate for %s: %w", certReq.K8sSecret.Name, err)
-			}
-
-			data, err := buildSecretData(certReq, issued)
-			if err != nil {
-				return provisioned, fmt.Errorf("failed to build secret data for %s: %w", certReq.K8sSecret.Name, err)
-			}
-			if err := p.secretStore.CreateOrUpdateSecret(certReq.K8sSecret.Name, certReq.K8sSecret.Type, data); err != nil {
-				return provisioned, fmt.Errorf("failed to create secret %s: %w", certReq.K8sSecret.Name, err)
-			}
-			provisioned = append(provisioned, certReq.K8sSecret.Name)
-		}
-	}
-
-	return provisioned, nil
-}
-
-// needsRenewal checks if the certificate in the given K8s secret needs re-issuing.
-// Returns true if the cert is expiring within the renewal threshold or if the
-// configured DNS names differ from the certificate's SANs.
-func (p *CertificateProvisioner) needsRenewal(certReq domain.CertificateRequest) (bool, error) {
-	data, err := p.secretStore.GetSecretData(certReq.K8sSecret.Name)
-	if err != nil {
-		return false, err
-	}
-
-	certKey := certPEMKey(certReq)
-	certPEM, ok := data[certKey]
-	if !ok || len(certPEM) == 0 {
-		return true, nil
-	}
-
-	block, _ := pem.Decode(certPEM)
-	if block == nil {
-		return true, nil
-	}
-
-	cert, err := x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		return true, nil
-	}
-
-	// Re-issue if DNS names changed (added/removed SANs)
-	if !dnsNamesMatch(certReq.DNSNames, cert.DNSNames) {
-		return true, nil
-	}
-
-	threshold := time.Now().AddDate(0, 0, certRenewalThresholdDays)
-	return cert.NotAfter.Before(threshold), nil
-}
-
-// dnsNamesMatch returns true if the two DNS name slices contain the same names (order-independent).
-func dnsNamesMatch(configured, actual []string) bool {
-	if len(configured) != len(actual) {
-		return false
-	}
-	counts := make(map[string]int, len(configured))
-	for _, name := range configured {
-		counts[name]++
-	}
-	for _, name := range actual {
-		counts[name]--
-		if counts[name] < 0 {
-			return false
-		}
-	}
-	return true
-}
-
 // ProvisionCertificateData issues or collects certificate data for all services without creating
 // K8s secrets. For certificates that need issuance or renewal, new certificates are issued via
 // the CA. For certificates that already exist and don't need renewal, existing secret data is
@@ -228,27 +123,16 @@ func (p *CertificateProvisioner) ProvisionCertificateData(
 
 	for _, svc := range services {
 		for _, certReq := range svc.Certificates {
-			exists, err := p.secretStore.SecretExists(certReq.K8sSecret.Name)
+			secretData, err := p.secretStore.GetSecretData(certReq.K8sSecret.Name)
 			if err != nil {
 				return result, provisioned, fmt.Errorf("failed to check secret %s: %w", certReq.K8sSecret.Name, err)
 			}
-
-			if exists {
-				needsRenewal, err := p.needsRenewal(certReq)
-				if err != nil {
-					return result, provisioned, fmt.Errorf("failed to check certificate expiry for %s: %w", certReq.K8sSecret.Name, err)
-				}
-				if !needsRenewal {
-					existingData, err := p.secretStore.GetSecretData(certReq.K8sSecret.Name)
-					if err != nil {
-						return result, provisioned, fmt.Errorf("failed to read secret %s: %w", certReq.K8sSecret.Name, err)
-					}
-					result[svc.Name] = append(result[svc.Name], domain.ProvisionedCertificate{
-						Request: certReq,
-						Data:    existingData,
-					})
-					continue
-				}
+			if secretData != nil && !needsRenewal(certReq, secretData) {
+				result[svc.Name] = append(result[svc.Name], domain.ProvisionedCertificate{
+					Request: certReq,
+					Data:    secretData,
+				})
+				continue
 			}
 
 			issued, err := p.ca.IssueCertificate(contextName, passphrase, certReq)
@@ -270,6 +154,53 @@ func (p *CertificateProvisioner) ProvisionCertificateData(
 	}
 
 	return result, provisioned, nil
+}
+
+// needsRenewal checks if the certificate data needs re-issuing.
+// Returns true if the cert is expiring within the renewal threshold or if the
+// configured DNS names differ from the certificate's SANs.
+func needsRenewal(certReq domain.CertificateRequest, data map[string][]byte) bool {
+	certKey := certPEMKey(certReq)
+	certPEM, ok := data[certKey]
+	if !ok || len(certPEM) == 0 {
+		return true
+	}
+
+	block, _ := pem.Decode(certPEM)
+	if block == nil {
+		return true
+	}
+
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return true
+	}
+
+	// Re-issue if DNS names changed (added/removed SANs)
+	if !dnsNamesMatch(certReq.DNSNames, cert.DNSNames) {
+		return true
+	}
+
+	threshold := time.Now().AddDate(0, 0, certRenewalThresholdDays)
+	return cert.NotAfter.Before(threshold)
+}
+
+// dnsNamesMatch returns true if the two DNS name slices contain the same names (order-independent).
+func dnsNamesMatch(configured, actual []string) bool {
+	if len(configured) != len(actual) {
+		return false
+	}
+	counts := make(map[string]int, len(configured))
+	for _, name := range configured {
+		counts[name]++
+	}
+	for _, name := range actual {
+		counts[name]--
+		if counts[name] < 0 {
+			return false
+		}
+	}
+	return true
 }
 
 // ReissueCertificates re-issues all certificates for the given services, overwriting existing secrets.
@@ -317,21 +248,15 @@ func (p *CertificateProvisioner) GetCertificateStatuses(services []domain.Servic
 				DNSNames:    certReq.DNSNames,
 			}
 
-			exists, err := p.secretStore.SecretExists(certReq.K8sSecret.Name)
+			data, err := p.secretStore.GetSecretData(certReq.K8sSecret.Name)
 			if err != nil {
 				return nil, fmt.Errorf("failed to check secret %s: %w", certReq.K8sSecret.Name, err)
 			}
-			if !exists {
+			if data == nil {
 				statuses = append(statuses, status)
 				continue
 			}
 			status.Found = true
-
-			data, err := p.secretStore.GetSecretData(certReq.K8sSecret.Name)
-			if err != nil {
-				statuses = append(statuses, status)
-				continue
-			}
 
 			certKey := certPEMKey(certReq)
 			certPEM, ok := data[certKey]

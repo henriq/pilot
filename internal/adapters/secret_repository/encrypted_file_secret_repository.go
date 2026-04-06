@@ -1,30 +1,16 @@
-package core
+package secret_repository
 
 import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
 
+	"dx/internal/core"
 	"dx/internal/core/domain"
 	"dx/internal/ports"
 )
 
-type SecretsRepository interface {
-	LoadSecrets(configContextName string) ([]*domain.Secret, error)
-	SaveSecrets(secrets []*domain.Secret, configContextName string) error
-}
-
-func ProvideEncryptedFileSecretRepository(
-	fileSystem ports.FileSystem,
-	keyring ports.Keyring,
-	encryptor ports.SymmetricEncryptor,
-) SecretsRepository {
-	return &EncryptedFileSecretRepository{
-		fileSystem: fileSystem,
-		keyring:    keyring,
-		encryptor:  encryptor,
-	}
-}
+var _ ports.SecretsRepository = (*EncryptedFileSecretRepository)(nil)
 
 type EncryptedFileSecretRepository struct {
 	fileSystem ports.FileSystem
@@ -32,7 +18,19 @@ type EncryptedFileSecretRepository struct {
 	encryptor  ports.SymmetricEncryptor
 }
 
-func (e EncryptedFileSecretRepository) LoadSecrets(configContextName string) ([]*domain.Secret, error) {
+func ProvideEncryptedFileSecretRepository(
+	fileSystem ports.FileSystem,
+	keyring ports.Keyring,
+	encryptor ports.SymmetricEncryptor,
+) *EncryptedFileSecretRepository {
+	return &EncryptedFileSecretRepository{
+		fileSystem: fileSystem,
+		keyring:    keyring,
+		encryptor:  encryptor,
+	}
+}
+
+func (e *EncryptedFileSecretRepository) LoadSecrets(configContextName string) ([]*domain.Secret, error) {
 	secretsFilePath := filepath.Join("~", ".dx", configContextName, "secrets")
 	secretFileExists, err := e.fileSystem.FileExists(secretsFilePath)
 	if err != nil {
@@ -71,12 +69,12 @@ func (e EncryptedFileSecretRepository) LoadSecrets(configContextName string) ([]
 	return secrets, nil
 }
 
-func (e EncryptedFileSecretRepository) SaveSecrets(
+func (e *EncryptedFileSecretRepository) SaveSecrets(
 	secrets []*domain.Secret,
 	configContextName string,
 ) error {
 	secretsFilePath := filepath.Join("~", ".dx", configContextName, "secrets")
-	key, err := GetOrCreateEncryptionKey(e.keyring, e.encryptor, fmt.Sprintf("%s-encryption-key", configContextName))
+	key, err := core.GetOrCreateEncryptionKey(e.keyring, e.encryptor, fmt.Sprintf("%s-encryption-key", configContextName))
 	if err != nil {
 		return err
 	}

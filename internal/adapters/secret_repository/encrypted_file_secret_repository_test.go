@@ -1,4 +1,4 @@
-package core
+package secret_repository
 
 import (
 	"errors"

@@ -1,8 +1,8 @@
 package handler
 
 import (
-	"dx/internal/core"
 	"dx/internal/core/domain"
+	"dx/internal/ports"
 	"fmt"
 	"io"
 	"slices"
@@ -10,11 +10,11 @@ import (
 )
 
 type GenerateCommandHandler struct {
-	configRepository core.ConfigRepository
+	configRepository ports.ConfigRepository
 }
 
 func ProvideGenerateCommandHandler(
-	configRepository core.ConfigRepository,
+	configRepository ports.ConfigRepository,
 ) GenerateCommandHandler {
 	return GenerateCommandHandler{
 		configRepository: configRepository,
@@ -39,7 +39,7 @@ func (h *GenerateCommandHandler) HandleGenerateHostEntries(out io.Writer) error 
 				return strings.Compare(a.Name, b.Name)
 			},
 		)
-		for _, localService := range context.LocalServices {
+		for _, localService := range localServices {
 			fmt.Fprintf(out, "127.0.0.1 %s.%s.localhost\n", localService.Name, context.Name)
 		}
 	}

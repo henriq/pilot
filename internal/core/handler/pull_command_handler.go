@@ -9,7 +9,6 @@ import (
 
 	"dx/internal/cli/output"
 	"dx/internal/cli/progress"
-	"dx/internal/core"
 	"dx/internal/ports"
 
 	"golang.org/x/sync/errgroup"
@@ -18,13 +17,13 @@ import (
 const maxConcurrentPulls = 5
 
 type PullCommandHandler struct {
-	configRepository         core.ConfigRepository
+	configRepository         ports.ConfigRepository
 	containerImageRepository ports.ContainerImageRepository
 	terminalInput            ports.TerminalInput
 }
 
 func ProvidePullCommandHandler(
-	configRepository core.ConfigRepository,
+	configRepository ports.ConfigRepository,
 	containerImageRepository ports.ContainerImageRepository,
 	terminalInput ports.TerminalInput,
 ) PullCommandHandler {
@@ -44,15 +43,7 @@ func (h *PullCommandHandler) Handle(services []string, selectedProfile string, s
 	var remoteImages []string
 	var dockerImageNames []string
 
-	for _, service := range configContext.Services {
-		if len(services) == 0 && !slices.Contains(service.Profiles, selectedProfile) {
-			continue
-		}
-
-		if len(services) > 0 && !slices.ContainsFunc(services, func(s string) bool { return s == service.Name }) {
-			continue
-		}
-
+	for _, service := range configContext.FilterServices(services, selectedProfile) {
 		remoteImages = append(remoteImages, service.RemoteImages...)
 
 		for _, dockerImage := range service.DockerImages {

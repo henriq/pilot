@@ -13,8 +13,8 @@ var _ ports.Keyring = (*ZalandoKeyring)(nil)
 
 type ZalandoKeyring struct{}
 
-func ProvideZalandoKeyring() ports.Keyring {
-	return ZalandoKeyring{}
+func ProvideZalandoKeyring() *ZalandoKeyring {
+	return &ZalandoKeyring{}
 }
 
 func (z ZalandoKeyring) GetKey(keyName string) (string, error) {
