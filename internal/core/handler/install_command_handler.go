@@ -89,94 +89,72 @@ func (h *InstallCommandHandler) Handle(services []string, selectedProfile string
 		return nil
 	}
 
-	// Dev-proxy is always installed when there are services to install (to apply
-	// fresh certificates via Helm), but only rebuilt (Docker image) when the
-	// configuration checksum changes.
-	totalItems := len(servicesToInstall) + 1
-
 	output.PrintHeader("Installing services")
 	fmt.Println()
 
-	// Build names and infos for tracker
-	names := make([]string, 0, totalItems)
-	infos := make([]string, 0, totalItems)
-
-	names = append(names, "dev-proxy")
-	infos = append(infos, "dx")
-
-	for _, svc := range servicesToInstall {
-		names = append(names, svc.Name)
-		infos = append(infos, "")
-	}
-
-	tracker := progress.NewTrackerWithInfoAndVerb(names, infos, "Installing")
-	tracker.Start()
-
-	currentIndex := 0
+	// Configure dev-proxy: rebuild if needed, always install via Helm to
+	// deliver fresh certificate secrets
 	var devProxyPassword string
+	if shouldRebuildDevProxy {
+		output.PrintStep("Configuring dev-proxy...")
 
-	// Install dev-proxy first: rebuild if needed, always install via Helm
-	{
-		tracker.StartItem(currentIndex)
-
-		if shouldRebuildDevProxy {
-			password, err := h.devProxyManager.SaveConfiguration(interceptHttp)
-			if err != nil {
-				tracker.CompleteItem(currentIndex, err)
-				tracker.PrintItemComplete(currentIndex)
-				tracker.Stop()
-				return err
-			}
-			devProxyPassword = password
-
-			if err := h.devProxyManager.BuildDevProxy(interceptHttp); err != nil {
-				tracker.CompleteItem(currentIndex, err)
-				tracker.PrintItemComplete(currentIndex)
-				tracker.Stop()
-				return err
-			}
-		}
-
-		if err := h.devProxyManager.InstallDevProxy(devProxyCertSecrets); err != nil {
-			tracker.CompleteItem(currentIndex, err)
-			tracker.PrintItemComplete(currentIndex)
-			tracker.Stop()
+		password, err := h.devProxyManager.SaveConfiguration(interceptHttp)
+		if err != nil {
 			return err
 		}
+		devProxyPassword = password
 
-		tracker.CompleteItem(currentIndex, nil)
-		tracker.PrintItemComplete(currentIndex)
-		currentIndex++
+		if err := h.devProxyManager.BuildDevProxy(interceptHttp); err != nil {
+			return err
+		}
+	}
+
+	if err := h.devProxyManager.InstallDevProxy(devProxyCertSecrets); err != nil {
+		return err
 	}
 
 	// Install user services
-	for _, service := range servicesToInstall {
-		tracker.StartItem(currentIndex)
-
-		err := h.scm.Download(service.HelmRepoPath, service.HelmBranch, service.HelmPath)
-		if err != nil {
-			tracker.CompleteItem(currentIndex, err)
-			tracker.PrintItemComplete(currentIndex)
-			tracker.Stop()
-			return err
+	if len(servicesToInstall) > 0 {
+		if shouldRebuildDevProxy {
+			fmt.Println()
 		}
 
-		if err = h.containerOrchestrator.InstallService(&service, renderedCertSecrets[service.Name]); err != nil {
-			installErr := fmt.Errorf("failed to install service %s: %v", service.Name, err)
-			tracker.CompleteItem(currentIndex, installErr)
-			tracker.PrintItemComplete(currentIndex)
-			tracker.Stop()
-			return installErr
+		names := make([]string, 0, len(servicesToInstall))
+		for _, svc := range servicesToInstall {
+			names = append(names, svc.Name)
 		}
 
-		tracker.CompleteItem(currentIndex, nil)
-		tracker.PrintItemComplete(currentIndex)
-		currentIndex++
+		tracker := progress.NewTrackerWithVerb(names, "Installing")
+		tracker.Start()
+
+		for i, service := range servicesToInstall {
+			tracker.StartItem(i)
+
+			err := h.scm.Download(service.HelmRepoPath, service.HelmBranch, service.HelmPath)
+			if err != nil {
+				tracker.CompleteItem(i, err)
+				tracker.PrintItemComplete(i)
+				tracker.Stop()
+				return err
+			}
+
+			if err = h.containerOrchestrator.InstallService(&service, renderedCertSecrets[service.Name]); err != nil {
+				installErr := fmt.Errorf("failed to install service %s: %v", service.Name, err)
+				tracker.CompleteItem(i, installErr)
+				tracker.PrintItemComplete(i)
+				tracker.Stop()
+				return installErr
+			}
+
+			tracker.CompleteItem(i, nil)
+			tracker.PrintItemComplete(i)
+		}
+
+		tracker.Stop()
+		fmt.Println()
+		serviceCount := len(servicesToInstall)
+		output.PrintSuccess(fmt.Sprintf("Installed %d %s", serviceCount, output.Plural(serviceCount, "service", "services")))
 	}
-
-	tracker.Stop()
-	fmt.Println()
-	output.PrintSuccess(fmt.Sprintf("Installed %d %s", totalItems, output.Plural(totalItems, "service", "services")))
 
 	if devProxyPassword != "" {
 		fmt.Println()
