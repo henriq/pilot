@@ -7,6 +7,7 @@ import (
 
 	"dx/internal/cli/output"
 	"dx/internal/core"
+	"dx/internal/core/domain"
 	"dx/internal/ports"
 )
 
@@ -212,6 +213,45 @@ func (h *CACommandHandler) HandleStatus() error {
 	}
 
 	return nil
+}
+
+// HandleIssue issues a certificate from the context's private CA.
+// Returns the context name and the issued certificate.
+func (h *CACommandHandler) HandleIssue(certType string, dnsNames []string) (string, *domain.IssuedCertificate, error) {
+	if err := h.environmentEnsurer.EnsureExpectedClusterIsSelected(); err != nil {
+		return "", nil, err
+	}
+
+	contextName, err := h.configRepository.LoadCurrentContextName()
+	if err != nil {
+		return "", nil, err
+	}
+
+	ct := domain.CertificateType(certType)
+	if ct != domain.CertificateTypeServer && ct != domain.CertificateTypeClient {
+		return "", nil, fmt.Errorf("invalid certificate type '%s' (must be 'server' or 'client')", certType)
+	}
+
+	if err := domain.ValidateDNSNames(dnsNames, "ca issue"); err != nil {
+		return "", nil, err
+	}
+
+	passphrase, err := h.certificateProvisioner.GetOrCreatePassphrase(contextName)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to retrieve CA passphrase: %w", err)
+	}
+
+	request := domain.CertificateRequest{
+		Type:     ct,
+		DNSNames: dnsNames,
+	}
+
+	issued, err := h.certificateAuthority.IssueCertificate(contextName, passphrase, request)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to issue certificate: %w", err)
+	}
+
+	return contextName, issued, nil
 }
 
 func formatCertStatus(s core.CertificateStatus) string {

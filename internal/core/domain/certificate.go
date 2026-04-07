@@ -115,6 +115,39 @@ func labelsWithinLimit(name string) bool {
 	return true
 }
 
+// ValidateDNSNames checks that the given DNS names are well-formed and use only
+// reserved TLDs. The label parameter is used in error messages to identify the source.
+func ValidateDNSNames(dnsNames []string, label string) error {
+	if len(dnsNames) == 0 {
+		return fmt.Errorf("%s has empty dnsNames", label)
+	}
+	for i, name := range dnsNames {
+		if name == "" {
+			return fmt.Errorf("%s has empty dnsNames entry at index %d", label, i)
+		}
+		if len(name) > 253 {
+			return fmt.Errorf("%s has dnsNames entry '%s' exceeding 253 characters", label, name)
+		}
+		if !dnsNameRegex.MatchString(name) {
+			return fmt.Errorf("%s has invalid dnsNames entry '%s'", label, name)
+		}
+		if !labelsWithinLimit(name) {
+			return fmt.Errorf(
+				"%s has dnsNames entry '%s' with a label exceeding 63 characters",
+				label, name,
+			)
+		}
+		if !hasAllowedDNSSuffix(name) {
+			return fmt.Errorf(
+				"%s has dnsNames entry '%s' with a non-reserved TLD; "+
+					"only reserved TLDs are allowed (.localhost, .test, .example, .invalid, .local, .internal, .home.arpa)",
+				label, name,
+			)
+		}
+	}
+	return nil
+}
+
 // Validate checks the certificate request for correctness.
 func (c *CertificateRequest) Validate(serviceName, contextName string) error {
 	if c.Type != CertificateTypeServer && c.Type != CertificateTypeClient {
@@ -124,44 +157,9 @@ func (c *CertificateRequest) Validate(serviceName, contextName string) error {
 		)
 	}
 
-	if len(c.DNSNames) == 0 {
-		return fmt.Errorf(
-			"certificate for service '%s' in context '%s' has empty dnsNames",
-			serviceName, contextName,
-		)
-	}
-	for i, name := range c.DNSNames {
-		if name == "" {
-			return fmt.Errorf(
-				"certificate for service '%s' in context '%s' has empty dnsNames entry at index %d",
-				serviceName, contextName, i,
-			)
-		}
-		if len(name) > 253 {
-			return fmt.Errorf(
-				"certificate for service '%s' in context '%s' has dnsNames entry '%s' exceeding 253 characters",
-				serviceName, contextName, name,
-			)
-		}
-		if !dnsNameRegex.MatchString(name) {
-			return fmt.Errorf(
-				"certificate for service '%s' in context '%s' has invalid dnsNames entry '%s'",
-				serviceName, contextName, name,
-			)
-		}
-		if !labelsWithinLimit(name) {
-			return fmt.Errorf(
-				"certificate for service '%s' in context '%s' has dnsNames entry '%s' with a label exceeding 63 characters",
-				serviceName, contextName, name,
-			)
-		}
-		if !hasAllowedDNSSuffix(name) {
-			return fmt.Errorf(
-				"certificate for service '%s' in context '%s' has dnsNames entry '%s' with a non-reserved TLD; "+
-					"only reserved TLDs are allowed (.localhost, .test, .example, .invalid, .local, .internal, .home.arpa)",
-				serviceName, contextName, name,
-			)
-		}
+	label := fmt.Sprintf("certificate for service '%s' in context '%s'", serviceName, contextName)
+	if err := ValidateDNSNames(c.DNSNames, label); err != nil {
+		return err
 	}
 
 	if c.K8sSecret.Name == "" {

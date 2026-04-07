@@ -107,7 +107,7 @@ func (p *CertificateProvisioner) ProvisionCertificateData(
 		return nil, nil
 	}
 
-	passphrase, err := p.getOrCreatePassphrase(contextName)
+	passphrase, err := p.GetOrCreatePassphrase(contextName)
 	if err != nil {
 		return nil, err
 	}
@@ -184,7 +184,8 @@ func (p *CertificateProvisioner) GetCertificateStatuses(services []domain.Servic
 	return statuses, nil
 }
 
-func (p *CertificateProvisioner) getOrCreatePassphrase(contextName string) (string, error) {
+// GetOrCreatePassphrase retrieves or creates the CA encryption passphrase for a context.
+func (p *CertificateProvisioner) GetOrCreatePassphrase(contextName string) (string, error) {
 	return GetOrCreateEncryptionKey(p.keyring, p.encryptor, p.caKeyName(contextName))
 }
 

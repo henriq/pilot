@@ -1,18 +1,40 @@
 package cmd
 
 import (
+	"fmt"
+	"os"
+	"strings"
+
 	"dx/cmd/cli/app"
+	"dx/internal/cli/output"
 
 	"github.com/spf13/cobra"
 )
 
-var caDeleteSkipConfirmation bool
+var (
+	caDeleteSkipConfirmation bool
+	caIssueOut               string
+	caIssueKeyOut            string
+	caIssueCAOut             string
+	caIssueType              string
+)
 
 func init() {
 	caCmd.AddCommand(caPrintCmd)
 	caCmd.AddCommand(caDeleteCmd)
 	caCmd.AddCommand(caStatusCmd)
+	caCmd.AddCommand(caIssueCmd)
 	caDeleteCmd.Flags().BoolVarP(&caDeleteSkipConfirmation, "yes", "y", false, "skip confirmation prompt")
+	caIssueCmd.Flags().StringVar(&caIssueOut, "out", "", "path to write the certificate PEM file")
+	caIssueCmd.Flags().StringVar(&caIssueKeyOut, "keyout", "", "path to write the private key PEM file")
+	caIssueCmd.Flags().StringVar(&caIssueCAOut, "caout", "", "path to write the CA certificate PEM file")
+	caIssueCmd.Flags().StringVar(&caIssueType, "type", "", "certificate type (server, client)")
+	_ = caIssueCmd.MarkFlagRequired("out")
+	_ = caIssueCmd.MarkFlagRequired("keyout")
+	_ = caIssueCmd.MarkFlagRequired("type")
+	_ = caIssueCmd.RegisterFlagCompletionFunc("type", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		return []string{"server", "client"}, cobra.ShellCompDirectiveNoFileComp
+	})
 	rootCmd.AddCommand(caCmd)
 }
 
@@ -95,5 +117,64 @@ Kubernetes secret name, type, DNS names, and provisioning status.`,
 			return err
 		}
 		return handler.HandleStatus()
+	},
+}
+
+var caIssueCmd = &cobra.Command{
+	Use:   "issue <dns-names...>",
+	Args:  cobra.MinimumNArgs(1),
+	Short: "Issue a certificate from the context's private CA",
+	Long: `Issue a new certificate signed by the context's private CA and write the
+certificate and private key to local files. The CA is loaded (or created if
+none exists) automatically.
+
+DNS names must use reserved TLDs only (.localhost, .test, .example, .invalid,
+.local, .internal, .home.arpa).`,
+	ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	},
+	Example: `  # Issue a server certificate
+  dx ca issue myapp.test --type server --out cert.pem --keyout key.pem
+
+  # Issue a client certificate with multiple SANs
+  dx ca issue api.test *.api.test --type client --out client.pem --keyout client-key.pem
+
+  # Also save the CA certificate
+  dx ca issue myapp.localhost --type server --out cert.pem --keyout key.pem --caout ca.pem`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		handler, err := app.InjectCACommandHandler()
+		if err != nil {
+			return err
+		}
+
+		contextName, issued, err := handler.HandleIssue(caIssueType, args)
+		if err != nil {
+			return err
+		}
+
+		if err := os.WriteFile(caIssueOut, issued.CertPEM, 0600); err != nil {
+			return fmt.Errorf("failed to write certificate to '%s': %w", caIssueOut, err)
+		}
+
+		if err := os.WriteFile(caIssueKeyOut, issued.KeyPEM, 0600); err != nil {
+			return fmt.Errorf("failed to write private key to '%s': %w", caIssueKeyOut, err)
+		}
+
+		if caIssueCAOut != "" {
+			if err := os.WriteFile(caIssueCAOut, issued.CAPEM, 0600); err != nil {
+				return fmt.Errorf("failed to write CA certificate to '%s': %w", caIssueCAOut, err)
+			}
+		}
+
+		output.PrintSuccess("Issued certificate for context '" + contextName + "'")
+		output.PrintField("Certificate:", caIssueOut)
+		output.PrintField("Private key:", caIssueKeyOut)
+		if caIssueCAOut != "" {
+			output.PrintField("CA cert:", caIssueCAOut)
+		}
+		output.PrintField("Type:", caIssueType)
+		output.PrintField("DNS names:", strings.Join(args, ", "))
+
+		return nil
 	},
 }

@@ -352,6 +352,70 @@ func TestCertificateRequest_Validate_ValidOpaqueSecretKeyNames(t *testing.T) {
 	}
 }
 
+func TestValidateDNSNames_Valid(t *testing.T) {
+	tests := []struct {
+		name     string
+		dnsNames []string
+	}{
+		{"single name", []string{"foo.localhost"}},
+		{"multiple names", []string{"foo.localhost", "bar.test"}},
+		{"wildcard", []string{"*.api.test"}},
+		{"bare reserved TLD", []string{"localhost"}},
+		{"k8s internal", []string{"foo.svc.cluster.local"}},
+		{"home.arpa", []string{"myhost.home.arpa"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.NoError(t, ValidateDNSNames(tt.dnsNames, "test"))
+		})
+	}
+}
+
+func TestValidateDNSNames_Empty(t *testing.T) {
+	err := ValidateDNSNames(nil, "test")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "empty dnsNames")
+}
+
+func TestValidateDNSNames_PublicTLD(t *testing.T) {
+	err := ValidateDNSNames([]string{"api.example.com"}, "test")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "non-reserved TLD")
+}
+
+func TestValidateDNSNames_InvalidFormat(t *testing.T) {
+	err := ValidateDNSNames([]string{"foo bar.localhost"}, "test")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid dnsNames entry")
+}
+
+func TestValidateDNSNames_EmptyEntry(t *testing.T) {
+	err := ValidateDNSNames([]string{"foo.localhost", ""}, "test")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "empty dnsNames entry at index 1")
+}
+
+func TestValidateDNSNames_Exceeds253Characters(t *testing.T) {
+	longName := strings.Repeat("a", 250) + ".test"
+	err := ValidateDNSNames([]string{longName}, "test")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "exceeding 253 characters")
+}
+
+func TestValidateDNSNames_LabelExceeds63Characters(t *testing.T) {
+	longLabel := strings.Repeat("a", 64) + ".test"
+	err := ValidateDNSNames([]string{longLabel}, "test")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "label exceeding 63 characters")
+}
+
+func TestValidateDNSNames_LabelIncluded(t *testing.T) {
+	err := ValidateDNSNames(nil, "ca issue")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "ca issue")
+}
+
 func TestConfig_Validate_ServiceWithInvalidCertificate(t *testing.T) {
 	invalidCert := validServerCertificateRequest()
 	invalidCert.K8sSecret.Name = ""
