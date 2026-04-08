@@ -540,6 +540,240 @@ func TestCACommandHandler_HandleStatus_EnvironmentEnsurer_LoadConfigContextError
 	configRepository.AssertExpectations(t)
 }
 
+func TestCACommandHandler_HandleIssue_ServerCert(t *testing.T) {
+	configContext := &domain.ConfigurationContext{Name: "test-ctx"}
+	configRepository := new(testutil.MockConfigRepository)
+	environmentEnsurer := passingEnvironmentEnsurer(configRepository, configContext)
+	configRepository.On("LoadCurrentContextName").Return("test-ctx", nil)
+
+	mockCA := new(testutil.MockCertificateAuthority)
+	mockKeyring := new(testutil.MockKeyring)
+
+	mockKeyring.On("HasKey", "test-ctx-ca-key").Return(true, nil)
+	mockKeyring.On("GetKey", "test-ctx-ca-key").Return("test-passphrase", nil)
+
+	issuedCert := &domain.IssuedCertificate{
+		CertPEM: []byte("cert-pem"),
+		KeyPEM:  []byte("key-pem"),
+		CAPEM:   []byte("ca-pem"),
+	}
+	mockCA.On("IssueCertificate", "test-ctx", "test-passphrase", mock.MatchedBy(func(req domain.CertificateRequest) bool {
+		return req.Type == domain.CertificateTypeServer && len(req.DNSNames) == 1 && req.DNSNames[0] == "myapp.test"
+	})).Return(issuedCert, nil)
+
+	provisioner := core.ProvideCertificateProvisioner(mockCA, new(testutil.MockSecretStore), mockKeyring, nil)
+
+	sut := ProvideCACommandHandler(
+		configRepository,
+		mockCA,
+		provisioner,
+		new(testutil.MockTerminalInput),
+		environmentEnsurer,
+	)
+
+	contextName, issued, err := sut.HandleIssue("server", []string{"myapp.test"})
+	assert.NoError(t, err)
+	assert.Equal(t, "test-ctx", contextName)
+	assert.Equal(t, []byte("cert-pem"), issued.CertPEM)
+	assert.Equal(t, []byte("key-pem"), issued.KeyPEM)
+	assert.Equal(t, []byte("ca-pem"), issued.CAPEM)
+
+	mockCA.AssertExpectations(t)
+	mockKeyring.AssertExpectations(t)
+}
+
+func TestCACommandHandler_HandleIssue_ClientCert(t *testing.T) {
+	configContext := &domain.ConfigurationContext{Name: "test-ctx"}
+	configRepository := new(testutil.MockConfigRepository)
+	environmentEnsurer := passingEnvironmentEnsurer(configRepository, configContext)
+	configRepository.On("LoadCurrentContextName").Return("test-ctx", nil)
+
+	mockCA := new(testutil.MockCertificateAuthority)
+	mockKeyring := new(testutil.MockKeyring)
+
+	mockKeyring.On("HasKey", "test-ctx-ca-key").Return(true, nil)
+	mockKeyring.On("GetKey", "test-ctx-ca-key").Return("test-passphrase", nil)
+
+	issuedCert := &domain.IssuedCertificate{
+		CertPEM: []byte("client-cert"),
+		KeyPEM:  []byte("client-key"),
+		CAPEM:   []byte("ca-cert"),
+	}
+	mockCA.On("IssueCertificate", "test-ctx", "test-passphrase", mock.MatchedBy(func(req domain.CertificateRequest) bool {
+		return req.Type == domain.CertificateTypeClient && len(req.DNSNames) == 1 && req.DNSNames[0] == "api.localhost"
+	})).Return(issuedCert, nil)
+
+	provisioner := core.ProvideCertificateProvisioner(mockCA, new(testutil.MockSecretStore), mockKeyring, nil)
+
+	sut := ProvideCACommandHandler(
+		configRepository,
+		mockCA,
+		provisioner,
+		new(testutil.MockTerminalInput),
+		environmentEnsurer,
+	)
+
+	contextName, issued, err := sut.HandleIssue("client", []string{"api.localhost"})
+	assert.NoError(t, err)
+	assert.Equal(t, "test-ctx", contextName)
+	assert.Equal(t, []byte("client-cert"), issued.CertPEM)
+	assert.Equal(t, []byte("client-key"), issued.KeyPEM)
+	assert.Equal(t, []byte("ca-cert"), issued.CAPEM)
+
+	mockCA.AssertExpectations(t)
+	mockKeyring.AssertExpectations(t)
+}
+
+func TestCACommandHandler_HandleIssue_InvalidType(t *testing.T) {
+	configContext := &domain.ConfigurationContext{Name: "test-ctx"}
+	configRepository := new(testutil.MockConfigRepository)
+	environmentEnsurer := passingEnvironmentEnsurer(configRepository, configContext)
+	configRepository.On("LoadCurrentContextName").Return("test-ctx", nil)
+
+	sut := ProvideCACommandHandler(
+		configRepository,
+		new(testutil.MockCertificateAuthority),
+		noCertProvisioner(),
+		new(testutil.MockTerminalInput),
+		environmentEnsurer,
+	)
+
+	_, _, err := sut.HandleIssue("invalid", []string{"foo.test"})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid certificate type 'invalid'")
+}
+
+func TestCACommandHandler_HandleIssue_InvalidDNSName(t *testing.T) {
+	configContext := &domain.ConfigurationContext{Name: "test-ctx"}
+	configRepository := new(testutil.MockConfigRepository)
+	environmentEnsurer := passingEnvironmentEnsurer(configRepository, configContext)
+	configRepository.On("LoadCurrentContextName").Return("test-ctx", nil)
+
+	sut := ProvideCACommandHandler(
+		configRepository,
+		new(testutil.MockCertificateAuthority),
+		noCertProvisioner(),
+		new(testutil.MockTerminalInput),
+		environmentEnsurer,
+	)
+
+	_, _, err := sut.HandleIssue("server", []string{"api.example.com"})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "non-reserved TLD")
+}
+
+func TestCACommandHandler_HandleIssue_EmptyDNSNames(t *testing.T) {
+	configContext := &domain.ConfigurationContext{Name: "test-ctx"}
+	configRepository := new(testutil.MockConfigRepository)
+	environmentEnsurer := passingEnvironmentEnsurer(configRepository, configContext)
+	configRepository.On("LoadCurrentContextName").Return("test-ctx", nil)
+
+	sut := ProvideCACommandHandler(
+		configRepository,
+		new(testutil.MockCertificateAuthority),
+		noCertProvisioner(),
+		new(testutil.MockTerminalInput),
+		environmentEnsurer,
+	)
+
+	_, _, err := sut.HandleIssue("server", []string{})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "empty dnsNames")
+}
+
+func TestCACommandHandler_HandleIssue_LoadContextNameError(t *testing.T) {
+	configContext := &domain.ConfigurationContext{Name: "test-ctx"}
+	configRepository := new(testutil.MockConfigRepository)
+	environmentEnsurer := passingEnvironmentEnsurer(configRepository, configContext)
+	configRepository.On("LoadCurrentContextName").Return("", assert.AnError)
+
+	sut := ProvideCACommandHandler(
+		configRepository,
+		new(testutil.MockCertificateAuthority),
+		noCertProvisioner(),
+		new(testutil.MockTerminalInput),
+		environmentEnsurer,
+	)
+
+	_, _, err := sut.HandleIssue("server", []string{"foo.test"})
+	assert.Error(t, err)
+}
+
+func TestCACommandHandler_HandleIssue_PassphraseError(t *testing.T) {
+	configContext := &domain.ConfigurationContext{Name: "test-ctx"}
+	configRepository := new(testutil.MockConfigRepository)
+	environmentEnsurer := passingEnvironmentEnsurer(configRepository, configContext)
+	configRepository.On("LoadCurrentContextName").Return("test-ctx", nil)
+
+	mockKeyring := new(testutil.MockKeyring)
+	mockKeyring.On("HasKey", "test-ctx-ca-key").Return(false, assert.AnError)
+
+	provisioner := core.ProvideCertificateProvisioner(
+		new(testutil.MockCertificateAuthority),
+		new(testutil.MockSecretStore),
+		mockKeyring,
+		new(testutil.MockSymmetricEncryptor),
+	)
+
+	sut := ProvideCACommandHandler(
+		configRepository,
+		new(testutil.MockCertificateAuthority),
+		provisioner,
+		new(testutil.MockTerminalInput),
+		environmentEnsurer,
+	)
+
+	_, _, err := sut.HandleIssue("server", []string{"foo.test"})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to retrieve CA passphrase")
+}
+
+func TestCACommandHandler_HandleIssue_IssueCertificateError(t *testing.T) {
+	configContext := &domain.ConfigurationContext{Name: "test-ctx"}
+	configRepository := new(testutil.MockConfigRepository)
+	environmentEnsurer := passingEnvironmentEnsurer(configRepository, configContext)
+	configRepository.On("LoadCurrentContextName").Return("test-ctx", nil)
+
+	mockCA := new(testutil.MockCertificateAuthority)
+	mockKeyring := new(testutil.MockKeyring)
+
+	mockKeyring.On("HasKey", "test-ctx-ca-key").Return(true, nil)
+	mockKeyring.On("GetKey", "test-ctx-ca-key").Return("test-passphrase", nil)
+	mockCA.On("IssueCertificate", "test-ctx", "test-passphrase", mock.Anything).Return(nil, assert.AnError)
+
+	provisioner := core.ProvideCertificateProvisioner(mockCA, new(testutil.MockSecretStore), mockKeyring, nil)
+
+	sut := ProvideCACommandHandler(
+		configRepository,
+		mockCA,
+		provisioner,
+		new(testutil.MockTerminalInput),
+		environmentEnsurer,
+	)
+
+	_, _, err := sut.HandleIssue("server", []string{"foo.test"})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to issue certificate")
+}
+
+func TestCACommandHandler_HandleIssue_EnvironmentMismatch(t *testing.T) {
+	configContext := &domain.ConfigurationContext{Name: "test-ctx"}
+	configRepository := new(testutil.MockConfigRepository)
+	environmentEnsurer := failingEnvironmentEnsurer(configRepository, configContext)
+
+	sut := ProvideCACommandHandler(
+		configRepository,
+		new(testutil.MockCertificateAuthority),
+		noCertProvisioner(),
+		new(testutil.MockTerminalInput),
+		environmentEnsurer,
+	)
+
+	_, _, err := sut.HandleIssue("server", []string{"foo.test"})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "environment key mismatch")
+}
+
 func TestCACommandHandler_HandlePrint_NoCA_UserFriendlyError(t *testing.T) {
 	configRepository := new(testutil.MockConfigRepository)
 	configRepository.On("LoadCurrentContextName").Return("test-ctx", nil)
