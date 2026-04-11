@@ -1,6 +1,6 @@
 package ports
 
-import "dx/internal/core/domain"
+import "pilot/internal/core/domain"
 
 type ConfigRepository interface {
 	LoadConfig() (*domain.Config, error)

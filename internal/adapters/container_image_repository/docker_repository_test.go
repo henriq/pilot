@@ -5,8 +5,8 @@ import (
 	"io"
 	"testing"
 
-	"dx/internal/core/domain"
-	"dx/internal/testutil"
+	"pilot/internal/core/domain"
+	"pilot/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -35,7 +35,7 @@ func TestDockerRepository_BuildImage_Success(t *testing.T) {
 	commandRunner.On("Run", "docker", []string{"build", "-t", "my-image", "-f", "/path/to/repo/Dockerfile", "/path/to/repo"}).
 		Return([]byte("Successfully built abc123"), nil)
 
-	repo := ProvideDockerRepository(configRepo, secretsRepo, templater, commandRunner)
+	repo := NewDockerRepository(configRepo, secretsRepo, templater, commandRunner)
 
 	image := domain.DockerImage{
 		Name:                     "my-image",
@@ -63,7 +63,7 @@ func TestDockerRepository_BuildImage_WithBuildArgs(t *testing.T) {
 		"--build-arg=VERSION=1.0", "--build-arg=ENV=prod", "/path/to/repo",
 	}).Return([]byte("Successfully built"), nil)
 
-	repo := ProvideDockerRepository(configRepo, secretsRepo, templater, commandRunner)
+	repo := NewDockerRepository(configRepo, secretsRepo, templater, commandRunner)
 
 	image := domain.DockerImage{
 		Name:                     "my-image",
@@ -89,7 +89,7 @@ func TestDockerRepository_BuildImage_WithDockerfileOverride(t *testing.T) {
 		"build", "-t", "my-image", "-f", "-", "/path/to/repo",
 	}).Return([]byte("Successfully built"), nil)
 
-	repo := ProvideDockerRepository(configRepo, secretsRepo, templater, commandRunner)
+	repo := NewDockerRepository(configRepo, secretsRepo, templater, commandRunner)
 
 	image := domain.DockerImage{
 		Name:                     "my-image",
@@ -116,7 +116,7 @@ func TestDockerRepository_BuildImage_DockerCommandFails(t *testing.T) {
 	commandRunner.On("Run", "docker", mock.Anything).
 		Return([]byte("error: unable to prepare context"), errors.New("exit status 1"))
 
-	repo := ProvideDockerRepository(configRepo, secretsRepo, templater, commandRunner)
+	repo := NewDockerRepository(configRepo, secretsRepo, templater, commandRunner)
 
 	image := domain.DockerImage{
 		Name:                     "my-image",
@@ -138,7 +138,7 @@ func TestDockerRepository_BuildImage_TemplateRenderFails(t *testing.T) {
 	templater.On("Render", "--build-arg={{.Missing}}", "build-args.0", mock.Anything).
 		Return("", errors.New("template error: Missing not defined"))
 
-	repo := ProvideDockerRepository(configRepo, secretsRepo, templater, commandRunner)
+	repo := NewDockerRepository(configRepo, secretsRepo, templater, commandRunner)
 
 	image := domain.DockerImage{
 		Name:                     "my-image",
@@ -162,7 +162,7 @@ func TestDockerRepository_BuildImage_ConfigRepoFails(t *testing.T) {
 
 	configRepo.On("LoadCurrentContextName").Return("", errors.New("no context configured"))
 
-	repo := ProvideDockerRepository(configRepo, secretsRepo, templater, commandRunner)
+	repo := NewDockerRepository(configRepo, secretsRepo, templater, commandRunner)
 
 	image := domain.DockerImage{
 		Name:                     "my-image",
@@ -183,7 +183,7 @@ func TestDockerRepository_PullImage_Success(t *testing.T) {
 	commandRunner.On("Run", "docker", []string{"pull", "nginx:latest"}).
 		Return([]byte("Status: Downloaded newer image for nginx:latest"), nil)
 
-	repo := ProvideDockerRepository(configRepo, secretsRepo, templater, commandRunner)
+	repo := NewDockerRepository(configRepo, secretsRepo, templater, commandRunner)
 
 	err := repo.PullImage("nginx:latest")
 
@@ -197,7 +197,7 @@ func TestDockerRepository_PullImage_Fails(t *testing.T) {
 	commandRunner.On("Run", "docker", []string{"pull", "nonexistent:image"}).
 		Return([]byte("Error: pull access denied"), errors.New("exit status 1"))
 
-	repo := ProvideDockerRepository(configRepo, secretsRepo, templater, commandRunner)
+	repo := NewDockerRepository(configRepo, secretsRepo, templater, commandRunner)
 
 	err := repo.PullImage("nonexistent:image")
 

@@ -5,8 +5,8 @@ import (
 	"sort"
 	"strings"
 
-	"dx/internal/core"
-	"dx/internal/ports"
+	"pilot/internal/core"
+	"pilot/internal/ports"
 )
 
 type ShowVarsCommandHandler struct {
@@ -14,7 +14,7 @@ type ShowVarsCommandHandler struct {
 	configRepository  ports.ConfigRepository
 }
 
-func ProvideShowVarsCommandHandler(
+func NewShowVarsCommandHandler(
 	secretsRepository ports.SecretsRepository,
 	configRepository ports.ConfigRepository,
 ) ShowVarsCommandHandler {

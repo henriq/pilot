@@ -1,7 +1,7 @@
 package ports
 
 import (
-	"dx/internal/core/domain"
+	"pilot/internal/core/domain"
 )
 
 type ContainerImageRepository interface {

@@ -6,10 +6,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"dx/internal/ports"
+	"pilot/internal/ports"
 )
 
-// testDir creates a unique test directory within ~/.dx/ and returns its path.
+// testDir creates a unique test directory within ~/.pilot/ and returns its path.
 // The directory is automatically cleaned up when the test completes.
 func testDir(t *testing.T) string {
 	t.Helper()
@@ -17,7 +17,7 @@ func testDir(t *testing.T) string {
 	if err != nil {
 		t.Fatalf("failed to get home dir: %v", err)
 	}
-	dir := filepath.Join(home, ".dx", "test-"+t.Name())
+	dir := filepath.Join(home, ".pilot", "test-"+t.Name())
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		t.Fatalf("failed to create test dir: %v", err)
 	}
@@ -25,22 +25,22 @@ func testDir(t *testing.T) string {
 	return dir
 }
 
-func TestValidatePath_AllowsPathsWithinDxDirectory(t *testing.T) {
+func TestValidatePath_AllowsPathsWithinPilotDirectory(t *testing.T) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		t.Fatalf("failed to get home dir: %v", err)
 	}
-	dxPath := filepath.Join(home, ".dx")
+	pilotPath := filepath.Join(home, ".pilot")
 
 	tests := []struct {
 		name string
 		path string
 	}{
-		{"tilde path", "~/.dx/config.yaml"},
-		{"tilde nested path", "~/.dx/contexts/dev/config.yaml"},
-		{"absolute path", filepath.Join(dxPath, "config.yaml")},
-		{"absolute nested path", filepath.Join(dxPath, "contexts", "dev", "config.yaml")},
-		{"dx directory itself", "~/.dx"},
+		{"tilde path", "~/.pilot/config.yaml"},
+		{"tilde nested path", "~/.pilot/contexts/dev/config.yaml"},
+		{"absolute path", filepath.Join(pilotPath, "config.yaml")},
+		{"absolute nested path", filepath.Join(pilotPath, "contexts", "dev", "config.yaml")},
+		{"pilot directory itself", "~/.pilot"},
 	}
 
 	for _, tt := range tests {
@@ -63,8 +63,8 @@ func TestValidatePath_AllowsConfigFile(t *testing.T) {
 		name string
 		path string
 	}{
-		{"tilde config path", "~/.dx-config.yaml"},
-		{"absolute config path", filepath.Join(home, ".dx-config.yaml")},
+		{"tilde config path", "~/.pilot-config.yaml"},
+		{"absolute config path", filepath.Join(home, ".pilot-config.yaml")},
 	}
 
 	for _, tt := range tests {
@@ -77,7 +77,7 @@ func TestValidatePath_AllowsConfigFile(t *testing.T) {
 	}
 }
 
-func TestValidatePath_DeniesPathsOutsideDxDirectory(t *testing.T) {
+func TestValidatePath_DeniesPathsOutsidePilotDirectory(t *testing.T) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		t.Fatalf("failed to get home dir: %v", err)
@@ -91,12 +91,12 @@ func TestValidatePath_DeniesPathsOutsideDxDirectory(t *testing.T) {
 		{"other home subdirectory", "~/.config/something"},
 		{"absolute root", "/etc/passwd"},
 		{"absolute home", home},
-		{"path traversal from dx", "~/.dx/../.ssh/id_rsa"},
-		{"path traversal nested", "~/.dx/foo/../../.ssh/id_rsa"},
-		{"similar prefix", "~/.dx-other/config"},
-		{"similar prefix absolute", filepath.Join(home, ".dx-other", "config")},
-		{"config file with extra path", "~/.dx-config.yaml/something"},
-		{"config file traversal", "~/.dx-config.yaml/../.ssh/id_rsa"},
+		{"path traversal from pilot", "~/.pilot/../.ssh/id_rsa"},
+		{"path traversal nested", "~/.pilot/foo/../../.ssh/id_rsa"},
+		{"similar prefix", "~/.pilot-other/config"},
+		{"similar prefix absolute", filepath.Join(home, ".pilot-other", "config")},
+		{"config file with extra path", "~/.pilot-config.yaml/something"},
+		{"config file traversal", "~/.pilot-config.yaml/../.ssh/id_rsa"},
 	}
 
 	for _, tt := range tests {
@@ -119,7 +119,7 @@ func TestValidatePath_DeniesEmptyPath(t *testing.T) {
 func TestValidatePath_DeniesSymlinkEscape(t *testing.T) {
 	dir := testDir(t)
 
-	// Create a symlink inside ~/.dx/ that points outside
+	// Create a symlink inside ~/.pilot/ that points outside
 	symlinkPath := filepath.Join(dir, "escape-link")
 	targetPath := "/tmp"
 
@@ -136,10 +136,10 @@ func TestValidatePath_DeniesSymlinkEscape(t *testing.T) {
 	}
 }
 
-func TestValidatePath_AllowsSymlinkWithinDx(t *testing.T) {
+func TestValidatePath_AllowsSymlinkWithinPilot(t *testing.T) {
 	dir := testDir(t)
 
-	// Create a subdirectory and a symlink to it within ~/.dx/
+	// Create a subdirectory and a symlink to it within ~/.pilot/
 	subdir := filepath.Join(dir, "subdir")
 	if err := os.MkdirAll(subdir, 0700); err != nil {
 		t.Fatalf("failed to create subdir: %v", err)
@@ -150,17 +150,17 @@ func TestValidatePath_AllowsSymlinkWithinDx(t *testing.T) {
 		t.Skipf("cannot create symlink: %v", err)
 	}
 
-	// Accessing through symlink within ~/.dx/ should be allowed
+	// Accessing through symlink within ~/.pilot/ should be allowed
 	accessPath := filepath.Join(symlinkPath, "file.txt")
 
 	_, err := validatePath(accessPath)
 	if err != nil {
-		t.Errorf("validatePath(%q) = %v, expected nil (symlink within ~/.dx/)", accessPath, err)
+		t.Errorf("validatePath(%q) = %v, expected nil (symlink within ~/.pilot/)", accessPath, err)
 	}
 }
 
-func TestOsFileSystem_AllMethods_DenyAccessOutsideDx(t *testing.T) {
-	fs := ProvideOsFileSystem()
+func TestOsFileSystem_AllMethods_DenyAccessOutsidePilot(t *testing.T) {
+	fs := NewOsFileSystem()
 
 	tests := []struct {
 		name   string
@@ -183,7 +183,7 @@ func TestOsFileSystem_AllMethods_DenyAccessOutsideDx(t *testing.T) {
 }
 
 func TestOsFileSystem_AllMethods_DenyEmptyPath(t *testing.T) {
-	fs := ProvideOsFileSystem()
+	fs := NewOsFileSystem()
 
 	tests := []struct {
 		name   string
@@ -207,8 +207,8 @@ func TestOsFileSystem_AllMethods_DenyEmptyPath(t *testing.T) {
 	}
 }
 
-func TestOsFileSystem_ReadWriteRoundTrip_WithinDx(t *testing.T) {
-	fs := ProvideOsFileSystem()
+func TestOsFileSystem_ReadWriteRoundTrip_WithinPilot(t *testing.T) {
+	fs := NewOsFileSystem()
 	dir := testDir(t)
 
 	testFile := filepath.Join(dir, "roundtrip.txt")
@@ -241,13 +241,13 @@ func TestOsFileSystem_ReadWriteRoundTrip_WithinDx(t *testing.T) {
 }
 
 func TestOsFileSystem_ReadWriteConfigFile(t *testing.T) {
-	fs := ProvideOsFileSystem()
+	fs := NewOsFileSystem()
 	home, err := os.UserHomeDir()
 	if err != nil {
 		t.Fatalf("failed to get home dir: %v", err)
 	}
 
-	configFile := filepath.Join(home, ".dx-config.yaml")
+	configFile := filepath.Join(home, ".pilot-config.yaml")
 
 	// Check if config file exists and back it up
 	existingContent, existsErr := os.ReadFile(configFile) //nolint:gosec // test reading known config path
@@ -282,7 +282,7 @@ func TestOsFileSystem_ReadWriteConfigFile(t *testing.T) {
 }
 
 func TestOsFileSystem_FileExists_ReturnsFalseForNonExistent(t *testing.T) {
-	fs := ProvideOsFileSystem()
+	fs := NewOsFileSystem()
 	dir := testDir(t)
 
 	nonExistentFile := filepath.Join(dir, "does-not-exist.txt")
@@ -297,7 +297,7 @@ func TestOsFileSystem_FileExists_ReturnsFalseForNonExistent(t *testing.T) {
 }
 
 func TestOsFileSystem_EnsureDirExists_CreatesParentDirectories(t *testing.T) {
-	fs := ProvideOsFileSystem()
+	fs := NewOsFileSystem()
 	dir := testDir(t)
 
 	deepPath := filepath.Join(dir, "a", "b", "c", "file.txt")
@@ -319,7 +319,7 @@ func TestOsFileSystem_EnsureDirExists_CreatesParentDirectories(t *testing.T) {
 }
 
 func TestOsFileSystem_WriteFile_AccessModes(t *testing.T) {
-	fs := ProvideOsFileSystem()
+	fs := NewOsFileSystem()
 	dir := testDir(t)
 
 	tests := []struct {
@@ -356,10 +356,10 @@ func TestOsFileSystem_WriteFile_AccessModes(t *testing.T) {
 }
 
 func TestOsFileSystem_DeniesSymlinkEscapeAttack(t *testing.T) {
-	fs := ProvideOsFileSystem()
+	fs := NewOsFileSystem()
 	dir := testDir(t)
 
-	// Create a symlink inside ~/.dx/ that points to /tmp
+	// Create a symlink inside ~/.pilot/ that points to /tmp
 	symlinkPath := filepath.Join(dir, "malicious-link")
 	if err := os.Symlink("/tmp", symlinkPath); err != nil {
 		t.Skipf("cannot create symlink: %v", err)
@@ -412,7 +412,7 @@ func TestOsFileSystem_DeniesSymlinkEscapeAttack(t *testing.T) {
 }
 
 func TestOsFileSystem_MkdirAll_CreatesDirectory(t *testing.T) {
-	fs := ProvideOsFileSystem()
+	fs := NewOsFileSystem()
 	dir := testDir(t)
 
 	newDir := filepath.Join(dir, "new", "nested", "directory")
@@ -431,17 +431,17 @@ func TestOsFileSystem_MkdirAll_CreatesDirectory(t *testing.T) {
 	}
 }
 
-func TestOsFileSystem_MkdirAll_DeniesAccessOutsideDx(t *testing.T) {
-	fs := ProvideOsFileSystem()
+func TestOsFileSystem_MkdirAll_DeniesAccessOutsidePilot(t *testing.T) {
+	fs := NewOsFileSystem()
 
 	err := fs.MkdirAll("/tmp/test-mkdir", ports.ReadWriteExecute)
 	if !errors.Is(err, ErrAccessDenied) {
-		t.Errorf("MkdirAll outside ~/.dx/ = %v, expected ErrAccessDenied", err)
+		t.Errorf("MkdirAll outside ~/.pilot/ = %v, expected ErrAccessDenied", err)
 	}
 }
 
 func TestOsFileSystem_RemoveAll_RemovesDirectory(t *testing.T) {
-	fs := ProvideOsFileSystem()
+	fs := NewOsFileSystem()
 	dir := testDir(t)
 
 	// Create a directory with content
@@ -463,12 +463,12 @@ func TestOsFileSystem_RemoveAll_RemovesDirectory(t *testing.T) {
 	}
 }
 
-func TestOsFileSystem_RemoveAll_DeniesAccessOutsideDx(t *testing.T) {
-	fs := ProvideOsFileSystem()
+func TestOsFileSystem_RemoveAll_DeniesAccessOutsidePilot(t *testing.T) {
+	fs := NewOsFileSystem()
 
 	err := fs.RemoveAll("/tmp/test-remove")
 	if !errors.Is(err, ErrAccessDenied) {
-		t.Errorf("RemoveAll outside ~/.dx/ = %v, expected ErrAccessDenied", err)
+		t.Errorf("RemoveAll outside ~/.pilot/ = %v, expected ErrAccessDenied", err)
 	}
 }
 
@@ -483,10 +483,10 @@ func TestExpandPath_CrossPlatform(t *testing.T) {
 		input    string
 		expected string
 	}{
-		{"tilde with forward slash", "~/.dx/config", filepath.Join(home, ".dx", "config")},
-		{"tilde with backslash", "~\\.dx\\config", filepath.Join(home, ".dx", "config")},
+		{"tilde with forward slash", "~/.pilot/config", filepath.Join(home, ".pilot", "config")},
+		{"tilde with backslash", "~\\.pilot\\config", filepath.Join(home, ".pilot", "config")},
 		{"tilde only", "~", home},
-		{"tilde with mixed separators", "~/.dx\\subdir/file", filepath.Join(home, ".dx", "subdir", "file")},
+		{"tilde with mixed separators", "~/.pilot\\subdir/file", filepath.Join(home, ".pilot", "subdir", "file")},
 	}
 
 	for _, tt := range tests {
@@ -537,10 +537,10 @@ func TestPathsEqual(t *testing.T) {
 		b        string
 		expected bool
 	}{
-		{"identical paths", "/home/user/.dx", "/home/user/.dx", true},
-		{"different paths", "/home/user/.dx", "/home/other/.dx", false},
+		{"identical paths", "/home/user/.pilot", "/home/user/.pilot", true},
+		{"different paths", "/home/user/.pilot", "/home/other/.pilot", false},
 		{"empty paths", "", "", true},
-		{"one empty", "/home/user/.dx", "", false},
+		{"one empty", "/home/user/.pilot", "", false},
 	}
 
 	for _, tt := range tests {
@@ -556,8 +556,8 @@ func TestPathsEqual(t *testing.T) {
 func TestPathsEqual_CaseSensitivity(t *testing.T) {
 	// This test verifies behavior differs by OS
 	// On Windows: case-insensitive, on Unix: case-sensitive
-	a := "/Home/User/.dx"
-	b := "/home/user/.dx"
+	a := "/Home/User/.pilot"
+	b := "/home/user/.pilot"
 
 	result := pathsEqual(a, b)
 
@@ -573,11 +573,11 @@ func TestPathHasPrefix(t *testing.T) {
 		prefix   string
 		expected bool
 	}{
-		{"has prefix", "/home/user/.dx/config", "/home/user/.dx/", true},
-		{"exact match", "/home/user/.dx/", "/home/user/.dx/", true},
-		{"no prefix", "/home/user/.dx/config", "/home/other/", false},
-		{"partial match not prefix", "/home/user/.dx-other", "/home/user/.dx/", false},
-		{"empty prefix", "/home/user/.dx", "", true},
+		{"has prefix", "/home/user/.pilot/config", "/home/user/.pilot/", true},
+		{"exact match", "/home/user/.pilot/", "/home/user/.pilot/", true},
+		{"no prefix", "/home/user/.pilot/config", "/home/other/", false},
+		{"partial match not prefix", "/home/user/.pilot-other", "/home/user/.pilot/", false},
+		{"empty prefix", "/home/user/.pilot", "", true},
 		{"empty path", "", "/home/", false},
 	}
 
@@ -594,8 +594,8 @@ func TestPathHasPrefix(t *testing.T) {
 func TestPathHasPrefix_CaseSensitivity(t *testing.T) {
 	// This test verifies behavior differs by OS
 	// On Windows: case-insensitive, on Unix: case-sensitive
-	path := "/Home/User/.dx/config"
-	prefix := "/home/user/.dx/"
+	path := "/Home/User/.pilot/config"
+	prefix := "/home/user/.pilot/"
 
 	result := pathHasPrefix(path, prefix)
 
@@ -631,7 +631,7 @@ func TestValidatePath_DeniesChainedSymlinkEscape(t *testing.T) {
 }
 
 func TestOsFileSystem_DeniesChainedSymlinkEscape(t *testing.T) {
-	fs := ProvideOsFileSystem()
+	fs := NewOsFileSystem()
 	dir := testDir(t)
 
 	// Create a chain of symlinks: link1 -> link2 -> link3 -> /tmp

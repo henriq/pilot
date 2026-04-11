@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"dx/cmd/cli/app"
+	"pilot/cmd/cli/app"
 
 	"github.com/spf13/cobra"
 )
@@ -18,13 +18,13 @@ If no services are specified, removes all services in the current profile.
 
 This uses Helm to uninstall the deployed releases.`,
 	Example: `  # Uninstall all services in the default profile
-  dx uninstall
+  pilot uninstall
 
   # Uninstall specific services
-  dx uninstall api database
+  pilot uninstall api database
 
   # Uninstall all services regardless of profile
-  dx uninstall -p all`,
+  pilot uninstall -p all`,
 	Args:              ServiceArgsValidator,
 	ValidArgsFunction: ServiceArgsCompletion,
 	RunE: func(cmd *cobra.Command, args []string) error {

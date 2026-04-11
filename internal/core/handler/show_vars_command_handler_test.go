@@ -7,8 +7,8 @@ import (
 	"os"
 	"testing"
 
-	"dx/internal/core/domain"
-	"dx/internal/testutil"
+	"pilot/internal/core/domain"
+	"pilot/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,7 +33,7 @@ func TestShowVarsCommandHandler_Handle_Success(t *testing.T) {
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	secretsRepository.On("LoadSecrets", "test-context").Return(secrets, nil)
 
-	sut := ProvideShowVarsCommandHandler(secretsRepository, configRepository)
+	sut := NewShowVarsCommandHandler(secretsRepository, configRepository)
 
 	err := sut.Handle()
 
@@ -57,7 +57,7 @@ func TestShowVarsCommandHandler_Handle_NoSecrets(t *testing.T) {
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	secretsRepository.On("LoadSecrets", "test-context").Return(secrets, nil)
 
-	sut := ProvideShowVarsCommandHandler(secretsRepository, configRepository)
+	sut := NewShowVarsCommandHandler(secretsRepository, configRepository)
 
 	err := sut.Handle()
 
@@ -73,7 +73,7 @@ func TestShowVarsCommandHandler_Handle_LoadContextNameError(t *testing.T) {
 	expectedErr := errors.New("load context name error")
 	configRepository.On("LoadCurrentContextName").Return("", expectedErr)
 
-	sut := ProvideShowVarsCommandHandler(secretsRepository, configRepository)
+	sut := NewShowVarsCommandHandler(secretsRepository, configRepository)
 
 	err := sut.Handle()
 
@@ -90,7 +90,7 @@ func TestShowVarsCommandHandler_Handle_LoadConfigError(t *testing.T) {
 	configRepository.On("LoadCurrentContextName").Return("test-context", nil)
 	configRepository.On("LoadCurrentConfigurationContext").Return(nil, expectedErr)
 
-	sut := ProvideShowVarsCommandHandler(secretsRepository, configRepository)
+	sut := NewShowVarsCommandHandler(secretsRepository, configRepository)
 
 	err := sut.Handle()
 
@@ -110,7 +110,7 @@ func TestShowVarsCommandHandler_Handle_LoadSecretsError(t *testing.T) {
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	secretsRepository.On("LoadSecrets", "test-context").Return(nil, expectedErr)
 
-	sut := ProvideShowVarsCommandHandler(secretsRepository, configRepository)
+	sut := NewShowVarsCommandHandler(secretsRepository, configRepository)
 
 	err := sut.Handle()
 
@@ -192,7 +192,7 @@ func TestShowVarsCommandHandler_Handle_SortedOutput(t *testing.T) {
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	secretsRepository.On("LoadSecrets", "test-context").Return(secrets, nil)
 
-	sut := ProvideShowVarsCommandHandler(secretsRepository, configRepository)
+	sut := NewShowVarsCommandHandler(secretsRepository, configRepository)
 
 	// Capture stdout
 	oldStdout := os.Stdout

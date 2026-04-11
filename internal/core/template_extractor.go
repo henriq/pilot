@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"dx/internal/core/domain"
+	"pilot/internal/core/domain"
 )
 
 // templateVarRegex matches Go template variable references like {{.Secrets.KEY}} or {{- .Services.foo.path -}}

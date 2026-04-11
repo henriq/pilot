@@ -3,9 +3,9 @@ package handler
 import (
 	"testing"
 
-	"dx/internal/core"
-	"dx/internal/core/domain"
-	"dx/internal/testutil"
+	"pilot/internal/core"
+	"pilot/internal/core/domain"
+	"pilot/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -47,19 +47,19 @@ func TestUninstallCommandHandler_HandleUninstallsAllServices(t *testing.T) {
 	fileSystem := new(testutil.MockFileSystem)
 	fileSystem.On("HomeDir").Return("/home/test", nil)
 	containerImageRepository := new(testutil.MockContainerImageRepository)
-	configGenerator := core.ProvideDevProxyConfigGenerator()
-	devProxyManager := core.ProvideDevProxyManager(
+	configGenerator := core.NewDevProxyConfigGenerator()
+	devProxyManager := core.NewDevProxyManager(
 		configRepository,
 		fileSystem,
 		containerImageRepository,
 		containerOrchestrator,
 		configGenerator,
 	)
-	environmentEnsurer := core.ProvideEnvironmentEnsurer(
+	environmentEnsurer := core.NewEnvironmentEnsurer(
 		configRepository,
 		containerOrchestrator,
 	)
-	sut := ProvideUninstallCommandHandler(
+	sut := NewUninstallCommandHandler(
 		configRepository,
 		containerOrchestrator,
 		environmentEnsurer,
@@ -101,19 +101,19 @@ func TestUninstallCommandHandler_HandleUninstallsOnlySelectedService(t *testing.
 	containerOrchestrator.On("HasDeployedServices").Return(true, nil)
 	fileSystem := new(testutil.MockFileSystem)
 	containerImageRepository := new(testutil.MockContainerImageRepository)
-	configGenerator := core.ProvideDevProxyConfigGenerator()
-	devProxyManager := core.ProvideDevProxyManager(
+	configGenerator := core.NewDevProxyConfigGenerator()
+	devProxyManager := core.NewDevProxyManager(
 		configRepository,
 		fileSystem,
 		containerImageRepository,
 		containerOrchestrator,
 		configGenerator,
 	)
-	environmentEnsurer := core.ProvideEnvironmentEnsurer(
+	environmentEnsurer := core.NewEnvironmentEnsurer(
 		configRepository,
 		containerOrchestrator,
 	)
-	sut := ProvideUninstallCommandHandler(
+	sut := NewUninstallCommandHandler(
 		configRepository,
 		containerOrchestrator,
 		environmentEnsurer,
@@ -133,19 +133,19 @@ func TestUninstallCommandHandler_Handle_EnsureExpectedClusterError(t *testing.T)
 	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("", assert.AnError)
 	fileSystem := new(testutil.MockFileSystem)
 	containerImageRepository := new(testutil.MockContainerImageRepository)
-	configGenerator := core.ProvideDevProxyConfigGenerator()
-	devProxyManager := core.ProvideDevProxyManager(
+	configGenerator := core.NewDevProxyConfigGenerator()
+	devProxyManager := core.NewDevProxyManager(
 		configRepository,
 		fileSystem,
 		containerImageRepository,
 		containerOrchestrator,
 		configGenerator,
 	)
-	environmentEnsurer := core.ProvideEnvironmentEnsurer(
+	environmentEnsurer := core.NewEnvironmentEnsurer(
 		configRepository,
 		containerOrchestrator,
 	)
-	sut := ProvideUninstallCommandHandler(
+	sut := NewUninstallCommandHandler(
 		configRepository,
 		containerOrchestrator,
 		environmentEnsurer,
@@ -172,19 +172,19 @@ func TestUninstallCommandHandler_Handle_LoadConfigError(t *testing.T) {
 	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("any-key", nil)
 	fileSystem := new(testutil.MockFileSystem)
 	containerImageRepository := new(testutil.MockContainerImageRepository)
-	configGenerator := core.ProvideDevProxyConfigGenerator()
-	devProxyManager := core.ProvideDevProxyManager(
+	configGenerator := core.NewDevProxyConfigGenerator()
+	devProxyManager := core.NewDevProxyManager(
 		configRepository,
 		fileSystem,
 		containerImageRepository,
 		containerOrchestrator,
 		configGenerator,
 	)
-	environmentEnsurer := core.ProvideEnvironmentEnsurer(
+	environmentEnsurer := core.NewEnvironmentEnsurer(
 		configRepository,
 		containerOrchestrator,
 	)
-	sut := ProvideUninstallCommandHandler(
+	sut := NewUninstallCommandHandler(
 		configRepository,
 		containerOrchestrator,
 		environmentEnsurer,

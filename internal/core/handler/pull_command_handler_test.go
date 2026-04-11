@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"dx/internal/core/domain"
-	"dx/internal/testutil"
+	"pilot/internal/core/domain"
+	"pilot/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -45,7 +45,7 @@ func TestPullCommandHandler_Handle_PullsAllImages(t *testing.T) {
 	terminalInput.On("IsTerminal").Return(true)
 	terminalInput.On("ReadLine", "Continue? [y/N] ").Return("y", nil)
 
-	sut := ProvidePullCommandHandler(configRepository, containerImageRepository, terminalInput)
+	sut := NewPullCommandHandler(configRepository, containerImageRepository, terminalInput)
 
 	err := sut.Handle([]string{}, "all", false)
 
@@ -77,7 +77,7 @@ func TestPullCommandHandler_Handle_FiltersServicesByProfile(t *testing.T) {
 
 	terminalInput := new(testutil.MockTerminalInput)
 
-	sut := ProvidePullCommandHandler(configRepository, containerImageRepository, terminalInput)
+	sut := NewPullCommandHandler(configRepository, containerImageRepository, terminalInput)
 
 	err := sut.Handle([]string{}, "selected", false)
 
@@ -110,7 +110,7 @@ func TestPullCommandHandler_Handle_FiltersServicesByName(t *testing.T) {
 
 	terminalInput := new(testutil.MockTerminalInput)
 
-	sut := ProvidePullCommandHandler(configRepository, containerImageRepository, terminalInput)
+	sut := NewPullCommandHandler(configRepository, containerImageRepository, terminalInput)
 
 	err := sut.Handle([]string{"service-1"}, "all", false)
 
@@ -145,7 +145,7 @@ func TestPullCommandHandler_Handle_DeduplicatesImages(t *testing.T) {
 
 	terminalInput := new(testutil.MockTerminalInput)
 
-	sut := ProvidePullCommandHandler(configRepository, containerImageRepository, terminalInput)
+	sut := NewPullCommandHandler(configRepository, containerImageRepository, terminalInput)
 
 	err := sut.Handle([]string{}, "all", false)
 
@@ -172,7 +172,7 @@ func TestPullCommandHandler_Handle_NoImagesReturnsEarly(t *testing.T) {
 
 	terminalInput := new(testutil.MockTerminalInput)
 
-	sut := ProvidePullCommandHandler(configRepository, containerImageRepository, terminalInput)
+	sut := NewPullCommandHandler(configRepository, containerImageRepository, terminalInput)
 
 	err := sut.Handle([]string{}, "all", false)
 
@@ -200,7 +200,7 @@ func TestPullCommandHandler_Handle_PullError(t *testing.T) {
 
 	terminalInput := new(testutil.MockTerminalInput)
 
-	sut := ProvidePullCommandHandler(configRepository, containerImageRepository, terminalInput)
+	sut := NewPullCommandHandler(configRepository, containerImageRepository, terminalInput)
 
 	err := sut.Handle([]string{}, "all", false)
 
@@ -231,7 +231,7 @@ func TestPullCommandHandler_Handle_ConfirmationPrompt_UserConfirms(t *testing.T)
 	terminalInput.On("IsTerminal").Return(true)
 	terminalInput.On("ReadLine", "Continue? [y/N] ").Return("yes", nil)
 
-	sut := ProvidePullCommandHandler(configRepository, containerImageRepository, terminalInput)
+	sut := NewPullCommandHandler(configRepository, containerImageRepository, terminalInput)
 
 	err := sut.Handle([]string{}, "all", false)
 
@@ -262,7 +262,7 @@ func TestPullCommandHandler_Handle_ConfirmationPrompt_UserDeclines(t *testing.T)
 	terminalInput.On("IsTerminal").Return(true)
 	terminalInput.On("ReadLine", "Continue? [y/N] ").Return("n", nil)
 
-	sut := ProvidePullCommandHandler(configRepository, containerImageRepository, terminalInput)
+	sut := NewPullCommandHandler(configRepository, containerImageRepository, terminalInput)
 
 	err := sut.Handle([]string{}, "all", false)
 
@@ -292,7 +292,7 @@ func TestPullCommandHandler_Handle_SkipConfirmation(t *testing.T) {
 
 	terminalInput := new(testutil.MockTerminalInput)
 
-	sut := ProvidePullCommandHandler(configRepository, containerImageRepository, terminalInput)
+	sut := NewPullCommandHandler(configRepository, containerImageRepository, terminalInput)
 
 	// skipConfirmation = true
 	err := sut.Handle([]string{}, "all", true)
@@ -324,7 +324,7 @@ func TestPullCommandHandler_Handle_NonTerminal_RequiresYesFlag(t *testing.T) {
 	terminalInput := new(testutil.MockTerminalInput)
 	terminalInput.On("IsTerminal").Return(false)
 
-	sut := ProvidePullCommandHandler(configRepository, containerImageRepository, terminalInput)
+	sut := NewPullCommandHandler(configRepository, containerImageRepository, terminalInput)
 
 	err := sut.Handle([]string{}, "all", false)
 
@@ -342,7 +342,7 @@ func TestPullCommandHandler_Handle_LoadConfigError(t *testing.T) {
 	containerImageRepository := new(testutil.MockContainerImageRepository)
 	terminalInput := new(testutil.MockTerminalInput)
 
-	sut := ProvidePullCommandHandler(configRepository, containerImageRepository, terminalInput)
+	sut := NewPullCommandHandler(configRepository, containerImageRepository, terminalInput)
 
 	err := sut.Handle([]string{}, "all", false)
 
@@ -373,7 +373,7 @@ func TestPullCommandHandler_Handle_ReadLineError(t *testing.T) {
 	terminalInput.On("IsTerminal").Return(true)
 	terminalInput.On("ReadLine", "Continue? [y/N] ").Return("", expectedErr)
 
-	sut := ProvidePullCommandHandler(configRepository, containerImageRepository, terminalInput)
+	sut := NewPullCommandHandler(configRepository, containerImageRepository, terminalInput)
 
 	err := sut.Handle([]string{}, "all", false)
 
@@ -401,7 +401,7 @@ func TestPullCommandHandler_Handle_ServiceNameBypassesProfileFilter(t *testing.T
 
 	terminalInput := new(testutil.MockTerminalInput)
 
-	sut := ProvidePullCommandHandler(configRepository, containerImageRepository, terminalInput)
+	sut := NewPullCommandHandler(configRepository, containerImageRepository, terminalInput)
 
 	err := sut.Handle([]string{"service-1"}, "default", false)
 
@@ -427,7 +427,7 @@ func TestPullCommandHandler_Handle_NonexistentServiceReturnsEarly(t *testing.T) 
 
 	terminalInput := new(testutil.MockTerminalInput)
 
-	sut := ProvidePullCommandHandler(configRepository, containerImageRepository, terminalInput)
+	sut := NewPullCommandHandler(configRepository, containerImageRepository, terminalInput)
 
 	err := sut.Handle([]string{"nonexistent"}, "all", false)
 
@@ -454,7 +454,7 @@ func TestPullCommandHandler_Handle_RemoteOnlyImagesSkipConfirmation(t *testing.T
 
 	terminalInput := new(testutil.MockTerminalInput)
 
-	sut := ProvidePullCommandHandler(configRepository, containerImageRepository, terminalInput)
+	sut := NewPullCommandHandler(configRepository, containerImageRepository, terminalInput)
 
 	err := sut.Handle([]string{}, "all", false)
 

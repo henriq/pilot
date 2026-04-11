@@ -178,7 +178,7 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: {{ .Name }}-dx
+  name: {{ .Name }}-pilot
 spec:
   tls:
   - hosts:

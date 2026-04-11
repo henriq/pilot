@@ -8,16 +8,16 @@ import (
 	"slices"
 	"strings"
 
-	"dx/internal/core/domain"
-	"dx/internal/ports"
+	"pilot/internal/core/domain"
+	"pilot/internal/ports"
 
 	"gopkg.in/yaml.v3"
 )
 
 var _ ports.ConfigRepository = (*FileSystemConfigRepository)(nil)
 
-var configFilePath = filepath.Join("~", ".dx-config.yaml")
-var currentContextPath = filepath.Join("~", ".dx", "current-context")
+var configFilePath = filepath.Join("~", ".pilot-config.yaml")
+var currentContextPath = filepath.Join("~", ".pilot", "current-context")
 
 type FileSystemConfigRepository struct {
 	fileService       ports.FileSystem
@@ -26,7 +26,7 @@ type FileSystemConfigRepository struct {
 	config            *domain.Config
 }
 
-func ProvideFileSystemConfigRepository(
+func NewFileSystemConfigRepository(
 	fileService ports.FileSystem,
 	secretsRepository ports.SecretsRepository,
 	templater ports.Templater,
@@ -64,7 +64,7 @@ func (c *FileSystemConfigRepository) LoadConfig() (*domain.Config, error) {
 		if context.Import != nil {
 			// Import paths are user-specified and may point to any location on the filesystem.
 			// This is intentional - users may want to import shared config from project directories.
-			// We use os.ReadFile directly since the restricted FileSystem is only for ~/.dx/ paths.
+			// We use os.ReadFile directly since the restricted FileSystem is only for ~/.pilot/ paths.
 			importPath := expandImportPath(*context.Import, home)
 			data, err := os.ReadFile(importPath) //nolint:gosec // import paths intentionally unrestricted per design
 			if err != nil {
@@ -87,7 +87,7 @@ func (c *FileSystemConfigRepository) LoadConfig() (*domain.Config, error) {
 			if !slices.Contains(service.Profiles, "all") {
 				service.Profiles = append(service.Profiles, "all")
 			}
-			service.HelmPath = filepath.Join(home, ".dx", context.Name, "charts", shortHash(service.HelmRepoPath, service.HelmBranch))
+			service.HelmPath = filepath.Join(home, ".pilot", context.Name, "charts", shortHash(service.HelmRepoPath, service.HelmBranch))
 			for k := range context.Services[j].DockerImages {
 				image := &config.Contexts[i].Services[j].DockerImages[k]
 				if image.GitRepoPath == "" {
@@ -97,10 +97,10 @@ func (c *FileSystemConfigRepository) LoadConfig() (*domain.Config, error) {
 					image.GitRef = service.GitRef
 				}
 
-				image.Path = filepath.Join(home, ".dx", context.Name, service.Name, shortHash(image.GitRepoPath, image.GitRef))
+				image.Path = filepath.Join(home, ".pilot", context.Name, service.Name, shortHash(image.GitRepoPath, image.GitRef))
 			}
 			if service.GitRepoPath != "" && service.GitRef != "" {
-				service.Path = filepath.Join(home, ".dx", context.Name, service.Name, shortHash(service.GitRepoPath, service.GitRef))
+				service.Path = filepath.Join(home, ".pilot", context.Name, service.Name, shortHash(service.GitRepoPath, service.GitRef))
 			}
 		}
 	}
@@ -116,7 +116,7 @@ func (c *FileSystemConfigRepository) LoadConfig() (*domain.Config, error) {
 }
 
 func (c *FileSystemConfigRepository) LoadEnvKey(contextName string) (string, error) {
-	envKeyPath := filepath.Join("~", ".dx", contextName, "env-key")
+	envKeyPath := filepath.Join("~", ".pilot", contextName, "env-key")
 
 	fileExists, err := c.fileService.FileExists(envKeyPath)
 	if err != nil {
@@ -152,14 +152,14 @@ func (c *FileSystemConfigRepository) LoadCurrentContextName() (string, error) {
 		return "", fmt.Errorf("failed to read current context file: %v", err)
 	}
 	contextName := strings.TrimSpace(string(data))
-	if err := validateContextName(contextName); err != nil {
+	if err := domain.ValidateContextName(contextName); err != nil {
 		return "", fmt.Errorf("invalid context name in current-context file: %w", err)
 	}
 	return contextName, nil
 }
 
 func (c *FileSystemConfigRepository) SaveCurrentContextName(currentContextName string) error {
-	if err := validateContextName(currentContextName); err != nil {
+	if err := domain.ValidateContextName(currentContextName); err != nil {
 		return fmt.Errorf("invalid context name: %w", err)
 	}
 	return c.fileService.WriteFile(currentContextPath, []byte(currentContextName), ports.ReadWrite)
@@ -221,20 +221,6 @@ func expandImportPath(path string, home string) string {
 		return home
 	}
 	return path
-}
-
-// validateContextName checks that a context name doesn't contain path traversal characters.
-func validateContextName(name string) error {
-	if name == "" {
-		return fmt.Errorf("context name cannot be empty")
-	}
-	if strings.Contains(name, "..") ||
-		strings.Contains(name, "/") ||
-		strings.Contains(name, "\\") ||
-		strings.Contains(name, "\x00") {
-		return fmt.Errorf("context name contains invalid characters")
-	}
-	return nil
 }
 
 func mergeConfigurationContexts(

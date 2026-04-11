@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"dx/internal/ports"
+	"pilot/internal/ports"
 )
 
 var sanitizeNameRegex = regexp.MustCompile(`[^a-zA-Z0-9\-_]`)
@@ -26,8 +26,8 @@ type ChartWrapper struct {
 	fileSystem ports.FileSystem
 }
 
-// ProvideChartWrapper creates a new ChartWrapper.
-func ProvideChartWrapper(fileSystem ports.FileSystem) *ChartWrapper {
+// NewChartWrapper creates a new ChartWrapper.
+func NewChartWrapper(fileSystem ports.FileSystem) *ChartWrapper {
 	return &ChartWrapper{
 		fileSystem: fileSystem,
 	}
@@ -48,7 +48,7 @@ func (c *ChartWrapper) Generate(config WrapperChartConfig) (string, error) {
 		return "", fmt.Errorf("invalid context name: %s", config.ContextName)
 	}
 
-	basePath := filepath.Join("~", ".dx", safeContext, "wrapper-charts", safeName)
+	basePath := filepath.Join("~", ".pilot", safeContext, "wrapper-charts", safeName)
 
 	templatesPath := filepath.Join(basePath, "templates")
 	if err := c.fileSystem.MkdirAll(templatesPath, ports.ReadWriteExecute); err != nil {
@@ -108,7 +108,7 @@ func (c *ChartWrapper) Cleanup(contextName, releaseName string) error {
 		return fmt.Errorf("invalid context name: %s", contextName)
 	}
 
-	_ = c.fileSystem.RemoveAll(filepath.Join("~", ".dx", safeContext, "wrapper-charts", safeName))
+	_ = c.fileSystem.RemoveAll(filepath.Join("~", ".pilot", safeContext, "wrapper-charts", safeName))
 
 	return nil
 }
@@ -119,7 +119,7 @@ func (c *ChartWrapper) generateChartYaml(config WrapperChartConfig) string {
 
 	sb.WriteString("apiVersion: v2\n")
 	fmt.Fprintf(&sb, "name: %s-wrapper\n", config.ReleaseName)
-	fmt.Fprintf(&sb, "description: Wrapper chart for %s with dx patches applied\n", config.ReleaseName)
+	fmt.Fprintf(&sb, "description: Wrapper chart for %s with pilot patches applied\n", config.ReleaseName)
 	sb.WriteString("type: application\n")
 	sb.WriteString("version: 1.0.0\n")
 	sb.WriteString("appVersion: \"1.0.0\"\n")
@@ -128,10 +128,10 @@ func (c *ChartWrapper) generateChartYaml(config WrapperChartConfig) string {
 	if config.OriginalChartName != "" || config.OriginalChartPath != "" {
 		sb.WriteString("annotations:\n")
 		if config.OriginalChartName != "" {
-			fmt.Fprintf(&sb, "  dx.wrapped-chart: \"%s\"\n", escapeYamlString(config.OriginalChartName))
+			fmt.Fprintf(&sb, "  pilot.wrapped-chart: \"%s\"\n", escapeYamlString(config.OriginalChartName))
 		}
 		if config.OriginalChartPath != "" {
-			fmt.Fprintf(&sb, "  dx.wrapped-path: \"%s\"\n", escapeYamlString(config.OriginalChartPath))
+			fmt.Fprintf(&sb, "  pilot.wrapped-path: \"%s\"\n", escapeYamlString(config.OriginalChartPath))
 		}
 	}
 
@@ -169,8 +169,8 @@ func expandTildePath(path, homeDir string) (string, error) {
 		return filepath.Join(homeDir, path[2:]), nil
 	}
 
-	// Handle paths like "~/.dx" that use filepath.Join("~", ".dx")
-	// which produces "~/.dx" on Unix or "~\.dx" on Windows
+	// Handle paths like "~/.pilot" that use filepath.Join("~", ".pilot")
+	// which produces "~/.pilot" on Unix or "~\.pilot" on Windows
 	return filepath.Join(homeDir, path[1:]), nil
 }
 

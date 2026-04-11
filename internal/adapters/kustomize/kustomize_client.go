@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"dx/internal/ports"
+	"pilot/internal/ports"
 
 	"gopkg.in/yaml.v3"
 )
@@ -60,8 +60,8 @@ type Client struct {
 	fileSystem    ports.FileSystem
 }
 
-// ProvideKustomizeClient creates a KustomizeClient for Wire dependency injection.
-func ProvideKustomizeClient(commandRunner ports.CommandRunner, fileSystem ports.FileSystem) *Client {
+// NewClient creates a new kustomize Client.
+func NewClient(commandRunner ports.CommandRunner, fileSystem ports.FileSystem) *Client {
 	return &Client{
 		commandRunner: commandRunner,
 		fileSystem:    fileSystem,
@@ -128,7 +128,7 @@ func buildKustomization(patches []ports.Patch) (Kustomization, []PatchFile, erro
 		Resources:  []string{"resources.yaml"},
 		Labels: []Label{
 			{
-				Pairs:            map[string]string{"managed-by": "dx"},
+				Pairs:            map[string]string{"managed-by": "pilot"},
 				IncludeSelectors: false,
 			},
 		},

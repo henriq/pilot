@@ -1,32 +1,32 @@
 package keyring
 
 import (
-	"dx/internal/ports"
 	"errors"
+	"pilot/internal/ports"
 
 	"github.com/zalando/go-keyring"
 )
 
-const keyringService = "se.henriq.dx"
-
 var _ ports.Keyring = (*ZalandoKeyring)(nil)
 
-type ZalandoKeyring struct{}
+type ZalandoKeyring struct {
+	serviceName string
+}
 
-func ProvideZalandoKeyring() *ZalandoKeyring {
-	return &ZalandoKeyring{}
+func NewZalandoKeyring(serviceName string) *ZalandoKeyring {
+	return &ZalandoKeyring{serviceName: serviceName}
 }
 
 func (z ZalandoKeyring) GetKey(keyName string) (string, error) {
-	return keyring.Get(keyringService, keyName)
+	return keyring.Get(z.serviceName, keyName)
 }
 
 func (z ZalandoKeyring) SetKey(keyName string, keyValue string) error {
-	return keyring.Set(keyringService, keyName, keyValue)
+	return keyring.Set(z.serviceName, keyName, keyValue)
 }
 
 func (z ZalandoKeyring) HasKey(keyName string) (bool, error) {
-	_, err := keyring.Get(keyringService, keyName)
+	_, err := keyring.Get(z.serviceName, keyName)
 	if errors.Is(err, keyring.ErrNotFound) {
 		return false, nil
 	}
@@ -34,7 +34,7 @@ func (z ZalandoKeyring) HasKey(keyName string) (bool, error) {
 }
 
 func (z ZalandoKeyring) DeleteKey(keyName string) error {
-	err := keyring.Delete(keyringService, keyName)
+	err := keyring.Delete(z.serviceName, keyName)
 	if errors.Is(err, keyring.ErrNotFound) {
 		return nil
 	}

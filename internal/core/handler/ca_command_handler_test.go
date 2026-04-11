@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"dx/internal/core"
-	"dx/internal/core/domain"
-	"dx/internal/testutil"
+	"pilot/internal/core"
+	"pilot/internal/core/domain"
+	"pilot/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -23,7 +23,7 @@ func passingEnvironmentEnsurer(
 	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("matching-key", nil)
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil).Maybe()
 	configRepository.On("LoadEnvKey", configContext.Name).Return("matching-key", nil).Maybe()
-	return core.ProvideEnvironmentEnsurer(configRepository, containerOrchestrator)
+	return core.NewEnvironmentEnsurer(configRepository, containerOrchestrator)
 }
 
 // failingEnvironmentEnsurer returns an EnvironmentEnsurer that will fail with a key mismatch.
@@ -32,7 +32,7 @@ func failingEnvironmentEnsurer(configRepository *testutil.MockConfigRepository, 
 	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("current-key", nil)
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil).Maybe()
 	configRepository.On("LoadEnvKey", configContext.Name).Return("different-key", nil).Maybe()
-	return core.ProvideEnvironmentEnsurer(configRepository, containerOrchestrator)
+	return core.NewEnvironmentEnsurer(configRepository, containerOrchestrator)
 }
 
 func TestCACommandHandler_HandlePrint_Success(t *testing.T) {
@@ -42,12 +42,12 @@ func TestCACommandHandler_HandlePrint_Success(t *testing.T) {
 	mockCA := new(testutil.MockCertificateAuthority)
 	mockCA.On("GetCACertificatePEM", "test-ctx").Return([]byte("-----BEGIN CERTIFICATE-----\ntest\n-----END CERTIFICATE-----\n"), nil)
 
-	sut := ProvideCACommandHandler(
+	sut := NewCACommandHandler(
 		configRepository,
 		mockCA,
 		noCertProvisioner(),
 		new(testutil.MockTerminalInput),
-		core.ProvideEnvironmentEnsurer(configRepository, new(testutil.MockContainerOrchestrator)),
+		core.NewEnvironmentEnsurer(configRepository, new(testutil.MockContainerOrchestrator)),
 	)
 
 	err := sut.HandlePrint()
@@ -64,12 +64,12 @@ func TestCACommandHandler_HandlePrint_NoCA(t *testing.T) {
 	mockCA := new(testutil.MockCertificateAuthority)
 	mockCA.On("GetCACertificatePEM", "test-ctx").Return(nil, assert.AnError)
 
-	sut := ProvideCACommandHandler(
+	sut := NewCACommandHandler(
 		configRepository,
 		mockCA,
 		noCertProvisioner(),
 		new(testutil.MockTerminalInput),
-		core.ProvideEnvironmentEnsurer(configRepository, new(testutil.MockContainerOrchestrator)),
+		core.NewEnvironmentEnsurer(configRepository, new(testutil.MockContainerOrchestrator)),
 	)
 
 	err := sut.HandlePrint()
@@ -96,7 +96,7 @@ func TestCACommandHandler_HandleDelete_NonTTYWithoutYes(t *testing.T) {
 	mockTerminal := new(testutil.MockTerminalInput)
 	mockTerminal.On("IsTerminal").Return(false)
 
-	sut := ProvideCACommandHandler(
+	sut := NewCACommandHandler(
 		configRepository,
 		mockCA,
 		noCertProvisioner(),
@@ -130,7 +130,7 @@ func TestCACommandHandler_HandleDelete_UserCancels(t *testing.T) {
 	mockTerminal.On("IsTerminal").Return(true)
 	mockTerminal.On("ReadLine", mock.Anything).Return("n", nil)
 
-	sut := ProvideCACommandHandler(
+	sut := NewCACommandHandler(
 		configRepository,
 		mockCA,
 		noCertProvisioner(),
@@ -163,13 +163,13 @@ func TestCACommandHandler_HandleDelete_InteractiveYes(t *testing.T) {
 	mockCA.On("DeleteCA", "test-ctx").Return(nil)
 	mockKeyring.On("DeleteKey", "test-ctx-ca-key").Return(nil)
 
-	provisioner := core.ProvideCertificateProvisioner(mockCA, new(testutil.MockSecretStore), mockKeyring, nil)
+	provisioner := core.NewCertificateProvisioner(mockCA, new(testutil.MockSecretStore), mockKeyring, nil)
 
 	mockTerminal := new(testutil.MockTerminalInput)
 	mockTerminal.On("IsTerminal").Return(true)
 	mockTerminal.On("ReadLine", mock.Anything).Return("y", nil)
 
-	sut := ProvideCACommandHandler(
+	sut := NewCACommandHandler(
 		configRepository,
 		mockCA,
 		provisioner,
@@ -205,11 +205,11 @@ func TestCACommandHandler_HandleDelete_SkipConfirmation(t *testing.T) {
 	mockCA.On("DeleteCA", "test-ctx").Return(nil)
 	mockKeyring.On("DeleteKey", "test-ctx-ca-key").Return(nil)
 
-	provisioner := core.ProvideCertificateProvisioner(mockCA, new(testutil.MockSecretStore), mockKeyring, nil)
+	provisioner := core.NewCertificateProvisioner(mockCA, new(testutil.MockSecretStore), mockKeyring, nil)
 
 	mockTerminal := new(testutil.MockTerminalInput)
 
-	sut := ProvideCACommandHandler(
+	sut := NewCACommandHandler(
 		configRepository,
 		mockCA,
 		provisioner,
@@ -243,7 +243,7 @@ func TestCACommandHandler_HandleDelete_DeleteCAError(t *testing.T) {
 	mockCA.On("GetCACertificatePEM", "test-ctx").Return([]byte("cert"), nil)
 	mockCA.On("DeleteCA", "test-ctx").Return(assert.AnError)
 
-	sut := ProvideCACommandHandler(
+	sut := NewCACommandHandler(
 		configRepository,
 		mockCA,
 		noCertProvisioner(),
@@ -277,9 +277,9 @@ func TestCACommandHandler_HandleDelete_DeletePassphraseError(t *testing.T) {
 	mockCA.On("DeleteCA", "test-ctx").Return(nil)
 	mockKeyring.On("DeleteKey", "test-ctx-ca-key").Return(assert.AnError)
 
-	provisioner := core.ProvideCertificateProvisioner(mockCA, new(testutil.MockSecretStore), mockKeyring, nil)
+	provisioner := core.NewCertificateProvisioner(mockCA, new(testutil.MockSecretStore), mockKeyring, nil)
 
-	sut := ProvideCACommandHandler(
+	sut := NewCACommandHandler(
 		configRepository,
 		mockCA,
 		provisioner,
@@ -301,7 +301,7 @@ func TestCACommandHandler_HandleStatus_NoCA(t *testing.T) {
 	mockCA := new(testutil.MockCertificateAuthority)
 	mockCA.On("GetCACertificateExpiry", "test-ctx").Return(nil, assert.AnError)
 
-	sut := ProvideCACommandHandler(
+	sut := NewCACommandHandler(
 		configRepository,
 		mockCA,
 		noCertProvisioner(),
@@ -345,9 +345,9 @@ func TestCACommandHandler_HandleStatus_ValidCA(t *testing.T) {
 	mockOrch.On("GetSecretData", "foo-tls").Return(map[string][]byte(nil), nil)
 	mockOrch.On("GetSecretData", core.InternalTLSSecretName).Return(map[string][]byte(nil), nil)
 
-	provisioner := core.ProvideCertificateProvisioner(mockCA, mockOrch, nil, nil)
+	provisioner := core.NewCertificateProvisioner(mockCA, mockOrch, nil, nil)
 
-	sut := ProvideCACommandHandler(
+	sut := NewCACommandHandler(
 		configRepository,
 		mockCA,
 		provisioner,
@@ -378,9 +378,9 @@ func TestCACommandHandler_HandleStatus_ExpiredCA(t *testing.T) {
 	mockOrch := new(testutil.MockSecretStore)
 	mockOrch.On("GetSecretData", core.InternalTLSSecretName).Return(map[string][]byte(nil), nil)
 
-	provisioner := core.ProvideCertificateProvisioner(mockCA, mockOrch, nil, nil)
+	provisioner := core.NewCertificateProvisioner(mockCA, mockOrch, nil, nil)
 
-	sut := ProvideCACommandHandler(
+	sut := NewCACommandHandler(
 		configRepository,
 		mockCA,
 		provisioner,
@@ -411,9 +411,9 @@ func TestCACommandHandler_HandleStatus_ExpiringSoonCA(t *testing.T) {
 	mockOrch := new(testutil.MockSecretStore)
 	mockOrch.On("GetSecretData", core.InternalTLSSecretName).Return(map[string][]byte(nil), nil)
 
-	provisioner := core.ProvideCertificateProvisioner(mockCA, mockOrch, nil, nil)
+	provisioner := core.NewCertificateProvisioner(mockCA, mockOrch, nil, nil)
 
-	sut := ProvideCACommandHandler(
+	sut := NewCACommandHandler(
 		configRepository,
 		mockCA,
 		provisioner,
@@ -446,7 +446,7 @@ func TestCACommandHandler_HandleDelete_NoExistingCA(t *testing.T) {
 
 	mockTerminal := new(testutil.MockTerminalInput)
 
-	sut := ProvideCACommandHandler(
+	sut := NewCACommandHandler(
 		configRepository,
 		mockCA,
 		noCertProvisioner(),
@@ -466,12 +466,12 @@ func TestCACommandHandler_HandlePrint_LoadContextNameError(t *testing.T) {
 	configRepository := new(testutil.MockConfigRepository)
 	configRepository.On("LoadCurrentContextName").Return("", assert.AnError)
 
-	sut := ProvideCACommandHandler(
+	sut := NewCACommandHandler(
 		configRepository,
 		new(testutil.MockCertificateAuthority),
 		noCertProvisioner(),
 		new(testutil.MockTerminalInput),
-		core.ProvideEnvironmentEnsurer(configRepository, new(testutil.MockContainerOrchestrator)),
+		core.NewEnvironmentEnsurer(configRepository, new(testutil.MockContainerOrchestrator)),
 	)
 
 	err := sut.HandlePrint()
@@ -485,9 +485,9 @@ func TestCACommandHandler_HandleDelete_EnvironmentEnsurer_LoadConfigError(t *tes
 	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("any-key", nil)
 	configRepository.On("LoadCurrentConfigurationContext").Return(nil, assert.AnError)
 
-	environmentEnsurer := core.ProvideEnvironmentEnsurer(configRepository, containerOrchestrator)
+	environmentEnsurer := core.NewEnvironmentEnsurer(configRepository, containerOrchestrator)
 
-	sut := ProvideCACommandHandler(
+	sut := NewCACommandHandler(
 		configRepository,
 		new(testutil.MockCertificateAuthority),
 		noCertProvisioner(),
@@ -506,7 +506,7 @@ func TestCACommandHandler_HandleStatus_LoadContextNameError(t *testing.T) {
 	environmentEnsurer := passingEnvironmentEnsurer(configRepository, configContext)
 	configRepository.On("LoadCurrentContextName").Return("", assert.AnError)
 
-	sut := ProvideCACommandHandler(
+	sut := NewCACommandHandler(
 		configRepository,
 		new(testutil.MockCertificateAuthority),
 		noCertProvisioner(),
@@ -525,9 +525,9 @@ func TestCACommandHandler_HandleStatus_EnvironmentEnsurer_LoadConfigContextError
 	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("any-key", nil)
 	configRepository.On("LoadCurrentConfigurationContext").Return(nil, assert.AnError)
 
-	environmentEnsurer := core.ProvideEnvironmentEnsurer(configRepository, containerOrchestrator)
+	environmentEnsurer := core.NewEnvironmentEnsurer(configRepository, containerOrchestrator)
 
-	sut := ProvideCACommandHandler(
+	sut := NewCACommandHandler(
 		configRepository,
 		new(testutil.MockCertificateAuthority),
 		noCertProvisioner(),
@@ -561,9 +561,9 @@ func TestCACommandHandler_HandleIssue_ServerCert(t *testing.T) {
 		return req.Type == domain.CertificateTypeServer && len(req.DNSNames) == 1 && req.DNSNames[0] == "myapp.test"
 	})).Return(issuedCert, nil)
 
-	provisioner := core.ProvideCertificateProvisioner(mockCA, new(testutil.MockSecretStore), mockKeyring, nil)
+	provisioner := core.NewCertificateProvisioner(mockCA, new(testutil.MockSecretStore), mockKeyring, nil)
 
-	sut := ProvideCACommandHandler(
+	sut := NewCACommandHandler(
 		configRepository,
 		mockCA,
 		provisioner,
@@ -603,9 +603,9 @@ func TestCACommandHandler_HandleIssue_ClientCert(t *testing.T) {
 		return req.Type == domain.CertificateTypeClient && len(req.DNSNames) == 1 && req.DNSNames[0] == "api.localhost"
 	})).Return(issuedCert, nil)
 
-	provisioner := core.ProvideCertificateProvisioner(mockCA, new(testutil.MockSecretStore), mockKeyring, nil)
+	provisioner := core.NewCertificateProvisioner(mockCA, new(testutil.MockSecretStore), mockKeyring, nil)
 
-	sut := ProvideCACommandHandler(
+	sut := NewCACommandHandler(
 		configRepository,
 		mockCA,
 		provisioner,
@@ -630,7 +630,7 @@ func TestCACommandHandler_HandleIssue_InvalidType(t *testing.T) {
 	environmentEnsurer := passingEnvironmentEnsurer(configRepository, configContext)
 	configRepository.On("LoadCurrentContextName").Return("test-ctx", nil)
 
-	sut := ProvideCACommandHandler(
+	sut := NewCACommandHandler(
 		configRepository,
 		new(testutil.MockCertificateAuthority),
 		noCertProvisioner(),
@@ -649,7 +649,7 @@ func TestCACommandHandler_HandleIssue_InvalidDNSName(t *testing.T) {
 	environmentEnsurer := passingEnvironmentEnsurer(configRepository, configContext)
 	configRepository.On("LoadCurrentContextName").Return("test-ctx", nil)
 
-	sut := ProvideCACommandHandler(
+	sut := NewCACommandHandler(
 		configRepository,
 		new(testutil.MockCertificateAuthority),
 		noCertProvisioner(),
@@ -668,7 +668,7 @@ func TestCACommandHandler_HandleIssue_EmptyDNSNames(t *testing.T) {
 	environmentEnsurer := passingEnvironmentEnsurer(configRepository, configContext)
 	configRepository.On("LoadCurrentContextName").Return("test-ctx", nil)
 
-	sut := ProvideCACommandHandler(
+	sut := NewCACommandHandler(
 		configRepository,
 		new(testutil.MockCertificateAuthority),
 		noCertProvisioner(),
@@ -687,7 +687,7 @@ func TestCACommandHandler_HandleIssue_LoadContextNameError(t *testing.T) {
 	environmentEnsurer := passingEnvironmentEnsurer(configRepository, configContext)
 	configRepository.On("LoadCurrentContextName").Return("", assert.AnError)
 
-	sut := ProvideCACommandHandler(
+	sut := NewCACommandHandler(
 		configRepository,
 		new(testutil.MockCertificateAuthority),
 		noCertProvisioner(),
@@ -708,14 +708,14 @@ func TestCACommandHandler_HandleIssue_PassphraseError(t *testing.T) {
 	mockKeyring := new(testutil.MockKeyring)
 	mockKeyring.On("HasKey", "test-ctx-ca-key").Return(false, assert.AnError)
 
-	provisioner := core.ProvideCertificateProvisioner(
+	provisioner := core.NewCertificateProvisioner(
 		new(testutil.MockCertificateAuthority),
 		new(testutil.MockSecretStore),
 		mockKeyring,
 		new(testutil.MockSymmetricEncryptor),
 	)
 
-	sut := ProvideCACommandHandler(
+	sut := NewCACommandHandler(
 		configRepository,
 		new(testutil.MockCertificateAuthority),
 		provisioner,
@@ -741,9 +741,9 @@ func TestCACommandHandler_HandleIssue_IssueCertificateError(t *testing.T) {
 	mockKeyring.On("GetKey", "test-ctx-ca-key").Return("test-passphrase", nil)
 	mockCA.On("IssueCertificate", "test-ctx", "test-passphrase", mock.Anything).Return(nil, assert.AnError)
 
-	provisioner := core.ProvideCertificateProvisioner(mockCA, new(testutil.MockSecretStore), mockKeyring, nil)
+	provisioner := core.NewCertificateProvisioner(mockCA, new(testutil.MockSecretStore), mockKeyring, nil)
 
-	sut := ProvideCACommandHandler(
+	sut := NewCACommandHandler(
 		configRepository,
 		mockCA,
 		provisioner,
@@ -761,7 +761,7 @@ func TestCACommandHandler_HandleIssue_EnvironmentMismatch(t *testing.T) {
 	configRepository := new(testutil.MockConfigRepository)
 	environmentEnsurer := failingEnvironmentEnsurer(configRepository, configContext)
 
-	sut := ProvideCACommandHandler(
+	sut := NewCACommandHandler(
 		configRepository,
 		new(testutil.MockCertificateAuthority),
 		noCertProvisioner(),
@@ -781,12 +781,12 @@ func TestCACommandHandler_HandlePrint_NoCA_UserFriendlyError(t *testing.T) {
 	mockCA := new(testutil.MockCertificateAuthority)
 	mockCA.On("GetCACertificatePEM", "test-ctx").Return(nil, assert.AnError)
 
-	sut := ProvideCACommandHandler(
+	sut := NewCACommandHandler(
 		configRepository,
 		mockCA,
 		noCertProvisioner(),
 		new(testutil.MockTerminalInput),
-		core.ProvideEnvironmentEnsurer(configRepository, new(testutil.MockContainerOrchestrator)),
+		core.NewEnvironmentEnsurer(configRepository, new(testutil.MockContainerOrchestrator)),
 	)
 
 	err := sut.HandlePrint()
@@ -800,7 +800,7 @@ func TestCACommandHandler_HandleStatus_EnvironmentMismatch(t *testing.T) {
 	configRepository := new(testutil.MockConfigRepository)
 	environmentEnsurer := failingEnvironmentEnsurer(configRepository, configContext)
 
-	sut := ProvideCACommandHandler(
+	sut := NewCACommandHandler(
 		configRepository,
 		new(testutil.MockCertificateAuthority),
 		noCertProvisioner(),
@@ -818,7 +818,7 @@ func TestCACommandHandler_HandleDelete_EnvironmentMismatch(t *testing.T) {
 	configRepository := new(testutil.MockConfigRepository)
 	environmentEnsurer := failingEnvironmentEnsurer(configRepository, configContext)
 
-	sut := ProvideCACommandHandler(
+	sut := NewCACommandHandler(
 		configRepository,
 		new(testutil.MockCertificateAuthority),
 		noCertProvisioner(),

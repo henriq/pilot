@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"strings"
 
-	"dx/cmd/cli/app"
-	"dx/internal/cli/output"
-	"dx/internal/core/domain"
+	"pilot/cmd/cli/app"
+	"pilot/internal/cli/output"
+	"pilot/internal/core/domain"
 
 	"github.com/spf13/cobra"
 )
@@ -23,14 +23,24 @@ func init() {
 
 var contextCmd = &cobra.Command{
 	Use:   "context",
-	Short: "Manage the configuration context",
-	Long:  `Manage the active configuration context. Contexts group services, local services, and settings for a project or environment.`,
+	Short: "Manage contexts",
+	Long:  `A context groups services, local services, secrets, and settings for a project or environment. Use subcommands to list, view, or switch contexts.`,
+	Example: `  # List all contexts
+  pilot context list
+
+  # Switch to a different context
+  pilot context set other-project
+
+  # Show services and URLs
+  pilot context info`,
 }
 
 var contextListCmd = &cobra.Command{
 	Use:   "list",
-	Short: "List the available contexts",
-	Long:  `List all available contexts from the configuration file.`,
+	Short: "List available contexts",
+	Long:  `List all contexts defined in the configuration file.`,
+	Example: `  # List all contexts
+  pilot context list`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		handler, err := app.InjectContextCommandHandler()
 		if err != nil {
@@ -43,8 +53,13 @@ var contextListCmd = &cobra.Command{
 
 var contextPrintCmd = &cobra.Command{
 	Use:   "print",
-	Short: "Print the current context",
-	Long:  `Print the current context as JSON to stdout.`,
+	Short: "Print the current context as JSON",
+	Long:  `Print the current context configuration as JSON to stdout.`,
+	Example: `  # Print context as JSON
+  pilot context print
+
+  # Pipe to jq for filtering
+  pilot context print | jq '.services'`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		handler, err := app.InjectContextCommandHandler()
 		if err != nil {
@@ -57,8 +72,10 @@ var contextPrintCmd = &cobra.Command{
 
 var contextInfoCmd = &cobra.Command{
 	Use:   "info",
-	Short: "Show info about the current context",
-	Long:  `Show the services, local services, and monitoring URLs for the current context.`,
+	Short: "Show services and URLs for the current context",
+	Long:  `Show the services, local services, ingress URLs, and monitoring URLs for the current context.`,
+	Example: `  # Show services and URLs
+  pilot context info`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		configRepo, err := app.InjectConfigRepo()
 		if err != nil {
@@ -69,9 +86,9 @@ var contextInfoCmd = &cobra.Command{
 			return fmt.Errorf("error loading current configuration context: %v", err)
 		}
 
-		fmt.Println("Current context: " + output.Bold(configContext.Name))
-		fmt.Println()
-		fmt.Printf("%s\n", output.Header(fmt.Sprintf("%-30s %-30s", "Service", "Profiles")))
+		output.PrintInfo("Current context: " + output.Bold(configContext.Name))
+		output.PrintNewline()
+		output.PrintHeader(fmt.Sprintf("%-30s %-30s", "Service", "Profiles"))
 
 		slices.SortFunc(
 			configContext.Services, func(a, b domain.Service) int {
@@ -82,19 +99,16 @@ var contextInfoCmd = &cobra.Command{
 		for _, service := range configContext.Services {
 			fmt.Printf("%-30s %-30s\n", service.Name, getSortedProfiles(service.Profiles))
 		}
-		fmt.Println()
+		output.PrintNewline()
 
-		fmt.Printf(
-			"%s\n",
-			output.Header(fmt.Sprintf("%-30s %-12s %-16s %-30s %-30s %-50s",
-				"Local service",
-				"Local port",
-				"Kubernetes port",
-				"Health check",
-				"Selector",
-				"Ingress",
-			)),
-		)
+		output.PrintHeader(fmt.Sprintf("%-30s %-12s %-16s %-30s %-30s %-50s",
+			"Local service",
+			"Local port",
+			"Kubernetes port",
+			"Health check",
+			"Selector",
+			"Ingress",
+		))
 
 		slices.SortFunc(
 			configContext.LocalServices, func(a, b domain.LocalService) int {
@@ -113,9 +127,9 @@ var contextInfoCmd = &cobra.Command{
 				formatIngress(service, *configContext),
 			)
 		}
-		fmt.Println()
-		fmt.Println("mitmweb: " + output.Bold(fmt.Sprintf("https://dev-proxy.%s.localhost", configContext.Name)))
-		fmt.Println("haproxy stats: " + output.Bold(fmt.Sprintf("https://stats.dev-proxy.%s.localhost", configContext.Name)))
+		output.PrintNewline()
+		output.PrintField("mitmweb:", output.Bold(fmt.Sprintf("https://dev-proxy.%s.localhost", configContext.Name)))
+		output.PrintField("haproxy stats:", output.Bold(fmt.Sprintf("https://stats.dev-proxy.%s.localhost", configContext.Name)))
 		return nil
 	},
 }
@@ -152,8 +166,10 @@ func getSortedProfiles(profiles []string) string {
 
 var contextSetCmd = &cobra.Command{
 	Use:   "set",
-	Short: "Set the current context",
+	Short: "Set the active context",
 	Long:  `Switch to the specified configuration context.`,
+	Example: `  # Switch to another context
+  pilot context set other-project`,
 	Args: func(cmd *cobra.Command, args []string) error {
 		if err := cobra.ExactArgs(1)(cmd, args); err != nil {
 			return err

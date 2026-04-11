@@ -3,8 +3,8 @@ package core
 import (
 	"testing"
 
-	"dx/internal/core/domain"
-	"dx/internal/testutil"
+	"pilot/internal/core/domain"
+	"pilot/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -21,7 +21,7 @@ func TestEnvironmentEnsurer_EnsureExpectedClusterIsSelectedReturnsTrueWhenEnvKey
 	configRepository := testutil.MockConfigRepository{}
 	configRepository.On("LoadEnvKey", mock.Anything).Return(expectedEnvKey, nil)
 	configRepository.On("LoadCurrentConfigurationContext").Return(&configContext, nil)
-	sut := ProvideEnvironmentEnsurer(
+	sut := NewEnvironmentEnsurer(
 		&configRepository,
 		&containerOrchestrator,
 	)
@@ -42,7 +42,7 @@ func TestEnvironmentEnsurer_EnsureExpectedClusterIsSelectedReturnsFalseWhenEnvKe
 	configRepository := testutil.MockConfigRepository{}
 	configRepository.On("LoadEnvKey", mock.Anything).Return(string(uuid.NewUUID()), nil)
 	configRepository.On("LoadCurrentConfigurationContext").Return(&configContext, nil)
-	sut := ProvideEnvironmentEnsurer(
+	sut := NewEnvironmentEnsurer(
 		&configRepository,
 		&containerOrchestrator,
 	)

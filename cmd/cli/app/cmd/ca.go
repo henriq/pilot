@@ -5,8 +5,8 @@ import (
 	"os"
 	"strings"
 
-	"dx/cmd/cli/app"
-	"dx/internal/cli/output"
+	"pilot/cmd/cli/app"
+	"pilot/internal/cli/output"
 
 	"github.com/spf13/cobra"
 )
@@ -40,18 +40,18 @@ func init() {
 
 var caCmd = &cobra.Command{
 	Use:   "ca",
-	Short: "Manage the certificate authority for the current context",
+	Short: "Manage the certificate authority",
 	Long: `Manage the private certificate authority (CA) used to issue TLS certificates
-for services in the current context. The CA is created automatically during
-the first 'dx install' when certificates are configured.`,
+for services in the current context. The CA is created automatically on the
+first 'pilot install' when certificates are configured.`,
 	Example: `  # Check current CA status
-  dx ca status
+  pilot ca status
 
   # Print the CA certificate for trust store setup
-  dx ca print > ca.crt
+  pilot ca print > ca.crt
 
   # Delete the local CA files
-  dx ca delete`,
+  pilot ca delete`,
 }
 
 var caPrintCmd = &cobra.Command{
@@ -63,10 +63,10 @@ the certificate with no extra decoration, making it safe for piping.
 
 Use this to add the CA to your system trust store or browser for local development.`,
 	Example: `  # Print the CA certificate
-  dx ca print
+  pilot ca print
 
   # Save to a file
-  dx ca print > ca.crt`,
+  pilot ca print > ca.crt`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		handler, err := app.InjectCACommandHandler()
 		if err != nil {
@@ -79,20 +79,20 @@ Use this to add the CA to your system trust store or browser for local developme
 var caDeleteCmd = &cobra.Command{
 	Use:   "delete",
 	Args:  cobra.NoArgs,
-	Short: "Delete the local CA for the current context",
-	Long: `Delete the local CA files and its passphrase from the keyring for the current
-context. A new CA will be created automatically on the next 'dx install',
-which will also issue fresh certificates signed by the new CA.
+	Short: "Delete the CA for the current context",
+	Long: `Delete the CA files and the CA passphrase from the keyring for the current
+context. A new CA is created automatically on the next 'pilot install',
+which also issues fresh certificates signed by the new CA.
 
 After installing, update your system trust store with the new CA certificate.`,
 	Example: `  # Delete the local CA files
-  dx ca delete
+  pilot ca delete
 
   # Skip confirmation (for scripting)
-  dx ca delete --yes
+  pilot ca delete --yes
 
   # Delete and recreate the CA
-  dx ca delete && dx install`,
+  pilot ca delete && pilot install`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		handler, err := app.InjectCACommandHandler()
 		if err != nil {
@@ -105,12 +105,12 @@ After installing, update your system trust store with the new CA certificate.`,
 var caStatusCmd = &cobra.Command{
 	Use:   "status",
 	Args:  cobra.NoArgs,
-	Short: "Show the status of the certificate authority",
-	Long: `Show the current state of the certificate authority including its validity
-period and expiration date. Also lists all configured certificates with their
-Kubernetes secret name, type, DNS names, and provisioning status.`,
+	Short: "Show CA status and configured certificates",
+	Long: `Show the certificate authority validity period and expiration date. Also
+lists all configured certificates with their Kubernetes secret name, type,
+DNS names, and provisioning status.`,
 	Example: `  # Check CA status
-  dx ca status`,
+  pilot ca status`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		handler, err := app.InjectCACommandHandler()
 		if err != nil {
@@ -134,13 +134,13 @@ DNS names must use reserved TLDs only (.localhost, .test, .example, .invalid,
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	},
 	Example: `  # Issue a server certificate
-  dx ca issue myapp.test --type server --out cert.pem --keyout key.pem
+  pilot ca issue myapp.test --type server --out cert.pem --keyout key.pem
 
   # Issue a client certificate with multiple SANs
-  dx ca issue api.test *.api.test --type client --out client.pem --keyout client-key.pem
+  pilot ca issue api.test *.api.test --type client --out client.pem --keyout client-key.pem
 
   # Also save the CA certificate
-  dx ca issue myapp.localhost --type server --out cert.pem --keyout key.pem --caout ca.pem`,
+  pilot ca issue myapp.localhost --type server --out cert.pem --keyout key.pem --caout ca.pem`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		handler, err := app.InjectCACommandHandler()
 		if err != nil {

@@ -3,8 +3,8 @@ package handler
 import (
 	"testing"
 
-	"dx/internal/core/domain"
-	"dx/internal/testutil"
+	"pilot/internal/core/domain"
+	"pilot/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -123,7 +123,7 @@ func TestBuildCommandHandler_HandleBuildsOnlySelectedService(t *testing.T) {
 	containerImageRepository.On("PullImage", configContext.Services[0].RemoteImages[0]).Return(nil)
 	containerImageRepository.On("BuildImage", configContext.Services[0].DockerImages[0]).Return(nil)
 
-	sut := ProvideBuildCommandHandler(
+	sut := NewBuildCommandHandler(
 		configRepository,
 		scm,
 		containerImageRepository,
@@ -182,7 +182,7 @@ func TestBuildCommandHandler_HandleBuildsOnlyServicesInSelectedProfile(t *testin
 	containerImageRepository.On("PullImage", configContext.Services[0].RemoteImages[0]).Return(nil)
 	containerImageRepository.On("BuildImage", configContext.Services[0].DockerImages[0]).Return(nil)
 
-	sut := ProvideBuildCommandHandler(
+	sut := NewBuildCommandHandler(
 		configRepository,
 		scm,
 		containerImageRepository,
@@ -201,7 +201,7 @@ func TestBuildCommandHandler_Handle_LoadConfigError(t *testing.T) {
 	scm := new(testutil.MockScm)
 	containerImageRepository := new(testutil.MockContainerImageRepository)
 
-	sut := ProvideBuildCommandHandler(
+	sut := NewBuildCommandHandler(
 		configRepository,
 		scm,
 		containerImageRepository,
@@ -243,7 +243,7 @@ func TestBuildCommandHandler_Handle_DownloadError(t *testing.T) {
 	).Return(assert.AnError)
 	containerImageRepository := new(testutil.MockContainerImageRepository)
 
-	sut := ProvideBuildCommandHandler(
+	sut := NewBuildCommandHandler(
 		configRepository,
 		scm,
 		containerImageRepository,
@@ -285,7 +285,7 @@ func TestBuildCommandHandler_Handle_BuildImageError(t *testing.T) {
 	containerImageRepository := new(testutil.MockContainerImageRepository)
 	containerImageRepository.On("BuildImage", configContext.Services[0].DockerImages[0]).Return(assert.AnError)
 
-	sut := ProvideBuildCommandHandler(
+	sut := NewBuildCommandHandler(
 		configRepository,
 		scm,
 		containerImageRepository,

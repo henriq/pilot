@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"dx/internal/core/domain"
+	"pilot/internal/core/domain"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -25,7 +25,7 @@ func TestDevProxyConfigGenerator_Generate_Success(t *testing.T) {
 		},
 	}
 
-	sut := ProvideDevProxyConfigGenerator()
+	sut := NewDevProxyConfigGenerator()
 
 	configs, err := sut.Generate(configContext, true, "test-password-abc123")
 
@@ -56,7 +56,7 @@ func TestDevProxyConfigGenerator_Generate_NoInterception(t *testing.T) {
 		},
 	}
 
-	sut := ProvideDevProxyConfigGenerator()
+	sut := NewDevProxyConfigGenerator()
 
 	configs, err := sut.Generate(configContext, false, "")
 
@@ -84,7 +84,7 @@ func TestDevProxyConfigGenerator_Generate_HAProxyConfigContent(t *testing.T) {
 		},
 	}
 
-	sut := ProvideDevProxyConfigGenerator()
+	sut := NewDevProxyConfigGenerator()
 
 	configs, err := sut.Generate(configContext, false, "")
 
@@ -120,7 +120,7 @@ func TestDevProxyConfigGenerator_Generate_PortIncrement(t *testing.T) {
 		},
 	}
 
-	sut := ProvideDevProxyConfigGenerator()
+	sut := NewDevProxyConfigGenerator()
 
 	configs, err := sut.Generate(configContext, false, "")
 
@@ -149,7 +149,7 @@ func TestDevProxyConfigGenerator_Generate_ChecksumDeterministic(t *testing.T) {
 		},
 	}
 
-	sut := ProvideDevProxyConfigGenerator()
+	sut := NewDevProxyConfigGenerator()
 
 	configs1, err := sut.Generate(configContext, false, "")
 	require.NoError(t, err)
@@ -175,7 +175,7 @@ func TestDevProxyConfigGenerator_Generate_HelmChartYamlContent(t *testing.T) {
 		},
 	}
 
-	sut := ProvideDevProxyConfigGenerator()
+	sut := NewDevProxyConfigGenerator()
 
 	configs, err := sut.Generate(configContext, false, "")
 
@@ -193,7 +193,7 @@ func TestDevProxyConfigGenerator_Generate_EmptyLocalServices(t *testing.T) {
 		LocalServices: []domain.LocalService{},
 	}
 
-	sut := ProvideDevProxyConfigGenerator()
+	sut := NewDevProxyConfigGenerator()
 
 	configs, err := sut.Generate(configContext, false, "")
 
@@ -218,7 +218,7 @@ func TestDevProxyConfigGenerator_Generate_SpecialCharactersInServiceName(t *test
 		},
 	}
 
-	sut := ProvideDevProxyConfigGenerator()
+	sut := NewDevProxyConfigGenerator()
 
 	configs, err := sut.Generate(configContext, false, "")
 
@@ -237,7 +237,7 @@ func TestDevProxyConfigGenerator_buildTemplateValues_PortAssignment(t *testing.T
 		},
 	}
 
-	sut := ProvideDevProxyConfigGenerator()
+	sut := NewDevProxyConfigGenerator()
 	values := sut.buildTemplateValues(configContext, false, "")
 
 	services := values["Services"].([]map[string]interface{})
@@ -262,7 +262,7 @@ func TestDevProxyConfigGenerator_buildTemplateValues_Checksum(t *testing.T) {
 		},
 	}
 
-	sut := ProvideDevProxyConfigGenerator()
+	sut := NewDevProxyConfigGenerator()
 	values := sut.buildTemplateValues(configContext, false, "")
 
 	checksum := values["Checksum"].(string)
@@ -278,7 +278,7 @@ func TestDevProxyConfigGenerator_GenerateChecksum_DiffersWithInterceptHttp(t *te
 		},
 	}
 
-	sut := ProvideDevProxyConfigGenerator()
+	sut := NewDevProxyConfigGenerator()
 	checksumWithout := sut.GenerateChecksum(configContext, false)
 	checksumWith := sut.GenerateChecksum(configContext, true)
 
@@ -299,7 +299,7 @@ func TestDevProxyConfigGenerator_Generate_HelmDeploymentYamlDiffersWithIntercept
 		},
 	}
 
-	sut := ProvideDevProxyConfigGenerator()
+	sut := NewDevProxyConfigGenerator()
 
 	configsWithout, err := sut.Generate(configContext, false, "")
 	require.NoError(t, err)
@@ -320,7 +320,7 @@ func TestDevProxyConfigGenerator_buildTemplateValues_InterceptHttpFlag(t *testin
 		LocalServices: []domain.LocalService{},
 	}
 
-	sut := ProvideDevProxyConfigGenerator()
+	sut := NewDevProxyConfigGenerator()
 
 	valuesWithout := sut.buildTemplateValues(configContext, false, "")
 	valuesWith := sut.buildTemplateValues(configContext, true, "test-password")
@@ -396,7 +396,7 @@ func TestDevProxyConfigGenerator_Generate_TLSInIngresses(t *testing.T) {
 		},
 	}
 
-	sut := ProvideDevProxyConfigGenerator()
+	sut := NewDevProxyConfigGenerator()
 	configs, err := sut.Generate(configContext, false, "")
 
 	require.NoError(t, err)

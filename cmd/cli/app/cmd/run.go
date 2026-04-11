@@ -3,7 +3,7 @@ package cmd
 import (
 	"fmt"
 
-	"dx/cmd/cli/app"
+	"pilot/cmd/cli/app"
 
 	"github.com/spf13/cobra"
 )
@@ -13,9 +13,9 @@ func init() {
 }
 
 var runCmd = &cobra.Command{
-	Use:               "run [script]",
-	Short:             "Runs a script",
-	Long:              `Runs a script present in the context`,
+	Use:               "run [script...]",
+	Short:             "Run a custom script defined in the configuration",
+	Long:              `Run one or more scripts defined in the current context's configuration.`,
 	Args:              ScriptArgsValidator,
 	ValidArgsFunction: ScriptArgsCompletion,
 	RunE: func(cmd *cobra.Command, args []string) error {

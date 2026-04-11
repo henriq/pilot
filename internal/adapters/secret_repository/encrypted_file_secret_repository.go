@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"dx/internal/core"
-	"dx/internal/core/domain"
-	"dx/internal/ports"
+	"pilot/internal/core"
+	"pilot/internal/core/domain"
+	"pilot/internal/ports"
 )
 
 var _ ports.SecretsRepository = (*EncryptedFileSecretRepository)(nil)
@@ -18,7 +18,7 @@ type EncryptedFileSecretRepository struct {
 	encryptor  ports.SymmetricEncryptor
 }
 
-func ProvideEncryptedFileSecretRepository(
+func NewEncryptedFileSecretRepository(
 	fileSystem ports.FileSystem,
 	keyring ports.Keyring,
 	encryptor ports.SymmetricEncryptor,
@@ -31,7 +31,7 @@ func ProvideEncryptedFileSecretRepository(
 }
 
 func (e *EncryptedFileSecretRepository) LoadSecrets(configContextName string) ([]*domain.Secret, error) {
-	secretsFilePath := filepath.Join("~", ".dx", configContextName, "secrets")
+	secretsFilePath := filepath.Join("~", ".pilot", configContextName, "secrets")
 	secretFileExists, err := e.fileSystem.FileExists(secretsFilePath)
 	if err != nil {
 		return nil, err
@@ -73,7 +73,7 @@ func (e *EncryptedFileSecretRepository) SaveSecrets(
 	secrets []*domain.Secret,
 	configContextName string,
 ) error {
-	secretsFilePath := filepath.Join("~", ".dx", configContextName, "secrets")
+	secretsFilePath := filepath.Join("~", ".pilot", configContextName, "secrets")
 	key, err := core.GetOrCreateEncryptionKey(e.keyring, e.encryptor, fmt.Sprintf("%s-encryption-key", configContextName))
 	if err != nil {
 		return err

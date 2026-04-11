@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"dx/internal/cli/output"
-	"dx/internal/ports"
+	"pilot/internal/cli/output"
+	"pilot/internal/ports"
 )
 
 type GenEnvKeyCommandHandler struct {
@@ -14,7 +14,7 @@ type GenEnvKeyCommandHandler struct {
 	containerOrchestrator ports.ContainerOrchestrator
 }
 
-func ProvideGenEnvKeyCommandHandler(
+func NewGenEnvKeyCommandHandler(
 	configRepository ports.ConfigRepository,
 	fileSystem ports.FileSystem,
 	containerOrchestrator ports.ContainerOrchestrator,
@@ -35,7 +35,7 @@ func (h *GenEnvKeyCommandHandler) Handle() error {
 	if err != nil {
 		return fmt.Errorf("failed to generate environment key: %v", err)
 	}
-	envKeyPath := filepath.Join("~", ".dx", configContext.Name, "env-key")
+	envKeyPath := filepath.Join("~", ".pilot", configContext.Name, "env-key")
 	err = h.fileSystem.WriteFile(envKeyPath, []byte(envKey), ports.ReadWrite)
 	if err != nil {
 		return err

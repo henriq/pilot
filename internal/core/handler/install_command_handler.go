@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"os"
 
-	"dx/internal/cli/output"
-	"dx/internal/cli/progress"
-	"dx/internal/core"
-	"dx/internal/ports"
+	"pilot/internal/cli/output"
+	"pilot/internal/cli/progress"
+	"pilot/internal/core"
+	"pilot/internal/ports"
 )
 
 type InstallCommandHandler struct {
@@ -20,7 +20,7 @@ type InstallCommandHandler struct {
 	certificateProvisioner   *core.CertificateProvisioner
 }
 
-func ProvideInstallCommandHandler(
+func NewInstallCommandHandler(
 	configRepository ports.ConfigRepository,
 	containerImageRepository ports.ContainerImageRepository,
 	containerOrchestrator ports.ContainerOrchestrator,

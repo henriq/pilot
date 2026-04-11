@@ -8,7 +8,7 @@ import (
 	"strings"
 	"text/template"
 
-	"dx/internal/core/domain"
+	"pilot/internal/core/domain"
 
 	"gopkg.in/yaml.v3"
 )
@@ -38,8 +38,8 @@ type DevProxyConfigs struct {
 // DevProxyConfigGenerator generates dev-proxy configuration files from domain configuration.
 type DevProxyConfigGenerator struct{}
 
-// ProvideDevProxyConfigGenerator creates a new DevProxyConfigGenerator.
-func ProvideDevProxyConfigGenerator() *DevProxyConfigGenerator {
+// NewDevProxyConfigGenerator creates a new DevProxyConfigGenerator.
+func NewDevProxyConfigGenerator() *DevProxyConfigGenerator {
 	return &DevProxyConfigGenerator{}
 }
 

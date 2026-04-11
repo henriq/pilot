@@ -12,7 +12,7 @@ func TestAppStarts(t *testing.T) {
 	// Restore original args when test completes
 	defer func() { os.Args = oldArgs }()
 
-	os.Args = []string{"dx", "help"}
+	os.Args = []string{"pilot", "help"}
 	// Execute the main function
 	main()
 	// Check if the command executed successfully

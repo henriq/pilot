@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"dx/internal/ports"
+	"pilot/internal/ports"
 )
 
 // sshBatchModeEnv configures SSH to fail immediately instead of hanging
@@ -40,7 +40,7 @@ func wrapSSHAuthError(operation, url string, output []byte, err error) error {
 			"The remote host is not in your known_hosts file. Connect once manually to add it:\n"+
 			"  ssh -T git@github.com    # For GitHub\n"+
 			"  ssh -T git@gitlab.com    # For GitLab\n\n"+
-			"Accept the host key when prompted, then retry the DX command.\n\n"+
+			"Accept the host key when prompted, then retry your pilot command.\n\n"+
 			"Original error: %s", operation, url, outputStr)
 	}
 	return fmt.Errorf("failed to %s %s: %v\n%s", operation, url, err, outputStr)
@@ -51,7 +51,7 @@ type GitClient struct {
 	fileSystem    ports.FileSystem
 }
 
-func ProvideGitClient(commandRunner ports.CommandRunner, fileSystem ports.FileSystem) *GitClient {
+func NewGitClient(commandRunner ports.CommandRunner, fileSystem ports.FileSystem) *GitClient {
 	return &GitClient{
 		commandRunner: commandRunner,
 		fileSystem:    fileSystem,

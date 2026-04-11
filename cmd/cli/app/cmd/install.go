@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"dx/cmd/cli/app"
+	"pilot/cmd/cli/app"
 
 	"github.com/spf13/cobra"
 )
@@ -13,31 +13,28 @@ func init() {
 
 var installCmd = &cobra.Command{
 	Use:   "install [service...]",
-	Short: "Deploy services to Kubernetes via Helm",
+	Short: "Deploy services to Kubernetes",
 	Long: `Deploys the specified services to the local Kubernetes cluster using Helm.
 If no services are specified, deploys all services in the current profile.
 
-This command also sets up the dev-proxy (HAProxy) for routing traffic between
-local and Kubernetes services.
+This provisions TLS certificates, sets up the dev-proxy for local service
+routing, and deploys each service via Helm.
 
-Use --intercept-http to deploy mitmweb alongside HAProxy for inspecting and
-replaying HTTP traffic. When enabled, the mitmweb UI is available at:
+Use --intercept-http to enable HTTP traffic interception via mitmweb. When
+enabled, the mitmweb UI is available at:
 
-  https://dev-proxy.<context>.localhost
-
-Without --intercept-http, the dev-proxy routes traffic directly through HAProxy
-without HTTP-level inspection.`,
+  https://dev-proxy.<context>.localhost`,
 	Example: `  # Install all services in the default profile
-  dx install
+  pilot install
 
   # Install specific services
-  dx install api database
+  pilot install api database
 
   # Install with HTTP traffic interception
-  dx install --intercept-http
+  pilot install --intercept-http
 
   # Install all services regardless of profile
-  dx install -p all`,
+  pilot install -p all`,
 	Args:              ServiceArgsValidator,
 	ValidArgsFunction: ServiceArgsCompletion,
 	RunE: func(cmd *cobra.Command, args []string) error {

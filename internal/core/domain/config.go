@@ -141,17 +141,27 @@ func (c *ConfigurationContext) GetService(name string) *Service {
 	return nil
 }
 
+// ValidateContextName checks that a context name doesn't contain path traversal characters.
+func ValidateContextName(name string) error {
+	if name == "" {
+		return fmt.Errorf("context name cannot be empty")
+	}
+	if strings.Contains(name, "..") ||
+		strings.Contains(name, "/") ||
+		strings.Contains(name, "\\") ||
+		strings.Contains(name, "\x00") {
+		return fmt.Errorf("contains invalid characters (path traversal not allowed)")
+	}
+	return nil
+}
+
 func (c *Config) Validate() error {
 	for i, ctx := range c.Contexts {
 		if ctx.Name == "" {
 			return fmt.Errorf("context at index %d has empty name", i)
 		}
-		// Validate context name doesn't contain path traversal characters
-		if strings.Contains(ctx.Name, "..") ||
-			strings.Contains(ctx.Name, "/") ||
-			strings.Contains(ctx.Name, "\\") ||
-			strings.Contains(ctx.Name, "\x00") {
-			return fmt.Errorf("context '%s' contains invalid characters (path traversal not allowed)", ctx.Name)
+		if err := ValidateContextName(ctx.Name); err != nil {
+			return fmt.Errorf("context '%s': %w", ctx.Name, err)
 		}
 
 		for j, svc := range ctx.Services {

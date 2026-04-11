@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"dx/internal/testutil"
+	"pilot/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -15,7 +15,7 @@ func TestGitClient_ContainsRepository_True(t *testing.T) {
 	fileSystem := new(testutil.MockFileSystem)
 	fileSystem.On("FileExists", "/repo/.git/HEAD").Return(true, nil)
 
-	client := ProvideGitClient(commandRunner, fileSystem)
+	client := NewGitClient(commandRunner, fileSystem)
 
 	result := client.ContainsRepository("/repo")
 
@@ -28,7 +28,7 @@ func TestGitClient_ContainsRepository_False(t *testing.T) {
 	fileSystem := new(testutil.MockFileSystem)
 	fileSystem.On("FileExists", "/repo/.git/HEAD").Return(false, nil)
 
-	client := ProvideGitClient(commandRunner, fileSystem)
+	client := NewGitClient(commandRunner, fileSystem)
 
 	result := client.ContainsRepository("/repo")
 
@@ -42,7 +42,7 @@ func TestGitClient_UpdateOriginUrl_Success(t *testing.T) {
 	commandRunner.On("RunInDir", "/repo", "git", []string{"remote", "set-url", "origin", "https://github.com/user/repo.git"}).
 		Return([]byte(""), nil)
 
-	client := ProvideGitClient(commandRunner, fileSystem)
+	client := NewGitClient(commandRunner, fileSystem)
 
 	err := client.UpdateOriginUrl("/repo", "https://github.com/user/repo.git")
 
@@ -56,7 +56,7 @@ func TestGitClient_UpdateOriginUrl_Error(t *testing.T) {
 	commandRunner.On("RunInDir", "/repo", "git", []string{"remote", "set-url", "origin", "invalid-url"}).
 		Return([]byte("fatal: No such remote 'origin'"), errors.New("exit status 1"))
 
-	client := ProvideGitClient(commandRunner, fileSystem)
+	client := NewGitClient(commandRunner, fileSystem)
 
 	err := client.UpdateOriginUrl("/repo", "invalid-url")
 
@@ -71,7 +71,7 @@ func TestGitClient_FetchRefFromOrigin_Success(t *testing.T) {
 	commandRunner.On("RunWithEnvInDir", "/repo", sshBatchModeEnv, "git", []string{"-c", "core.autocrlf=false", "fetch", "origin", "-f", "main"}).
 		Return([]byte("From https://github.com/user/repo\n * branch main -> FETCH_HEAD"), nil)
 
-	client := ProvideGitClient(commandRunner, fileSystem)
+	client := NewGitClient(commandRunner, fileSystem)
 
 	err := client.FetchRefFromOrigin("/repo", "main")
 
@@ -85,7 +85,7 @@ func TestGitClient_FetchRefFromOrigin_Error(t *testing.T) {
 	commandRunner.On("RunWithEnvInDir", "/repo", sshBatchModeEnv, "git", []string{"-c", "core.autocrlf=false", "fetch", "origin", "-f", "nonexistent"}).
 		Return([]byte("fatal: couldn't find remote ref nonexistent"), errors.New("exit status 1"))
 
-	client := ProvideGitClient(commandRunner, fileSystem)
+	client := NewGitClient(commandRunner, fileSystem)
 
 	err := client.FetchRefFromOrigin("/repo", "nonexistent")
 
@@ -99,7 +99,7 @@ func TestGitClient_GetCurrentRef_Success(t *testing.T) {
 	commandRunner.On("RunInDir", "/repo", "git", []string{"rev-parse", "--abbrev-ref", "HEAD"}).
 		Return([]byte("feature/my-branch\n"), nil)
 
-	client := ProvideGitClient(commandRunner, fileSystem)
+	client := NewGitClient(commandRunner, fileSystem)
 
 	ref, err := client.GetCurrentRef("/repo")
 
@@ -113,7 +113,7 @@ func TestGitClient_GetCurrentRef_DetachedHead(t *testing.T) {
 	commandRunner.On("RunInDir", "/repo", "git", []string{"rev-parse", "--abbrev-ref", "HEAD"}).
 		Return([]byte("HEAD\n"), nil)
 
-	client := ProvideGitClient(commandRunner, fileSystem)
+	client := NewGitClient(commandRunner, fileSystem)
 
 	ref, err := client.GetCurrentRef("/repo")
 
@@ -127,7 +127,7 @@ func TestGitClient_GetCurrentRef_Error(t *testing.T) {
 	commandRunner.On("RunInDir", "/repo", "git", []string{"rev-parse", "--abbrev-ref", "HEAD"}).
 		Return([]byte(""), errors.New("not a git repository"))
 
-	client := ProvideGitClient(commandRunner, fileSystem)
+	client := NewGitClient(commandRunner, fileSystem)
 
 	_, err := client.GetCurrentRef("/repo")
 
@@ -140,7 +140,7 @@ func TestGitClient_Checkout_Success(t *testing.T) {
 	commandRunner.On("RunInDir", "/repo", "git", []string{"-c", "core.autocrlf=false", "checkout", "main"}).
 		Return([]byte("Switched to branch 'main'"), nil)
 
-	client := ProvideGitClient(commandRunner, fileSystem)
+	client := NewGitClient(commandRunner, fileSystem)
 
 	err := client.Checkout("/repo", "main")
 
@@ -154,7 +154,7 @@ func TestGitClient_Checkout_Error(t *testing.T) {
 	commandRunner.On("RunInDir", "/repo", "git", []string{"-c", "core.autocrlf=false", "checkout", "nonexistent"}).
 		Return([]byte("error: pathspec 'nonexistent' did not match any file(s) known to git"), errors.New("exit status 1"))
 
-	client := ProvideGitClient(commandRunner, fileSystem)
+	client := NewGitClient(commandRunner, fileSystem)
 
 	err := client.Checkout("/repo", "nonexistent")
 
@@ -169,7 +169,7 @@ func TestGitClient_IsBranch_True(t *testing.T) {
 	commandRunner.On("RunInDir", "/repo", "git", []string{"rev-parse", "--verify", "--quiet", "refs/remotes/origin/main"}).
 		Return([]byte("abc123def456"), nil)
 
-	client := ProvideGitClient(commandRunner, fileSystem)
+	client := NewGitClient(commandRunner, fileSystem)
 
 	result := client.IsBranch("/repo", "main")
 
@@ -182,7 +182,7 @@ func TestGitClient_IsBranch_False(t *testing.T) {
 	commandRunner.On("RunInDir", "/repo", "git", []string{"rev-parse", "--verify", "--quiet", "refs/remotes/origin/nonexistent"}).
 		Return([]byte(""), errors.New("exit status 1"))
 
-	client := ProvideGitClient(commandRunner, fileSystem)
+	client := NewGitClient(commandRunner, fileSystem)
 
 	result := client.IsBranch("/repo", "nonexistent")
 
@@ -195,7 +195,7 @@ func TestGitClient_GetRevisionForCommit_Success(t *testing.T) {
 	commandRunner.On("RunInDir", "/repo", "git", []string{"rev-parse", "HEAD"}).
 		Return([]byte("abc123def456789\n"), nil)
 
-	client := ProvideGitClient(commandRunner, fileSystem)
+	client := NewGitClient(commandRunner, fileSystem)
 
 	revision, err := client.GetRevisionForCommit("/repo", "HEAD")
 
@@ -209,7 +209,7 @@ func TestGitClient_GetRevisionForCommit_Error(t *testing.T) {
 	commandRunner.On("RunInDir", "/repo", "git", []string{"rev-parse", "invalid-ref"}).
 		Return([]byte("fatal: ambiguous argument 'invalid-ref'"), errors.New("exit status 1"))
 
-	client := ProvideGitClient(commandRunner, fileSystem)
+	client := NewGitClient(commandRunner, fileSystem)
 
 	_, err := client.GetRevisionForCommit("/repo", "invalid-ref")
 
@@ -223,7 +223,7 @@ func TestGitClient_ResetToCommit_Success(t *testing.T) {
 	commandRunner.On("RunInDir", "/repo", "git", []string{"-c", "core.autocrlf=false", "reset", "--hard", "abc123"}).
 		Return([]byte("HEAD is now at abc123 commit message"), nil)
 
-	client := ProvideGitClient(commandRunner, fileSystem)
+	client := NewGitClient(commandRunner, fileSystem)
 
 	err := client.ResetToCommit("/repo", "abc123")
 
@@ -237,7 +237,7 @@ func TestGitClient_ResetToCommit_Error(t *testing.T) {
 	commandRunner.On("RunInDir", "/repo", "git", []string{"-c", "core.autocrlf=false", "reset", "--hard", "invalid"}).
 		Return([]byte("fatal: Could not parse object 'invalid'"), errors.New("exit status 1"))
 
-	client := ProvideGitClient(commandRunner, fileSystem)
+	client := NewGitClient(commandRunner, fileSystem)
 
 	err := client.ResetToCommit("/repo", "invalid")
 
@@ -251,7 +251,7 @@ func TestGitClient_Download_Success(t *testing.T) {
 	commandRunner.On("RunWithEnv", "git", sshBatchModeEnv, []string{"clone", "-c", "core.autocrlf=false", "https://github.com/user/repo.git", "--branch", "main", "/path/to/dest"}).
 		Return([]byte("Cloning into '/path/to/dest'..."), nil)
 
-	client := ProvideGitClient(commandRunner, fileSystem)
+	client := NewGitClient(commandRunner, fileSystem)
 
 	err := client.Download("/path/to/dest", "main", "https://github.com/user/repo.git")
 
@@ -265,7 +265,7 @@ func TestGitClient_Download_Error(t *testing.T) {
 	commandRunner.On("RunWithEnv", "git", sshBatchModeEnv, []string{"clone", "-c", "core.autocrlf=false", "https://invalid-url", "--branch", "main", "/path/to/dest"}).
 		Return([]byte("fatal: repository 'https://invalid-url' not found"), errors.New("exit status 128"))
 
-	client := ProvideGitClient(commandRunner, fileSystem)
+	client := NewGitClient(commandRunner, fileSystem)
 
 	err := client.Download("/path/to/dest", "main", "https://invalid-url")
 
@@ -290,8 +290,8 @@ func TestGit_Download_NewRepository_CreatesDirectoryAndClones(t *testing.T) {
 	commandRunner.On("RunWithEnv", "git", sshBatchModeEnv, []string{"clone", "-c", "core.autocrlf=false", "https://github.com/user/repo.git", "--branch", "main", "/repo"}).
 		Return([]byte("Cloning..."), nil)
 
-	gitClient := ProvideGitClient(commandRunner, fileSystem)
-	git := ProvideGit(gitClient, fileSystem)
+	gitClient := NewGitClient(commandRunner, fileSystem)
+	git := NewGit(gitClient, fileSystem)
 
 	err := git.Download("https://github.com/user/repo.git", "main", "/repo")
 
@@ -329,8 +329,8 @@ func TestGit_Download_ExistingRepository_UpdatesInsteadOfCloning(t *testing.T) {
 	commandRunner.On("RunInDir", "/repo", "git", []string{"rev-parse", "origin/main"}).
 		Return([]byte("abc123\n"), nil)
 
-	gitClient := ProvideGitClient(commandRunner, fileSystem)
-	git := ProvideGit(gitClient, fileSystem)
+	gitClient := NewGitClient(commandRunner, fileSystem)
+	git := NewGit(gitClient, fileSystem)
 
 	err := git.Download("https://github.com/user/repo.git", "main", "/repo")
 
@@ -351,8 +351,8 @@ func TestGit_Download_Deduplication_SameRepoRefNotClonedTwice(t *testing.T) {
 	commandRunner.On("RunWithEnv", "git", sshBatchModeEnv, []string{"clone", "-c", "core.autocrlf=false", "https://github.com/user/repo.git", "--branch", "main", "/repo"}).
 		Return([]byte("Cloning..."), nil).Once()
 
-	gitClient := ProvideGitClient(commandRunner, fileSystem)
-	git := ProvideGit(gitClient, fileSystem)
+	gitClient := NewGitClient(commandRunner, fileSystem)
+	git := NewGit(gitClient, fileSystem)
 
 	// First download
 	err := git.Download("https://github.com/user/repo.git", "main", "/repo")
@@ -389,8 +389,8 @@ func TestGit_Download_DifferentRefs_BothDownloaded(t *testing.T) {
 	commandRunner.On("RunInDir", "/repo", "git", []string{"rev-parse", "--verify", "--quiet", "refs/remotes/origin/feature"}).
 		Return([]byte(""), errors.New("not a branch")) // Tag, not branch
 
-	gitClient := ProvideGitClient(commandRunner, fileSystem)
-	git := ProvideGit(gitClient, fileSystem)
+	gitClient := NewGitClient(commandRunner, fileSystem)
+	git := NewGit(gitClient, fileSystem)
 
 	// First download with main
 	err := git.Download("https://github.com/user/repo.git", "main", "/repo")
@@ -437,8 +437,8 @@ func TestGit_Download_ExistingRepo_ResetsToBranch_WhenBehindOrigin(t *testing.T)
 	commandRunner.On("RunInDir", "/repo", "git", []string{"-c", "core.autocrlf=false", "reset", "--hard", "origin/main"}).
 		Return([]byte("HEAD is now at new456"), nil)
 
-	gitClient := ProvideGitClient(commandRunner, fileSystem)
-	git := ProvideGit(gitClient, fileSystem)
+	gitClient := NewGitClient(commandRunner, fileSystem)
+	git := NewGit(gitClient, fileSystem)
 
 	err := git.Download("https://github.com/user/repo.git", "main", "/repo")
 
@@ -454,7 +454,7 @@ func TestGitClient_Download_SSHAuthError_ProvidesHelpfulMessage(t *testing.T) {
 	commandRunner.On("RunWithEnv", "git", sshBatchModeEnv, []string{"clone", "-c", "core.autocrlf=false", "git@github.com:user/repo.git", "--branch", "main", "/path/to/dest"}).
 		Return([]byte("Permission denied (publickey)."), errors.New("exit status 128"))
 
-	client := ProvideGitClient(commandRunner, fileSystem)
+	client := NewGitClient(commandRunner, fileSystem)
 
 	err := client.Download("/path/to/dest", "main", "git@github.com:user/repo.git")
 
@@ -470,7 +470,7 @@ func TestGitClient_Download_SSHHostKeyError_ProvidesHelpfulMessage(t *testing.T)
 	commandRunner.On("RunWithEnv", "git", sshBatchModeEnv, []string{"clone", "-c", "core.autocrlf=false", "git@github.com:user/repo.git", "--branch", "main", "/path/to/dest"}).
 		Return([]byte("Host key verification failed."), errors.New("exit status 128"))
 
-	client := ProvideGitClient(commandRunner, fileSystem)
+	client := NewGitClient(commandRunner, fileSystem)
 
 	err := client.Download("/path/to/dest", "main", "git@github.com:user/repo.git")
 
@@ -487,7 +487,7 @@ func TestGitClient_FetchRefFromOrigin_SSHAuthError_ProvidesHelpfulMessage(t *tes
 	commandRunner.On("RunWithEnvInDir", "/repo", sshBatchModeEnv, "git", []string{"-c", "core.autocrlf=false", "fetch", "origin", "-f", "main"}).
 		Return([]byte("Permission denied (publickey)."), errors.New("exit status 128"))
 
-	client := ProvideGitClient(commandRunner, fileSystem)
+	client := NewGitClient(commandRunner, fileSystem)
 
 	err := client.FetchRefFromOrigin("/repo", "main")
 

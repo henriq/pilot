@@ -5,10 +5,10 @@ import (
 	"sort"
 	"strings"
 
-	"dx/internal/cli/output"
-	"dx/internal/core"
-	"dx/internal/core/domain"
-	"dx/internal/ports"
+	"pilot/internal/cli/output"
+	"pilot/internal/core"
+	"pilot/internal/core/domain"
+	"pilot/internal/ports"
 )
 
 type SecretCommandHandler struct {
@@ -17,7 +17,7 @@ type SecretCommandHandler struct {
 	terminalInput     ports.TerminalInput
 }
 
-func ProvideSecretCommandHandler(
+func NewSecretCommandHandler(
 	secretsRepository ports.SecretsRepository,
 	configRepository ports.ConfigRepository,
 	terminalInput ports.TerminalInput,
@@ -63,7 +63,7 @@ func (h *SecretCommandHandler) HandleSet(key string) error {
 
 	if !secretExists {
 		if conflicting, found := findConflictingSecretKey(secrets, key); found {
-			return fmt.Errorf("cannot set secret '%s': conflicts with existing secret '%s' (a secret key cannot have both a direct value and nested keys); delete '%s' first with 'dx secret delete %s'", key, conflicting, conflicting, conflicting)
+			return fmt.Errorf("cannot set secret '%s': conflicts with existing secret '%s' (a secret key cannot have both a direct value and nested keys); delete '%s' first with 'pilot secret delete %s'", key, conflicting, conflicting, conflicting)
 		}
 		secrets = append(secrets, &domain.Secret{Key: key, Value: value})
 	}
@@ -92,7 +92,7 @@ func (h *SecretCommandHandler) HandleList() error {
 	}
 
 	output.PrintHeader("Secrets")
-	fmt.Println()
+	output.PrintNewline()
 
 	// Sort secrets by key
 	sort.Slice(
@@ -101,7 +101,7 @@ func (h *SecretCommandHandler) HandleList() error {
 		},
 	)
 	for _, secret := range secrets {
-		fmt.Printf("  %s %s\n", output.SymbolBullet, output.Bold(secret.Key))
+		output.PrintBullet(output.Bold(secret.Key))
 	}
 
 	return nil
@@ -195,12 +195,12 @@ func (h *SecretCommandHandler) HandleConfigure(checkOnly bool) error {
 	// Check-only mode: report and exit with error
 	if checkOnly {
 		output.PrintHeader("Missing Secrets")
-		fmt.Println()
+		output.PrintNewline()
 		for _, key := range missingKeys {
-			fmt.Printf("  %s %s\n", output.SymbolBullet, output.Bold(key))
+			output.PrintBullet(output.Bold(key))
 		}
-		fmt.Println()
-		return fmt.Errorf("%d missing %s; run 'dx secret configure' to set values",
+		output.PrintNewline()
+		return fmt.Errorf("%d missing %s; run 'pilot secret configure' to set values",
 			len(missingKeys),
 			output.Plural(len(missingKeys), "secret", "secrets"))
 	}
@@ -211,7 +211,7 @@ func (h *SecretCommandHandler) HandleConfigure(checkOnly bool) error {
 	}
 
 	output.PrintHeader("Configure Missing Secrets")
-	fmt.Println()
+	output.PrintNewline()
 
 	secrets := existingSecrets
 	var added, skipped int
@@ -223,13 +223,13 @@ func (h *SecretCommandHandler) HandleConfigure(checkOnly bool) error {
 		}
 
 		if value == "" {
-			fmt.Printf("  %s Skipping '%s' (empty value)\n", output.SymbolWarning, key)
+			output.PrintStep(fmt.Sprintf("Skipping '%s' (empty value)", key))
 			skipped++
 			continue
 		}
 
 		if conflicting, found := findConflictingSecretKey(secrets, key); found {
-			fmt.Printf("  %s Skipping '%s': conflicts with existing secret '%s' (a secret key cannot have both a direct value and nested keys)\n", output.SymbolWarning, key, conflicting)
+			output.PrintStep(fmt.Sprintf("Skipping '%s': conflicts with existing secret '%s' (a secret key cannot have both a direct value and nested keys)", key, conflicting))
 			skipped++
 			continue
 		}
@@ -250,7 +250,7 @@ func (h *SecretCommandHandler) HandleConfigure(checkOnly bool) error {
 	}
 
 	// Print summary
-	fmt.Println()
+	output.PrintNewline()
 	if added > 0 {
 		output.PrintSuccess(fmt.Sprintf("Configured %d %s",
 			added, output.Plural(added, "secret", "secrets")))

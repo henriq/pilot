@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"dx/internal/core/domain"
-	"dx/internal/testutil"
+	"pilot/internal/core/domain"
+	"pilot/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -23,7 +23,7 @@ func TestContextCommandHandler_HandleSet_Success(t *testing.T) {
 	configRepository.On("LoadConfig").Return(config, nil)
 	configRepository.On("SaveCurrentContextName", "production").Return(nil)
 
-	sut := ProvideContextCommandHandler(configRepository)
+	sut := NewContextCommandHandler(configRepository)
 
 	err := sut.HandleSet("production")
 
@@ -37,7 +37,7 @@ func TestContextCommandHandler_HandleSet_LoadConfigError(t *testing.T) {
 	expectedErr := errors.New("load config error")
 	configRepository.On("LoadConfig").Return(nil, expectedErr)
 
-	sut := ProvideContextCommandHandler(configRepository)
+	sut := NewContextCommandHandler(configRepository)
 
 	err := sut.HandleSet("production")
 
@@ -57,7 +57,7 @@ func TestContextCommandHandler_HandleSet_ContextNotFound(t *testing.T) {
 
 	configRepository.On("LoadConfig").Return(config, nil)
 
-	sut := ProvideContextCommandHandler(configRepository)
+	sut := NewContextCommandHandler(configRepository)
 
 	err := sut.HandleSet("non-existent")
 
@@ -80,7 +80,7 @@ func TestContextCommandHandler_HandleSet_SaveError(t *testing.T) {
 	configRepository.On("LoadConfig").Return(config, nil)
 	configRepository.On("SaveCurrentContextName", "production").Return(expectedErr)
 
-	sut := ProvideContextCommandHandler(configRepository)
+	sut := NewContextCommandHandler(configRepository)
 
 	err := sut.HandleSet("production")
 
@@ -102,7 +102,7 @@ func TestContextCommandHandler_HandleList_Success(t *testing.T) {
 	configRepository.On("LoadConfig").Return(config, nil)
 	configRepository.On("LoadCurrentContextName").Return("default", nil)
 
-	sut := ProvideContextCommandHandler(configRepository)
+	sut := NewContextCommandHandler(configRepository)
 
 	err := sut.HandleList()
 
@@ -120,7 +120,7 @@ func TestContextCommandHandler_HandleList_Empty(t *testing.T) {
 	configRepository.On("LoadConfig").Return(config, nil)
 	configRepository.On("LoadCurrentContextName").Return("", nil)
 
-	sut := ProvideContextCommandHandler(configRepository)
+	sut := NewContextCommandHandler(configRepository)
 
 	err := sut.HandleList()
 
@@ -134,7 +134,7 @@ func TestContextCommandHandler_HandleList_LoadConfigError(t *testing.T) {
 	expectedErr := errors.New("load config error")
 	configRepository.On("LoadConfig").Return(nil, expectedErr)
 
-	sut := ProvideContextCommandHandler(configRepository)
+	sut := NewContextCommandHandler(configRepository)
 
 	err := sut.HandleList()
 
@@ -158,7 +158,7 @@ func TestContextCommandHandler_HandleList_LoadCurrentContextNameError(t *testing
 	configRepository.On("LoadConfig").Return(config, nil)
 	configRepository.On("LoadCurrentContextName").Return("", errors.New("context name error"))
 
-	sut := ProvideContextCommandHandler(configRepository)
+	sut := NewContextCommandHandler(configRepository)
 
 	err := sut.HandleList()
 
@@ -179,7 +179,7 @@ func TestContextCommandHandler_HandlePrint_Success(t *testing.T) {
 
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 
-	sut := ProvideContextCommandHandler(configRepository)
+	sut := NewContextCommandHandler(configRepository)
 
 	err := sut.HandlePrint()
 
@@ -193,7 +193,7 @@ func TestContextCommandHandler_HandlePrint_LoadConfigError(t *testing.T) {
 	expectedErr := errors.New("load config error")
 	configRepository.On("LoadCurrentConfigurationContext").Return(nil, expectedErr)
 
-	sut := ProvideContextCommandHandler(configRepository)
+	sut := NewContextCommandHandler(configRepository)
 
 	err := sut.HandlePrint()
 

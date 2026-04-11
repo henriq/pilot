@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"dx/internal/ports"
-	"dx/internal/testutil"
+	"pilot/internal/ports"
+	"pilot/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -48,7 +48,7 @@ func (m *mockCommandRunner) RunInteractive(name string, args ...string) error {
 func TestClient_Apply_NoPatches(t *testing.T) {
 	runner := &mockCommandRunner{}
 	fs := testutil.NewTestFileSystem(t)
-	client := ProvideKustomizeClient(runner, fs)
+	client := NewClient(runner, fs)
 
 	manifests := []byte("apiVersion: v1\nkind: ConfigMap\n")
 	result, err := client.Apply(manifests, nil, t.TempDir())
@@ -69,7 +69,7 @@ func TestClient_Apply_CallsKubectl(t *testing.T) {
 		},
 	}
 	fs := testutil.NewTestFileSystem(t)
-	client := ProvideKustomizeClient(runner, fs)
+	client := NewClient(runner, fs)
 
 	manifests := []byte("apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: test\n")
 	patches := []ports.Patch{
@@ -99,7 +99,7 @@ func TestBuildKustomization_Labels(t *testing.T) {
 	assert.Equal(t, "kustomize.config.k8s.io/v1beta1", k.APIVersion)
 	assert.Equal(t, "Kustomization", k.Kind)
 	require.Len(t, k.Labels, 1)
-	assert.Equal(t, "dx", k.Labels[0].Pairs["managed-by"])
+	assert.Equal(t, "pilot", k.Labels[0].Pairs["managed-by"])
 	assert.False(t, k.Labels[0].IncludeSelectors)
 	assert.Empty(t, patchFiles)
 }
@@ -276,7 +276,7 @@ func TestClient_Apply_KubectlError(t *testing.T) {
 		},
 	}
 	fs := testutil.NewTestFileSystem(t)
-	client := ProvideKustomizeClient(runner, fs)
+	client := NewClient(runner, fs)
 
 	manifests := []byte("apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: test\n")
 	patches := []ports.Patch{
@@ -299,7 +299,7 @@ func TestClient_Apply_WritesCorrectFiles(t *testing.T) {
 		},
 	}
 	fs := testutil.NewTestFileSystem(t)
-	client := ProvideKustomizeClient(runner, fs)
+	client := NewClient(runner, fs)
 	workDir := "workdir"
 
 	manifests := []byte("apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: test\n")
@@ -456,7 +456,7 @@ func TestClient_Apply_MkdirAllError(t *testing.T) {
 	runner := &mockCommandRunner{}
 	fs := newMockFileSystemWithErrors()
 	fs.mkdirAllErr = fmt.Errorf("permission denied")
-	client := ProvideKustomizeClient(runner, fs)
+	client := NewClient(runner, fs)
 
 	manifests := []byte("apiVersion: v1\nkind: ConfigMap\n")
 	patches := []ports.Patch{
@@ -480,7 +480,7 @@ func TestClient_Apply_WriteResourcesError(t *testing.T) {
 		}
 		return nil
 	}
-	client := ProvideKustomizeClient(runner, fs)
+	client := NewClient(runner, fs)
 
 	manifests := []byte("apiVersion: v1\nkind: ConfigMap\n")
 	patches := []ports.Patch{
@@ -504,7 +504,7 @@ func TestClient_Apply_WritePatchFileError(t *testing.T) {
 		}
 		return nil
 	}
-	client := ProvideKustomizeClient(runner, fs)
+	client := NewClient(runner, fs)
 
 	manifests := []byte("apiVersion: v1\nkind: ConfigMap\n")
 	patches := []ports.Patch{
@@ -528,7 +528,7 @@ func TestClient_Apply_WriteKustomizationError(t *testing.T) {
 		}
 		return nil
 	}
-	client := ProvideKustomizeClient(runner, fs)
+	client := NewClient(runner, fs)
 
 	manifests := []byte("apiVersion: v1\nkind: ConfigMap\n")
 	patches := []ports.Patch{

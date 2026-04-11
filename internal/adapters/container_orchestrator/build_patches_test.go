@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"dx/internal/core"
-	"dx/internal/core/domain"
-	"dx/internal/testutil"
+	"pilot/internal/core"
+	"pilot/internal/core/domain"
+	"pilot/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

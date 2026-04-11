@@ -1,10 +1,10 @@
 package handler
 
 import (
-	"dx/internal/core/domain"
-	"dx/internal/ports"
 	"fmt"
 	"io"
+	"pilot/internal/core/domain"
+	"pilot/internal/ports"
 	"slices"
 	"strings"
 )
@@ -13,7 +13,7 @@ type GenerateCommandHandler struct {
 	configRepository ports.ConfigRepository
 }
 
-func ProvideGenerateCommandHandler(
+func NewGenerateCommandHandler(
 	configRepository ports.ConfigRepository,
 ) GenerateCommandHandler {
 	return GenerateCommandHandler{
@@ -28,7 +28,7 @@ func (h *GenerateCommandHandler) HandleGenerateHostEntries(out io.Writer) error 
 		return err
 	}
 
-	fmt.Fprintf(out, "# DX entries for %s\n", context.Name)
+	fmt.Fprintf(out, "# Pilot entries for %s\n", context.Name)
 	fmt.Fprintf(out, "127.0.0.1 dev-proxy.%s.localhost\n", context.Name)
 	fmt.Fprintf(out, "127.0.0.1 stats.dev-proxy.%s.localhost\n", context.Name)
 

@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	"dx/internal/cli/output"
-	"dx/internal/core"
-	"dx/internal/core/domain"
-	"dx/internal/ports"
+	"pilot/internal/cli/output"
+	"pilot/internal/core"
+	"pilot/internal/core/domain"
+	"pilot/internal/ports"
 )
 
 type RunCommandHandler struct {
@@ -18,7 +18,7 @@ type RunCommandHandler struct {
 	commandRunner     ports.CommandRunner
 }
 
-func ProvideRunCommandHandler(
+func NewRunCommandHandler(
 	configRepository ports.ConfigRepository,
 	secretsRepository ports.SecretsRepository,
 	templater ports.Templater,

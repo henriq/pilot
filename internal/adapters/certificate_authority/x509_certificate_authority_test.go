@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"dx/internal/adapters/symmetric_encryptor"
-	"dx/internal/core/domain"
-	"dx/internal/ports"
-	"dx/internal/testutil"
+	"pilot/internal/adapters/symmetric_encryptor"
+	"pilot/internal/core/domain"
+	"pilot/internal/ports"
+	"pilot/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,14 +23,14 @@ import (
 func setupTestCA(t *testing.T) (*X509CertificateAuthority, *testutil.TestFileSystem, string) {
 	t.Helper()
 	fs := testutil.NewTestFileSystem(t)
-	encryptor := symmetric_encryptor.ProvideAesGcmEncryptor()
+	encryptor := symmetric_encryptor.NewAesGcmEncryptor()
 
 	// Generate a real encryption key for tests
 	keyBytes, err := encryptor.CreateKey()
 	require.NoError(t, err)
 	passphrase := string(keyBytes)
 
-	ca := ProvideX509CertificateAuthority(fs, encryptor)
+	ca := NewX509CertificateAuthority(fs, encryptor)
 	return ca, fs, passphrase
 }
 
@@ -45,8 +45,8 @@ func TestX509CertificateAuthority_CreateCA_GeneratesValidCA(t *testing.T) {
 	assert.NotNil(t, ca.caPEM)
 
 	assert.True(t, ca.caCert.IsCA)
-	assert.Equal(t, "DX CA (test-ctx)", ca.caCert.Subject.CommonName)
-	assert.Contains(t, ca.caCert.Subject.Organization, "DX")
+	assert.Equal(t, "Pilot CA (test-ctx)", ca.caCert.Subject.CommonName)
+	assert.Contains(t, ca.caCert.Subject.Organization, "Pilot")
 	assert.Equal(t, x509.KeyUsageCertSign|x509.KeyUsageCRLSign, ca.caCert.KeyUsage)
 }
 
@@ -70,7 +70,7 @@ func TestX509CertificateAuthority_LoadCA_RoundTrip(t *testing.T) {
 	originalCert := ca.caCert.Raw
 
 	// Create a new instance and load the CA
-	ca2 := ProvideX509CertificateAuthority(ca.fileSystem, ca.encryptor)
+	ca2 := NewX509CertificateAuthority(ca.fileSystem, ca.encryptor)
 	err = ca2.loadCA("test-ctx", passphrase)
 	require.NoError(t, err)
 
@@ -95,7 +95,7 @@ func TestX509CertificateAuthority_LoadOrCreateCA_LoadsWhenExists(t *testing.T) {
 	require.NoError(t, err)
 	originalCert := ca.caCert.Raw
 
-	ca2 := ProvideX509CertificateAuthority(ca.fileSystem, ca.encryptor)
+	ca2 := NewX509CertificateAuthority(ca.fileSystem, ca.encryptor)
 	err = ca2.loadOrCreateCA("test-ctx", passphrase)
 	require.NoError(t, err)
 
@@ -112,18 +112,18 @@ func TestX509CertificateAuthority_LoadCA_NoExistingCA(t *testing.T) {
 
 func TestX509CertificateAuthority_LoadCA_WrongPassphrase(t *testing.T) {
 	fs := testutil.NewTestFileSystem(t)
-	encryptor := symmetric_encryptor.ProvideAesGcmEncryptor()
+	encryptor := symmetric_encryptor.NewAesGcmEncryptor()
 
 	correctKey, err := encryptor.CreateKey()
 	require.NoError(t, err)
 	wrongKey, err := encryptor.CreateKey()
 	require.NoError(t, err)
 
-	ca := ProvideX509CertificateAuthority(fs, encryptor)
+	ca := NewX509CertificateAuthority(fs, encryptor)
 	err = ca.createCA("test-ctx", string(correctKey))
 	require.NoError(t, err)
 
-	ca2 := ProvideX509CertificateAuthority(fs, encryptor)
+	ca2 := NewX509CertificateAuthority(fs, encryptor)
 	err = ca2.loadCA("test-ctx", string(wrongKey))
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to decrypt CA private key")
@@ -382,7 +382,7 @@ func TestX509CertificateAuthority_CreateCA_OverwritesExisting(t *testing.T) {
 
 func TestX509CertificateAuthority_LoadCA_ExpiredCA(t *testing.T) {
 	fs := testutil.NewTestFileSystem(t)
-	encryptor := symmetric_encryptor.ProvideAesGcmEncryptor()
+	encryptor := symmetric_encryptor.NewAesGcmEncryptor()
 
 	keyBytes, err := encryptor.CreateKey()
 	require.NoError(t, err)
@@ -421,12 +421,12 @@ func TestX509CertificateAuthority_LoadCA_ExpiredCA(t *testing.T) {
 	require.NoError(t, fs.WriteFile(caCertPath("test-ctx"), certPEM, ports.ReadWrite))
 	require.NoError(t, fs.WriteFile(caKeyPath("test-ctx"), encryptedKey, ports.ReadWrite))
 
-	ca := ProvideX509CertificateAuthority(fs, encryptor)
+	ca := NewX509CertificateAuthority(fs, encryptor)
 	err = ca.loadCA("test-ctx", passphrase)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "CA certificate expired on")
 	assert.Contains(t, err.Error(), expectedDateStr)
-	assert.Contains(t, err.Error(), "dx ca recreate")
+	assert.Contains(t, err.Error(), "pilot ca recreate")
 	assert.Nil(t, ca.caCert)
 	assert.Nil(t, ca.caKey)
 	assert.Nil(t, ca.caPEM)
@@ -434,7 +434,7 @@ func TestX509CertificateAuthority_LoadCA_ExpiredCA(t *testing.T) {
 
 func TestX509CertificateAuthority_LoadOrCreateCA_ExpiredCA(t *testing.T) {
 	fs := testutil.NewTestFileSystem(t)
-	encryptor := symmetric_encryptor.ProvideAesGcmEncryptor()
+	encryptor := symmetric_encryptor.NewAesGcmEncryptor()
 
 	keyBytes, err := encryptor.CreateKey()
 	require.NoError(t, err)
@@ -472,9 +472,9 @@ func TestX509CertificateAuthority_LoadOrCreateCA_ExpiredCA(t *testing.T) {
 	require.NoError(t, fs.WriteFile(caCertPath("test-ctx"), certPEM, ports.ReadWrite))
 	require.NoError(t, fs.WriteFile(caKeyPath("test-ctx"), encryptedKey, ports.ReadWrite))
 
-	ca := ProvideX509CertificateAuthority(fs, encryptor)
+	ca := NewX509CertificateAuthority(fs, encryptor)
 	err = ca.loadOrCreateCA("test-ctx", passphrase)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "CA certificate expired on")
-	assert.Contains(t, err.Error(), "dx ca recreate")
+	assert.Contains(t, err.Error(), "pilot ca recreate")
 }

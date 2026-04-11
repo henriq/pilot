@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"dx/internal/core"
-	"dx/internal/core/domain"
-	"dx/internal/ports"
+	"pilot/internal/core"
+	"pilot/internal/core/domain"
+	"pilot/internal/ports"
 )
 
 var _ ports.ContainerImageRepository = (*DockerRepository)(nil)
@@ -19,7 +19,7 @@ type DockerRepository struct {
 	commandRunner     ports.CommandRunner
 }
 
-func ProvideDockerRepository(
+func NewDockerRepository(
 	configRepository ports.ConfigRepository,
 	secretsRepository ports.SecretsRepository,
 	templater ports.Templater,

@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"dx/internal/core/domain"
-	"dx/internal/testutil"
+	"pilot/internal/core/domain"
+	"pilot/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -20,13 +20,13 @@ func TestLoadSecrets_Success(t *testing.T) {
 	encryptedData := []byte("encrypted-data")
 	encryptionKey := "test-key"
 
-	fileSystem.On("FileExists", "~/.dx/test-context/secrets").Return(true, nil)
+	fileSystem.On("FileExists", "~/.pilot/test-context/secrets").Return(true, nil)
 	keyring.On("HasKey", "test-context-encryption-key").Return(true, nil)
-	fileSystem.On("ReadFile", "~/.dx/test-context/secrets").Return(encryptedData, nil)
+	fileSystem.On("ReadFile", "~/.pilot/test-context/secrets").Return(encryptedData, nil)
 	keyring.On("GetKey", "test-context-encryption-key").Return(encryptionKey, nil)
 	encryptor.On("Decrypt", encryptedData, []byte(encryptionKey)).Return(secretsJSON, nil)
 
-	sut := ProvideEncryptedFileSecretRepository(fileSystem, keyring, encryptor)
+	sut := NewEncryptedFileSecretRepository(fileSystem, keyring, encryptor)
 
 	secrets, err := sut.LoadSecrets("test-context")
 
@@ -44,10 +44,10 @@ func TestLoadSecrets_FileNotExists(t *testing.T) {
 	keyring := new(testutil.MockKeyring)
 	encryptor := new(testutil.MockSymmetricEncryptor)
 
-	fileSystem.On("FileExists", "~/.dx/test-context/secrets").Return(false, nil)
+	fileSystem.On("FileExists", "~/.pilot/test-context/secrets").Return(false, nil)
 	keyring.On("HasKey", "test-context-encryption-key").Return(true, nil)
 
-	sut := ProvideEncryptedFileSecretRepository(fileSystem, keyring, encryptor)
+	sut := NewEncryptedFileSecretRepository(fileSystem, keyring, encryptor)
 
 	secrets, err := sut.LoadSecrets("test-context")
 
@@ -62,10 +62,10 @@ func TestLoadSecrets_KeyNotExists(t *testing.T) {
 	keyring := new(testutil.MockKeyring)
 	encryptor := new(testutil.MockSymmetricEncryptor)
 
-	fileSystem.On("FileExists", "~/.dx/test-context/secrets").Return(true, nil)
+	fileSystem.On("FileExists", "~/.pilot/test-context/secrets").Return(true, nil)
 	keyring.On("HasKey", "test-context-encryption-key").Return(false, nil)
 
-	sut := ProvideEncryptedFileSecretRepository(fileSystem, keyring, encryptor)
+	sut := NewEncryptedFileSecretRepository(fileSystem, keyring, encryptor)
 
 	secrets, err := sut.LoadSecrets("test-context")
 
@@ -81,9 +81,9 @@ func TestLoadSecrets_FileExistsError(t *testing.T) {
 	encryptor := new(testutil.MockSymmetricEncryptor)
 
 	expectedErr := errors.New("filesystem error")
-	fileSystem.On("FileExists", "~/.dx/test-context/secrets").Return(false, expectedErr)
+	fileSystem.On("FileExists", "~/.pilot/test-context/secrets").Return(false, expectedErr)
 
-	sut := ProvideEncryptedFileSecretRepository(fileSystem, keyring, encryptor)
+	sut := NewEncryptedFileSecretRepository(fileSystem, keyring, encryptor)
 
 	secrets, err := sut.LoadSecrets("test-context")
 
@@ -99,10 +99,10 @@ func TestLoadSecrets_HasKeyError(t *testing.T) {
 	encryptor := new(testutil.MockSymmetricEncryptor)
 
 	expectedErr := errors.New("keyring error")
-	fileSystem.On("FileExists", "~/.dx/test-context/secrets").Return(true, nil)
+	fileSystem.On("FileExists", "~/.pilot/test-context/secrets").Return(true, nil)
 	keyring.On("HasKey", "test-context-encryption-key").Return(false, expectedErr)
 
-	sut := ProvideEncryptedFileSecretRepository(fileSystem, keyring, encryptor)
+	sut := NewEncryptedFileSecretRepository(fileSystem, keyring, encryptor)
 
 	secrets, err := sut.LoadSecrets("test-context")
 
@@ -119,11 +119,11 @@ func TestLoadSecrets_ReadFileError(t *testing.T) {
 	encryptor := new(testutil.MockSymmetricEncryptor)
 
 	expectedErr := errors.New("read file error")
-	fileSystem.On("FileExists", "~/.dx/test-context/secrets").Return(true, nil)
+	fileSystem.On("FileExists", "~/.pilot/test-context/secrets").Return(true, nil)
 	keyring.On("HasKey", "test-context-encryption-key").Return(true, nil)
-	fileSystem.On("ReadFile", "~/.dx/test-context/secrets").Return([]byte{}, expectedErr)
+	fileSystem.On("ReadFile", "~/.pilot/test-context/secrets").Return([]byte{}, expectedErr)
 
-	sut := ProvideEncryptedFileSecretRepository(fileSystem, keyring, encryptor)
+	sut := NewEncryptedFileSecretRepository(fileSystem, keyring, encryptor)
 
 	secrets, err := sut.LoadSecrets("test-context")
 
@@ -140,12 +140,12 @@ func TestLoadSecrets_GetKeyError(t *testing.T) {
 	encryptor := new(testutil.MockSymmetricEncryptor)
 
 	expectedErr := errors.New("get key error")
-	fileSystem.On("FileExists", "~/.dx/test-context/secrets").Return(true, nil)
+	fileSystem.On("FileExists", "~/.pilot/test-context/secrets").Return(true, nil)
 	keyring.On("HasKey", "test-context-encryption-key").Return(true, nil)
-	fileSystem.On("ReadFile", "~/.dx/test-context/secrets").Return([]byte("encrypted"), nil)
+	fileSystem.On("ReadFile", "~/.pilot/test-context/secrets").Return([]byte("encrypted"), nil)
 	keyring.On("GetKey", "test-context-encryption-key").Return("", expectedErr)
 
-	sut := ProvideEncryptedFileSecretRepository(fileSystem, keyring, encryptor)
+	sut := NewEncryptedFileSecretRepository(fileSystem, keyring, encryptor)
 
 	secrets, err := sut.LoadSecrets("test-context")
 
@@ -165,13 +165,13 @@ func TestLoadSecrets_DecryptionError(t *testing.T) {
 	encryptedData := []byte("encrypted-data")
 	encryptionKey := "test-key"
 
-	fileSystem.On("FileExists", "~/.dx/test-context/secrets").Return(true, nil)
+	fileSystem.On("FileExists", "~/.pilot/test-context/secrets").Return(true, nil)
 	keyring.On("HasKey", "test-context-encryption-key").Return(true, nil)
-	fileSystem.On("ReadFile", "~/.dx/test-context/secrets").Return(encryptedData, nil)
+	fileSystem.On("ReadFile", "~/.pilot/test-context/secrets").Return(encryptedData, nil)
 	keyring.On("GetKey", "test-context-encryption-key").Return(encryptionKey, nil)
 	encryptor.On("Decrypt", encryptedData, []byte(encryptionKey)).Return([]byte{}, expectedErr)
 
-	sut := ProvideEncryptedFileSecretRepository(fileSystem, keyring, encryptor)
+	sut := NewEncryptedFileSecretRepository(fileSystem, keyring, encryptor)
 
 	secrets, err := sut.LoadSecrets("test-context")
 
@@ -192,13 +192,13 @@ func TestLoadSecrets_InvalidJSON(t *testing.T) {
 	encryptedData := []byte("encrypted-data")
 	encryptionKey := "test-key"
 
-	fileSystem.On("FileExists", "~/.dx/test-context/secrets").Return(true, nil)
+	fileSystem.On("FileExists", "~/.pilot/test-context/secrets").Return(true, nil)
 	keyring.On("HasKey", "test-context-encryption-key").Return(true, nil)
-	fileSystem.On("ReadFile", "~/.dx/test-context/secrets").Return(encryptedData, nil)
+	fileSystem.On("ReadFile", "~/.pilot/test-context/secrets").Return(encryptedData, nil)
 	keyring.On("GetKey", "test-context-encryption-key").Return(encryptionKey, nil)
 	encryptor.On("Decrypt", encryptedData, []byte(encryptionKey)).Return(invalidJSON, nil)
 
-	sut := ProvideEncryptedFileSecretRepository(fileSystem, keyring, encryptor)
+	sut := NewEncryptedFileSecretRepository(fileSystem, keyring, encryptor)
 
 	secrets, err := sut.LoadSecrets("test-context")
 
@@ -223,9 +223,9 @@ func TestSaveSecrets_SuccessWithExistingKey(t *testing.T) {
 	keyring.On("HasKey", "test-context-encryption-key").Return(true, nil)
 	keyring.On("GetKey", "test-context-encryption-key").Return(encryptionKey, nil)
 	encryptor.On("Encrypt", mock.Anything, []byte(encryptionKey)).Return(encryptedData, nil)
-	fileSystem.On("WriteFile", "~/.dx/test-context/secrets", encryptedData, mock.Anything).Return(nil)
+	fileSystem.On("WriteFile", "~/.pilot/test-context/secrets", encryptedData, mock.Anything).Return(nil)
 
-	sut := ProvideEncryptedFileSecretRepository(fileSystem, keyring, encryptor)
+	sut := NewEncryptedFileSecretRepository(fileSystem, keyring, encryptor)
 
 	err := sut.SaveSecrets(secrets, "test-context")
 
@@ -251,9 +251,9 @@ func TestSaveSecrets_SuccessWithNewKey(t *testing.T) {
 	keyring.On("SetKey", "test-context-encryption-key", string(newKey)).Return(nil)
 	keyring.On("GetKey", "test-context-encryption-key").Return(string(newKey), nil)
 	encryptor.On("Encrypt", mock.Anything, newKey).Return(encryptedData, nil)
-	fileSystem.On("WriteFile", "~/.dx/test-context/secrets", encryptedData, mock.Anything).Return(nil)
+	fileSystem.On("WriteFile", "~/.pilot/test-context/secrets", encryptedData, mock.Anything).Return(nil)
 
-	sut := ProvideEncryptedFileSecretRepository(fileSystem, keyring, encryptor)
+	sut := NewEncryptedFileSecretRepository(fileSystem, keyring, encryptor)
 
 	err := sut.SaveSecrets(secrets, "test-context")
 
@@ -275,7 +275,7 @@ func TestSaveSecrets_HasKeyError(t *testing.T) {
 
 	keyring.On("HasKey", "test-context-encryption-key").Return(false, expectedErr)
 
-	sut := ProvideEncryptedFileSecretRepository(fileSystem, keyring, encryptor)
+	sut := NewEncryptedFileSecretRepository(fileSystem, keyring, encryptor)
 
 	err := sut.SaveSecrets(secrets, "test-context")
 
@@ -297,7 +297,7 @@ func TestSaveSecrets_CreateKeyError(t *testing.T) {
 	keyring.On("HasKey", "test-context-encryption-key").Return(false, nil)
 	encryptor.On("CreateKey").Return([]byte{}, expectedErr)
 
-	sut := ProvideEncryptedFileSecretRepository(fileSystem, keyring, encryptor)
+	sut := NewEncryptedFileSecretRepository(fileSystem, keyring, encryptor)
 
 	err := sut.SaveSecrets(secrets, "test-context")
 
@@ -322,7 +322,7 @@ func TestSaveSecrets_SetKeyError(t *testing.T) {
 	encryptor.On("CreateKey").Return(newKey, nil)
 	keyring.On("SetKey", "test-context-encryption-key", string(newKey)).Return(expectedErr)
 
-	sut := ProvideEncryptedFileSecretRepository(fileSystem, keyring, encryptor)
+	sut := NewEncryptedFileSecretRepository(fileSystem, keyring, encryptor)
 
 	err := sut.SaveSecrets(secrets, "test-context")
 
@@ -345,7 +345,7 @@ func TestSaveSecrets_GetKeyError(t *testing.T) {
 	keyring.On("HasKey", "test-context-encryption-key").Return(true, nil)
 	keyring.On("GetKey", "test-context-encryption-key").Return("", expectedErr)
 
-	sut := ProvideEncryptedFileSecretRepository(fileSystem, keyring, encryptor)
+	sut := NewEncryptedFileSecretRepository(fileSystem, keyring, encryptor)
 
 	err := sut.SaveSecrets(secrets, "test-context")
 
@@ -369,7 +369,7 @@ func TestSaveSecrets_EncryptionError(t *testing.T) {
 	keyring.On("GetKey", "test-context-encryption-key").Return(encryptionKey, nil)
 	encryptor.On("Encrypt", mock.Anything, []byte(encryptionKey)).Return([]byte{}, expectedErr)
 
-	sut := ProvideEncryptedFileSecretRepository(fileSystem, keyring, encryptor)
+	sut := NewEncryptedFileSecretRepository(fileSystem, keyring, encryptor)
 
 	err := sut.SaveSecrets(secrets, "test-context")
 
@@ -394,9 +394,9 @@ func TestSaveSecrets_WriteError(t *testing.T) {
 	keyring.On("HasKey", "test-context-encryption-key").Return(true, nil)
 	keyring.On("GetKey", "test-context-encryption-key").Return(encryptionKey, nil)
 	encryptor.On("Encrypt", mock.Anything, []byte(encryptionKey)).Return(encryptedData, nil)
-	fileSystem.On("WriteFile", "~/.dx/test-context/secrets", encryptedData, mock.Anything).Return(expectedErr)
+	fileSystem.On("WriteFile", "~/.pilot/test-context/secrets", encryptedData, mock.Anything).Return(expectedErr)
 
-	sut := ProvideEncryptedFileSecretRepository(fileSystem, keyring, encryptor)
+	sut := NewEncryptedFileSecretRepository(fileSystem, keyring, encryptor)
 
 	err := sut.SaveSecrets(secrets, "test-context")
 

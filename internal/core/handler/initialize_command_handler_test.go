@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"dx/internal/testutil"
+	"pilot/internal/testutil"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -23,7 +23,7 @@ func TestInitializeCommandHandler_HandleReturnsErrorIfConfigExists(t *testing.T)
 func TestInitializeCommandHandler_HandleWritesDefaultConfigIfNoConfigExists(t *testing.T) {
 	configRepository := new(testutil.MockConfigRepository)
 	configRepository.On("ConfigExists").Return(false, nil)
-	sut := ProvideInitializeCommandHandler(configRepository)
+	sut := NewInitializeCommandHandler(configRepository)
 	configRepository.On("SaveConfig", mock.Anything).Return(nil)
 
 	result := sut.Handle()

@@ -3,9 +3,9 @@ package handler
 import (
 	"testing"
 
-	"dx/internal/core"
-	"dx/internal/core/domain"
-	"dx/internal/testutil"
+	"pilot/internal/core"
+	"pilot/internal/core/domain"
+	"pilot/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -15,7 +15,7 @@ import (
 // Only safe for test paths that never invoke provisioning (e.g., error paths
 // that return before reaching certificate provisioning).
 func noCertProvisioner() *core.CertificateProvisioner {
-	return core.ProvideCertificateProvisioner(
+	return core.NewCertificateProvisioner(
 		new(testutil.MockCertificateAuthority),
 		new(testutil.MockSecretStore),
 		new(testutil.MockKeyring),
@@ -40,7 +40,7 @@ func internalTLSProvisioner(contextName string) *core.CertificateProvisioner {
 	}
 	mockCA.On("IssueCertificate", mock.Anything, mock.Anything, mock.Anything).Return(issued, nil)
 
-	return core.ProvideCertificateProvisioner(mockCA, mockSecretStore, mockKeyring, mockEncryptor)
+	return core.NewCertificateProvisioner(mockCA, mockSecretStore, mockKeyring, mockEncryptor)
 }
 
 func TestInstallCommandHandler_HandleInstallsAllServices(t *testing.T) {
@@ -89,20 +89,20 @@ func TestInstallCommandHandler_HandleInstallsAllServices(t *testing.T) {
 	).Return(nil)
 	containerImageRepository := new(testutil.MockContainerImageRepository)
 	containerImageRepository.On("BuildImage", mock.Anything).Return(nil)
-	configGenerator := core.ProvideDevProxyConfigGenerator()
+	configGenerator := core.NewDevProxyConfigGenerator()
 	containerOrchestrator.On("GetDevProxyChecksum").Return("", nil) // No existing deployment, will trigger rebuild
-	devProxyManager := core.ProvideDevProxyManager(
+	devProxyManager := core.NewDevProxyManager(
 		configRepository,
 		fileSystem,
 		containerImageRepository,
 		containerOrchestrator,
 		configGenerator,
 	)
-	environmentEnsurer := core.ProvideEnvironmentEnsurer(
+	environmentEnsurer := core.NewEnvironmentEnsurer(
 		configRepository,
 		containerOrchestrator,
 	)
-	sut := ProvideInstallCommandHandler(
+	sut := NewInstallCommandHandler(
 		configRepository,
 		containerImageRepository,
 		containerOrchestrator,
@@ -163,20 +163,20 @@ func TestInstallCommandHandler_HandleInstallsOnlySelectedService(t *testing.T) {
 	).Return(nil)
 	containerImageRepository := new(testutil.MockContainerImageRepository)
 	containerImageRepository.On("BuildImage", mock.Anything).Return(nil)
-	configGenerator := core.ProvideDevProxyConfigGenerator()
+	configGenerator := core.NewDevProxyConfigGenerator()
 	containerOrchestrator.On("GetDevProxyChecksum").Return("", nil) // No existing deployment, will trigger rebuild
-	devProxyManager := core.ProvideDevProxyManager(
+	devProxyManager := core.NewDevProxyManager(
 		configRepository,
 		fileSystem,
 		containerImageRepository,
 		containerOrchestrator,
 		configGenerator,
 	)
-	environmentEnsurer := core.ProvideEnvironmentEnsurer(
+	environmentEnsurer := core.NewEnvironmentEnsurer(
 		configRepository,
 		containerOrchestrator,
 	)
-	sut := ProvideInstallCommandHandler(
+	sut := NewInstallCommandHandler(
 		configRepository,
 		containerImageRepository,
 		containerOrchestrator,
@@ -232,20 +232,20 @@ func TestInstallCommandHandler_HandleWithInterceptHttp(t *testing.T) {
 	).Return(nil)
 	containerImageRepository := new(testutil.MockContainerImageRepository)
 	containerImageRepository.On("BuildImage", mock.Anything).Return(nil)
-	configGenerator := core.ProvideDevProxyConfigGenerator()
+	configGenerator := core.NewDevProxyConfigGenerator()
 	// No GetDevProxyChecksum mock needed — interceptHttp always triggers rebuild
-	devProxyManager := core.ProvideDevProxyManager(
+	devProxyManager := core.NewDevProxyManager(
 		configRepository,
 		fileSystem,
 		containerImageRepository,
 		containerOrchestrator,
 		configGenerator,
 	)
-	environmentEnsurer := core.ProvideEnvironmentEnsurer(
+	environmentEnsurer := core.NewEnvironmentEnsurer(
 		configRepository,
 		containerOrchestrator,
 	)
-	sut := ProvideInstallCommandHandler(
+	sut := NewInstallCommandHandler(
 		configRepository,
 		containerImageRepository,
 		containerOrchestrator,
@@ -287,7 +287,7 @@ func TestInstallCommandHandler_HandleSkipsDevProxyWhenChecksumUnchanged(t *testi
 			},
 		},
 	}
-	configGenerator := core.ProvideDevProxyConfigGenerator()
+	configGenerator := core.NewDevProxyConfigGenerator()
 	expectedChecksum := configGenerator.GenerateChecksum(configContext, false)
 
 	configRepository := new(testutil.MockConfigRepository)
@@ -310,18 +310,18 @@ func TestInstallCommandHandler_HandleSkipsDevProxyWhenChecksumUnchanged(t *testi
 	).Return(nil)
 	containerImageRepository := new(testutil.MockContainerImageRepository)
 
-	devProxyManager := core.ProvideDevProxyManager(
+	devProxyManager := core.NewDevProxyManager(
 		configRepository,
 		fileSystem,
 		containerImageRepository,
 		containerOrchestrator,
 		configGenerator,
 	)
-	environmentEnsurer := core.ProvideEnvironmentEnsurer(
+	environmentEnsurer := core.NewEnvironmentEnsurer(
 		configRepository,
 		containerOrchestrator,
 	)
-	sut := ProvideInstallCommandHandler(
+	sut := NewInstallCommandHandler(
 		configRepository,
 		containerImageRepository,
 		containerOrchestrator,
@@ -365,7 +365,7 @@ func TestInstallCommandHandler_HandleAlwaysRebuildsDevProxyWithInterceptHttp(t *
 			},
 		},
 	}
-	configGenerator := core.ProvideDevProxyConfigGenerator()
+	configGenerator := core.NewDevProxyConfigGenerator()
 
 	configRepository := new(testutil.MockConfigRepository)
 	configRepository.On("LoadEnvKey", mock.Anything).Return("any-key", nil)
@@ -387,18 +387,18 @@ func TestInstallCommandHandler_HandleAlwaysRebuildsDevProxyWithInterceptHttp(t *
 	containerImageRepository := new(testutil.MockContainerImageRepository)
 	containerImageRepository.On("BuildImage", mock.Anything).Return(nil)
 
-	devProxyManager := core.ProvideDevProxyManager(
+	devProxyManager := core.NewDevProxyManager(
 		configRepository,
 		fileSystem,
 		containerImageRepository,
 		containerOrchestrator,
 		configGenerator,
 	)
-	environmentEnsurer := core.ProvideEnvironmentEnsurer(
+	environmentEnsurer := core.NewEnvironmentEnsurer(
 		configRepository,
 		containerOrchestrator,
 	)
-	sut := ProvideInstallCommandHandler(
+	sut := NewInstallCommandHandler(
 		configRepository,
 		containerImageRepository,
 		containerOrchestrator,
@@ -465,7 +465,7 @@ func TestInstallCommandHandler_HandleProvisionsCertificatesDuringInstall(t *test
 	}
 	mockCA.On("IssueCertificate", mock.Anything, mock.Anything, mock.Anything).Return(issued, nil)
 
-	provisioner := core.ProvideCertificateProvisioner(mockCA, mockSecretStore, mockKeyring, mockEncryptor)
+	provisioner := core.NewCertificateProvisioner(mockCA, mockSecretStore, mockKeyring, mockEncryptor)
 
 	fileSystem := new(testutil.MockFileSystem)
 	fileSystem.On("WriteFile", mock.Anything, mock.Anything, mock.Anything).Return(nil)
@@ -475,13 +475,13 @@ func TestInstallCommandHandler_HandleProvisionsCertificatesDuringInstall(t *test
 	scm.On("Download", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	containerImageRepository := new(testutil.MockContainerImageRepository)
 	containerImageRepository.On("BuildImage", mock.Anything).Return(nil)
-	configGenerator := core.ProvideDevProxyConfigGenerator()
-	devProxyManager := core.ProvideDevProxyManager(
+	configGenerator := core.NewDevProxyConfigGenerator()
+	devProxyManager := core.NewDevProxyManager(
 		configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator,
 	)
-	environmentEnsurer := core.ProvideEnvironmentEnsurer(configRepository, containerOrchestrator)
+	environmentEnsurer := core.NewEnvironmentEnsurer(configRepository, containerOrchestrator)
 
-	sut := ProvideInstallCommandHandler(
+	sut := NewInstallCommandHandler(
 		configRepository, containerImageRepository, containerOrchestrator,
 		devProxyManager, environmentEnsurer, scm, provisioner,
 	)
@@ -530,18 +530,18 @@ func TestInstallCommandHandler_HandleReturnsErrorWhenCertificateProvisioningFail
 	mockKeyring.On("HasKey", "Test-ca-key").Return(false, assert.AnError)
 
 	mockSecretStore := new(testutil.MockSecretStore)
-	provisioner := core.ProvideCertificateProvisioner(mockCA, mockSecretStore, mockKeyring, mockEncryptor)
+	provisioner := core.NewCertificateProvisioner(mockCA, mockSecretStore, mockKeyring, mockEncryptor)
 
 	fileSystem := new(testutil.MockFileSystem)
 	scm := new(testutil.MockScm)
 	containerImageRepository := new(testutil.MockContainerImageRepository)
-	configGenerator := core.ProvideDevProxyConfigGenerator()
-	devProxyManager := core.ProvideDevProxyManager(
+	configGenerator := core.NewDevProxyConfigGenerator()
+	devProxyManager := core.NewDevProxyManager(
 		configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator,
 	)
-	environmentEnsurer := core.ProvideEnvironmentEnsurer(configRepository, containerOrchestrator)
+	environmentEnsurer := core.NewEnvironmentEnsurer(configRepository, containerOrchestrator)
 
-	sut := ProvideInstallCommandHandler(
+	sut := NewInstallCommandHandler(
 		configRepository, containerImageRepository, containerOrchestrator,
 		devProxyManager, environmentEnsurer, scm, provisioner,
 	)
@@ -575,19 +575,19 @@ func TestInstallCommandHandler_HandleReturnsErrorFromShouldRebuildDevProxy(t *te
 	fileSystem := new(testutil.MockFileSystem)
 	scm := new(testutil.MockScm)
 	containerImageRepository := new(testutil.MockContainerImageRepository)
-	configGenerator := core.ProvideDevProxyConfigGenerator()
-	devProxyManager := core.ProvideDevProxyManager(
+	configGenerator := core.NewDevProxyConfigGenerator()
+	devProxyManager := core.NewDevProxyManager(
 		configRepository,
 		fileSystem,
 		containerImageRepository,
 		containerOrchestrator,
 		configGenerator,
 	)
-	environmentEnsurer := core.ProvideEnvironmentEnsurer(
+	environmentEnsurer := core.NewEnvironmentEnsurer(
 		configRepository,
 		containerOrchestrator,
 	)
-	sut := ProvideInstallCommandHandler(
+	sut := NewInstallCommandHandler(
 		configRepository,
 		containerImageRepository,
 		containerOrchestrator,
@@ -616,7 +616,7 @@ func TestInstallCommandHandler_Handle_InstallDevProxyError(t *testing.T) {
 			},
 		},
 	}
-	configGenerator := core.ProvideDevProxyConfigGenerator()
+	configGenerator := core.NewDevProxyConfigGenerator()
 	expectedChecksum := configGenerator.GenerateChecksum(configContext, false)
 
 	configRepository := new(testutil.MockConfigRepository)
@@ -630,18 +630,18 @@ func TestInstallCommandHandler_Handle_InstallDevProxyError(t *testing.T) {
 	fileSystem := new(testutil.MockFileSystem)
 	fileSystem.On("HomeDir").Return("/home/test", nil)
 	containerImageRepository := new(testutil.MockContainerImageRepository)
-	devProxyManager := core.ProvideDevProxyManager(
+	devProxyManager := core.NewDevProxyManager(
 		configRepository,
 		fileSystem,
 		containerImageRepository,
 		containerOrchestrator,
 		configGenerator,
 	)
-	environmentEnsurer := core.ProvideEnvironmentEnsurer(
+	environmentEnsurer := core.NewEnvironmentEnsurer(
 		configRepository,
 		containerOrchestrator,
 	)
-	sut := ProvideInstallCommandHandler(
+	sut := NewInstallCommandHandler(
 		configRepository,
 		containerImageRepository,
 		containerOrchestrator,
@@ -690,19 +690,19 @@ func TestInstallCommandHandler_Handle_ScmDownloadError(t *testing.T) {
 	).Return(assert.AnError)
 	containerImageRepository := new(testutil.MockContainerImageRepository)
 	containerImageRepository.On("BuildImage", mock.Anything).Return(nil)
-	configGenerator := core.ProvideDevProxyConfigGenerator()
-	devProxyManager := core.ProvideDevProxyManager(
+	configGenerator := core.NewDevProxyConfigGenerator()
+	devProxyManager := core.NewDevProxyManager(
 		configRepository,
 		fileSystem,
 		containerImageRepository,
 		containerOrchestrator,
 		configGenerator,
 	)
-	environmentEnsurer := core.ProvideEnvironmentEnsurer(
+	environmentEnsurer := core.NewEnvironmentEnsurer(
 		configRepository,
 		containerOrchestrator,
 	)
-	sut := ProvideInstallCommandHandler(
+	sut := NewInstallCommandHandler(
 		configRepository,
 		containerImageRepository,
 		containerOrchestrator,
@@ -751,19 +751,19 @@ func TestInstallCommandHandler_Handle_InstallServiceError(t *testing.T) {
 	).Return(nil)
 	containerImageRepository := new(testutil.MockContainerImageRepository)
 	containerImageRepository.On("BuildImage", mock.Anything).Return(nil)
-	configGenerator := core.ProvideDevProxyConfigGenerator()
-	devProxyManager := core.ProvideDevProxyManager(
+	configGenerator := core.NewDevProxyConfigGenerator()
+	devProxyManager := core.NewDevProxyManager(
 		configRepository,
 		fileSystem,
 		containerImageRepository,
 		containerOrchestrator,
 		configGenerator,
 	)
-	environmentEnsurer := core.ProvideEnvironmentEnsurer(
+	environmentEnsurer := core.NewEnvironmentEnsurer(
 		configRepository,
 		containerOrchestrator,
 	)
-	sut := ProvideInstallCommandHandler(
+	sut := NewInstallCommandHandler(
 		configRepository,
 		containerImageRepository,
 		containerOrchestrator,

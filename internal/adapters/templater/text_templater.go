@@ -1,9 +1,9 @@
 package templater
 
 import (
-	"dx/internal/ports"
 	"fmt"
 	"os"
+	"pilot/internal/ports"
 	"strings"
 	"text/template"
 )
@@ -12,7 +12,7 @@ var _ ports.Templater = (*TextTemplater)(nil)
 
 type TextTemplater struct{}
 
-func ProvideTextTemplater() *TextTemplater {
+func NewTextTemplater() *TextTemplater {
 	return &TextTemplater{}
 }
 

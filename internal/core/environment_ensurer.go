@@ -3,7 +3,7 @@ package core
 import (
 	"fmt"
 
-	"dx/internal/ports"
+	"pilot/internal/ports"
 )
 
 type EnvironmentEnsurer struct {
@@ -11,7 +11,7 @@ type EnvironmentEnsurer struct {
 	containerOrchestrator ports.ContainerOrchestrator
 }
 
-func ProvideEnvironmentEnsurer(
+func NewEnvironmentEnsurer(
 	configRepository ports.ConfigRepository,
 	kubernetesService ports.ContainerOrchestrator,
 ) EnvironmentEnsurer {
@@ -37,7 +37,7 @@ func (ee *EnvironmentEnsurer) EnsureExpectedClusterIsSelected() error {
 	}
 
 	if envKey != currentKey {
-		return fmt.Errorf("environment key mismatch, please verify that the correct cluster and namespace are active or run 'dx gen-env-key' to update the env-key")
+		return fmt.Errorf("environment key mismatch, please verify that the correct cluster and namespace are active or run 'pilot gen-env-key' to update the env-key")
 	}
 
 	return nil

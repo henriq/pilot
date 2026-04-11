@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"time"
 
-	"dx/internal/core/domain"
-	"dx/internal/ports"
+	"pilot/internal/core/domain"
+	"pilot/internal/ports"
 )
 
 // InternalTLSSecretName is the K8s secret name for the dev-proxy TLS certificate.
-const InternalTLSSecretName = "dx-internal-tls" //nolint:gosec // Not a credential, just a K8s secret resource name
+const InternalTLSSecretName = "pilot-internal-tls" //nolint:gosec // Not a credential, just a K8s secret resource name
 
 // CertificateStatus holds the status of a provisioned certificate.
 type CertificateStatus struct {
@@ -31,7 +31,7 @@ type CertificateProvisioner struct {
 	encryptor   ports.SymmetricEncryptor
 }
 
-func ProvideCertificateProvisioner(
+func NewCertificateProvisioner(
 	ca ports.CertificateAuthority,
 	secretStore ports.SecretStore,
 	keyring ports.Keyring,

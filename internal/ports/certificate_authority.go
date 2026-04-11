@@ -3,7 +3,7 @@ package ports
 import (
 	"time"
 
-	"dx/internal/core/domain"
+	"pilot/internal/core/domain"
 )
 
 // CertificateAuthority manages a private CA and issues certificates.

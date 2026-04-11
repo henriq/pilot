@@ -1,4 +1,4 @@
-module dx
+module pilot
 
 go 1.26.2
 
