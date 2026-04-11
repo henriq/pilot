@@ -49,6 +49,19 @@ func (m *MockFileSystem) RemoveAll(path string) error {
 	return args.Error(0)
 }
 
+func (m *MockFileSystem) ReadSubdirectories(path string) ([]string, error) {
+	args := m.Called(path)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]string), args.Error(1)
+}
+
+func (m *MockFileSystem) DirSize(path string) (int64, error) {
+	args := m.Called(path)
+	return args.Get(0).(int64), args.Error(1)
+}
+
 func (m *MockFileSystem) HomeDir() (string, error) {
 	args := m.Called()
 	return args.String(0), args.Error(1)

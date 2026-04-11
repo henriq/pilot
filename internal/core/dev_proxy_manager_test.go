@@ -695,6 +695,7 @@ func TestShouldRebuildDevProxy_ChecksumUnchanged(t *testing.T) {
 
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	containerOrchestrator.On("GetDevProxyChecksum").Return(expectedChecksum, nil)
+	fileSystem.On("FileExists", "~/.pilot/test-context/dev-proxy/helm").Return(true, nil)
 
 	sut := NewDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
@@ -719,6 +720,7 @@ func TestShouldRebuildDevProxy_ChecksumUnchanged_WithInterception(t *testing.T) 
 
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	containerOrchestrator.On("GetDevProxyChecksum").Return(expectedChecksum, nil)
+	fileSystem.On("FileExists", "~/.pilot/test-context/dev-proxy/helm").Return(true, nil)
 
 	sut := NewDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
@@ -728,6 +730,51 @@ func TestShouldRebuildDevProxy_ChecksumUnchanged_WithInterception(t *testing.T) 
 	assert.False(t, shouldRebuild)
 	configRepository.AssertExpectations(t)
 	containerOrchestrator.AssertExpectations(t)
+}
+
+func TestShouldRebuildDevProxy_ChecksumUnchanged_LocalFilesMissing(t *testing.T) {
+	configRepository := new(testutil.MockConfigRepository)
+	fileSystem := new(testutil.MockFileSystem)
+	containerImageRepository := new(testutil.MockContainerImageRepository)
+	containerOrchestrator := new(testutil.MockContainerOrchestrator)
+	configGenerator := NewDevProxyConfigGenerator()
+
+	configContext := createTestConfigContext()
+	expectedChecksum := configGenerator.GenerateChecksum(configContext, false)
+
+	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
+	containerOrchestrator.On("GetDevProxyChecksum").Return(expectedChecksum, nil)
+	fileSystem.On("FileExists", "~/.pilot/test-context/dev-proxy/helm").Return(false, nil)
+
+	sut := NewDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
+
+	shouldRebuild, err := sut.ShouldRebuildDevProxy(false)
+
+	assert.NoError(t, err)
+	assert.True(t, shouldRebuild)
+}
+
+func TestShouldRebuildDevProxy_ChecksumUnchanged_FileExistsError(t *testing.T) {
+	configRepository := new(testutil.MockConfigRepository)
+	fileSystem := new(testutil.MockFileSystem)
+	containerImageRepository := new(testutil.MockContainerImageRepository)
+	containerOrchestrator := new(testutil.MockContainerOrchestrator)
+	configGenerator := NewDevProxyConfigGenerator()
+
+	configContext := createTestConfigContext()
+	expectedChecksum := configGenerator.GenerateChecksum(configContext, false)
+
+	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
+	containerOrchestrator.On("GetDevProxyChecksum").Return(expectedChecksum, nil)
+	fileSystem.On("FileExists", "~/.pilot/test-context/dev-proxy/helm").Return(false, errors.New("permission denied"))
+
+	sut := NewDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
+
+	shouldRebuild, err := sut.ShouldRebuildDevProxy(false)
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to check dev-proxy helm path")
+	assert.False(t, shouldRebuild)
 }
 
 func TestShouldRebuildDevProxy_LoadConfigError(t *testing.T) {

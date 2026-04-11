@@ -301,6 +301,7 @@ func TestInstallCommandHandler_HandleSkipsDevProxyWhenChecksumUnchanged(t *testi
 	containerOrchestrator.On("GetDevProxyChecksum").Return(expectedChecksum, nil)
 	fileSystem := new(testutil.MockFileSystem)
 	fileSystem.On("HomeDir").Return("/home/test", nil)
+	fileSystem.On("FileExists", "~/.pilot/Test/dev-proxy/helm").Return(true, nil)
 	scm := new(testutil.MockScm)
 	scm.On(
 		"Download",
@@ -629,6 +630,7 @@ func TestInstallCommandHandler_Handle_InstallDevProxyError(t *testing.T) {
 	containerOrchestrator.On("InstallDevProxy", mock.Anything, mock.Anything).Return(assert.AnError)
 	fileSystem := new(testutil.MockFileSystem)
 	fileSystem.On("HomeDir").Return("/home/test", nil)
+	fileSystem.On("FileExists", "~/.pilot/Test/dev-proxy/helm").Return(true, nil)
 	containerImageRepository := new(testutil.MockContainerImageRepository)
 	devProxyManager := core.NewDevProxyManager(
 		configRepository,
