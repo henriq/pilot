@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"dx/internal/core/domain"
-	"dx/internal/ports"
+	"pilot/internal/core/domain"
+	"pilot/internal/ports"
 )
 
 // DevProxyManager orchestrates dev-proxy operations including configuration saving,
@@ -20,8 +20,8 @@ type DevProxyManager struct {
 	configGenerator          *DevProxyConfigGenerator
 }
 
-// ProvideDevProxyManager creates a new DevProxyManager with all required dependencies.
-func ProvideDevProxyManager(
+// NewDevProxyManager creates a new DevProxyManager with all required dependencies.
+func NewDevProxyManager(
 	configRepository ports.ConfigRepository,
 	fileService ports.FileSystem,
 	containerImageRepository ports.ContainerImageRepository,
@@ -60,7 +60,7 @@ func (d *DevProxyManager) ShouldRebuildDevProxy(interceptHttp bool) (bool, error
 }
 
 // SaveConfiguration generates and saves all dev-proxy configuration files
-// to $HOME/.dx/$CONTEXT_NAME/dev-proxy/
+// to $HOME/.pilot/$CONTEXT_NAME/dev-proxy/
 // When interceptHttp is true, mitmproxy configuration is also written.
 // Returns the generated mitmweb password when interceptHttp is true, or empty string otherwise.
 func (d *DevProxyManager) SaveConfiguration(interceptHttp bool) (string, error) {
@@ -82,7 +82,7 @@ func (d *DevProxyManager) SaveConfiguration(interceptHttp bool) (string, error) 
 		return "", err
 	}
 
-	basePath := filepath.Join("~", ".dx", configContext.Name, "dev-proxy")
+	basePath := filepath.Join("~", ".pilot", configContext.Name, "dev-proxy")
 
 	// Write HAProxy config
 	err = d.fileService.WriteFile(
@@ -160,7 +160,7 @@ func (d *DevProxyManager) BuildDevProxy(interceptHttp bool) error {
 			Name:                     fmt.Sprintf("%s/haproxy-%s", DevProxyImagePrefix, configContext.Name),
 			DockerfilePath:           "Dockerfile",
 			BuildContextRelativePath: ".",
-			Path:                     filepath.Join(homeDir, ".dx", configContext.Name, "dev-proxy", "haproxy"),
+			Path:                     filepath.Join(homeDir, ".pilot", configContext.Name, "dev-proxy", "haproxy"),
 		},
 	}
 
@@ -169,7 +169,7 @@ func (d *DevProxyManager) BuildDevProxy(interceptHttp bool) error {
 			Name:                     fmt.Sprintf("%s/mitmproxy-%s", DevProxyImagePrefix, configContext.Name),
 			DockerfilePath:           "Dockerfile",
 			BuildContextRelativePath: ".",
-			Path:                     filepath.Join(homeDir, ".dx", configContext.Name, "dev-proxy", "mitmproxy"),
+			Path:                     filepath.Join(homeDir, ".pilot", configContext.Name, "dev-proxy", "mitmproxy"),
 		})
 	}
 
@@ -196,7 +196,7 @@ func (d *DevProxyManager) InstallDevProxy(certificateSecrets []byte) error {
 
 	service := domain.Service{
 		Name:     "dev-proxy",
-		HelmPath: filepath.Join(homeDir, ".dx", configContext.Name, "dev-proxy", "helm"),
+		HelmPath: filepath.Join(homeDir, ".pilot", configContext.Name, "dev-proxy", "helm"),
 	}
 	return d.containerOrchestrator.InstallDevProxy(&service, certificateSecrets)
 }
@@ -214,7 +214,7 @@ func (d *DevProxyManager) UninstallDevProxy() error {
 
 	service := domain.Service{
 		Name:     "dev-proxy",
-		HelmPath: filepath.Join(homeDir, ".dx", configContext.Name, "dev-proxy", "helm"),
+		HelmPath: filepath.Join(homeDir, ".pilot", configContext.Name, "dev-proxy", "helm"),
 	}
 	return d.containerOrchestrator.UninstallService(&service)
 }

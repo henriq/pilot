@@ -3,7 +3,7 @@ package cmd
 import (
 	"fmt"
 
-	"dx/cmd/cli/app"
+	"pilot/cmd/cli/app"
 
 	"github.com/spf13/cobra"
 )
@@ -31,10 +31,10 @@ var secretSetCmd = &cobra.Command{
 	Short: "Set a secret",
 	Long:  `Set a secret in the current context. The value is prompted securely and never shown.`,
 	Example: `  # Set a new secret (value is prompted securely)
-  dx secret set DB_PASSWORD
+  pilot secret set DB_PASSWORD
 
   # Update an existing secret
-  dx secret set API_KEY`,
+  pilot secret set API_KEY`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		handler, err := app.InjectSecretCommandHandler()
@@ -51,7 +51,7 @@ var secretsListCmd = &cobra.Command{
 	Short: "List secret keys",
 	Long:  `List all secret keys for the current context (values are not shown).`,
 	Example: `  # List all configured secrets
-  dx secret list`,
+  pilot secret list`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		handler, err := app.InjectSecretCommandHandler()
 		if err != nil {
@@ -67,10 +67,10 @@ var secretGetCmd = &cobra.Command{
 	Short: "Get the value of a secret",
 	Long:  `Retrieve and display a secret value from the current context's encrypted storage.`,
 	Example: `  # Get the value of a secret
-  dx secret get DB_PASSWORD
+  pilot secret get DB_PASSWORD
 
   # Use in a shell script
-  export DB_PASSWORD=$(dx secret get DB_PASSWORD)`,
+  export DB_PASSWORD=$(pilot secret get DB_PASSWORD)`,
 	Args:              cobra.ExactArgs(1),
 	ValidArgsFunction: SecretKeysCompletion,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -88,7 +88,7 @@ var secretDeleteCmd = &cobra.Command{
 	Short: "Delete a secret",
 	Long:  `Remove a secret from the current context's encrypted storage.`,
 	Example: `  # Delete a secret
-  dx secret delete DB_PASSWORD`,
+  pilot secret delete DB_PASSWORD`,
 	Args: func(cmd *cobra.Command, args []string) error {
 		if err := cobra.ExactArgs(1)(cmd, args); err != nil {
 			return err
@@ -144,10 +144,10 @@ Press Enter to skip a secret during interactive prompts.
 
 Use --check to validate secrets without prompting.`,
 	Example: `  # Interactively configure missing secrets
-  dx secret configure
+  pilot secret configure
 
   # Validate secrets without prompting (exits with error if missing)
-  dx secret configure --check`,
+  pilot secret configure --check`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		handler, err := app.InjectSecretCommandHandler()
 		if err != nil {

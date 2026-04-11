@@ -3,10 +3,10 @@ package handler
 import (
 	"fmt"
 
-	"dx/internal/cli/output"
-	"dx/internal/cli/progress"
-	"dx/internal/core"
-	"dx/internal/ports"
+	"pilot/internal/cli/output"
+	"pilot/internal/cli/progress"
+	"pilot/internal/core"
+	"pilot/internal/ports"
 )
 
 type UninstallCommandHandler struct {
@@ -16,7 +16,7 @@ type UninstallCommandHandler struct {
 	devProxyManager       *core.DevProxyManager
 }
 
-func ProvideUninstallCommandHandler(
+func NewUninstallCommandHandler(
 	configRepository ports.ConfigRepository,
 	containerOrchestrator ports.ContainerOrchestrator,
 	environmentEnsurer core.EnvironmentEnsurer,

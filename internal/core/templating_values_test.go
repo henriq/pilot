@@ -3,7 +3,7 @@ package core
 import (
 	"testing"
 
-	"dx/internal/core/domain"
+	"pilot/internal/core/domain"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

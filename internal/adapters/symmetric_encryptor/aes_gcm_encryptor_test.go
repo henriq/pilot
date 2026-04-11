@@ -8,7 +8,7 @@ import (
 )
 
 func TestAesGcmEncryptor_EncryptReturnsCipherText(t *testing.T) {
-	sut := ProvideAesGcmEncryptor()
+	sut := NewAesGcmEncryptor()
 	plainText := []byte(uuid.NewUUID())
 	key, _ := sut.CreateKey()
 
@@ -18,7 +18,7 @@ func TestAesGcmEncryptor_EncryptReturnsCipherText(t *testing.T) {
 }
 
 func TestAesGcmEncryptor_EncryptReturnsDifferentCipherTextsEachTime(t *testing.T) {
-	sut := ProvideAesGcmEncryptor()
+	sut := NewAesGcmEncryptor()
 	plainText := []byte(uuid.NewUUID())
 	key, _ := sut.CreateKey()
 
@@ -29,7 +29,7 @@ func TestAesGcmEncryptor_EncryptReturnsDifferentCipherTextsEachTime(t *testing.T
 }
 
 func TestAesGcmEncryptor_DecryptReturnsPlainText(t *testing.T) {
-	sut := ProvideAesGcmEncryptor()
+	sut := NewAesGcmEncryptor()
 	plainText := []byte(uuid.NewUUID())
 	key, _ := sut.CreateKey()
 	cipherText, _ := sut.Encrypt(plainText, key)
@@ -41,7 +41,7 @@ func TestAesGcmEncryptor_DecryptReturnsPlainText(t *testing.T) {
 }
 
 func TestAesGcmEncryptor_DecryptWithWrongKeyReturnsError(t *testing.T) {
-	sut := ProvideAesGcmEncryptor()
+	sut := NewAesGcmEncryptor()
 	plainText := []byte(uuid.NewUUID())
 	key1, _ := sut.CreateKey()
 	key2, _ := sut.CreateKey()

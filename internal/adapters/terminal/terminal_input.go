@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"dx/internal/ports"
+	"pilot/internal/ports"
 
 	"golang.org/x/term"
 )
@@ -17,8 +17,8 @@ var _ ports.TerminalInput = (*TerminalInput)(nil)
 // TerminalInput provides terminal input operations using golang.org/x/term.
 type TerminalInput struct{}
 
-// ProvideTerminalInput creates a new TerminalInput adapter.
-func ProvideTerminalInput() *TerminalInput {
+// NewTerminalInput creates a new TerminalInput adapter.
+func NewTerminalInput() *TerminalInput {
 	return &TerminalInput{}
 }
 

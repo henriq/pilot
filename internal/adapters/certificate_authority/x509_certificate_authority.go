@@ -12,8 +12,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"dx/internal/core/domain"
-	"dx/internal/ports"
+	"pilot/internal/core/domain"
+	"pilot/internal/ports"
 )
 
 var _ ports.CertificateAuthority = (*X509CertificateAuthority)(nil)
@@ -37,7 +37,7 @@ type X509CertificateAuthority struct {
 	caPEM         []byte
 }
 
-func ProvideX509CertificateAuthority(
+func NewX509CertificateAuthority(
 	fileSystem ports.FileSystem,
 	encryptor ports.SymmetricEncryptor,
 ) *X509CertificateAuthority {
@@ -48,7 +48,7 @@ func ProvideX509CertificateAuthority(
 }
 
 func caDir(contextName string) string {
-	return filepath.Join("~", ".dx", contextName, caDirectoryName)
+	return filepath.Join("~", ".pilot", contextName, caDirectoryName)
 }
 
 func caCertPath(contextName string) string {
@@ -85,8 +85,8 @@ func (ca *X509CertificateAuthority) createCA(contextName string, passphrase stri
 	template := &x509.Certificate{
 		SerialNumber: serialNumber,
 		Subject: pkix.Name{
-			CommonName:   fmt.Sprintf("DX CA (%s)", contextName),
-			Organization: []string{"DX"},
+			CommonName:   fmt.Sprintf("Pilot CA (%s)", contextName),
+			Organization: []string{"Pilot"},
 		},
 		NotBefore:             now,
 		NotAfter:              now.AddDate(caValidityYears, 0, 0),
@@ -158,7 +158,7 @@ func (ca *X509CertificateAuthority) loadCA(contextName string, passphrase string
 
 	if time.Now().After(cert.NotAfter) {
 		return fmt.Errorf(
-			"CA certificate expired on %s; run 'dx ca recreate' to create a new CA",
+			"CA certificate expired on %s; run 'pilot ca recreate' to create a new CA",
 			cert.NotAfter.Format("2006-01-02"),
 		)
 	}

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sort"
 
-	"dx/internal/core/domain"
+	"pilot/internal/core/domain"
 )
 
 // RenderCertificateSecretManifests renders provisioned certificates as K8s Secret YAML manifests.
@@ -32,7 +32,7 @@ func RenderCertificateSecretManifests(certs []domain.ProvisionedCertificate) ([]
 		buf.WriteString("metadata:\n")
 		fmt.Fprintf(&buf, "  name: %s\n", cert.Request.K8sSecret.Name)
 		buf.WriteString("  labels:\n")
-		buf.WriteString("    managed-by: dx\n")
+		buf.WriteString("    managed-by: pilot\n")
 		fmt.Fprintf(&buf, "type: %s\n", secretType)
 		buf.WriteString("data:\n")
 

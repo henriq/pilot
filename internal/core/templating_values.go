@@ -3,8 +3,8 @@ package core
 import (
 	"strings"
 
-	"dx/internal/core/domain"
-	"dx/internal/ports"
+	"pilot/internal/core/domain"
+	"pilot/internal/ports"
 )
 
 func CreateTemplatingValues(

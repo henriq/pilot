@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"dx/cmd/cli/app"
+	"pilot/cmd/cli/app"
 
 	"github.com/spf13/cobra"
 )
@@ -16,32 +16,32 @@ func init() {
 
 var updateCmd = &cobra.Command{
 	Use:   "update [service...]",
-	Short: "Update services by building or pulling images and reinstalling",
-	Long: `Builds (or pulls with --pull) and reinstalls the selected services.
+	Short: "Build and redeploy services",
+	Long: `Builds (or pulls with --pull) and redeploys the selected services.
 If no services are specified, updates all services in the current profile.
 
-By default, images are built from source. Use --pull to pull pre-built images
-from the registry instead. Unlike 'dx pull', this skips the confirmation
-prompt since --pull is an explicit opt-in to overwrite locally-built images.
+This is the most common command during development — it rebuilds images and
+redeploys services in one step.
 
-Use --intercept-http to deploy mitmweb alongside HAProxy for inspecting and
-replaying HTTP traffic. When enabled, the mitmweb UI is available at:
+Use --pull to pull pre-built images from the registry instead of building.
+Unlike 'pilot pull', this skips the confirmation prompt since --pull is an
+explicit opt-in to overwrite locally-built images.
 
-  https://dev-proxy.<context>.localhost`,
-	Example: `  # Build and reinstall all services in the default profile
-  dx update
+Use --intercept-http to enable HTTP traffic interception via mitmweb.`,
+	Example: `  # Build and redeploy all services in the default profile
+  pilot update
 
   # Update specific services
-  dx update api frontend
+  pilot update api frontend
 
-  # Pull images instead of building, then reinstall
-  dx update --pull
+  # Pull images instead of building, then redeploy
+  pilot update --pull
 
-  # Pull and reinstall specific services
-  dx update --pull api frontend
+  # Pull and redeploy specific services
+  pilot update --pull api frontend
 
-  # Build and reinstall with HTTP traffic interception
-  dx update --intercept-http`,
+  # Build and redeploy with HTTP traffic interception
+  pilot update --intercept-http`,
 	Args:              ServiceArgsValidator,
 	ValidArgsFunction: ServiceArgsCompletion,
 	RunE: func(cmd *cobra.Command, args []string) error {

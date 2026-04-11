@@ -3,16 +3,16 @@ package handler
 import (
 	"fmt"
 
-	"dx/internal/cli/output"
-	"dx/internal/core/domain"
-	"dx/internal/ports"
+	"pilot/internal/cli/output"
+	"pilot/internal/core/domain"
+	"pilot/internal/ports"
 )
 
 type InitializeCommandHandler struct {
 	configRepository ports.ConfigRepository
 }
 
-func ProvideInitializeCommandHandler(
+func NewInitializeCommandHandler(
 	configRepository ports.ConfigRepository,
 ) InitializeCommandHandler {
 	return InitializeCommandHandler{
@@ -26,7 +26,7 @@ func (h *InitializeCommandHandler) Handle() error {
 		return err
 	}
 	if configExists {
-		return fmt.Errorf("configuration already exists at ~/.dx-config.yaml")
+		return fmt.Errorf("configuration already exists at ~/.pilot-config.yaml")
 	}
 	config := domain.CreateDefaultConfig()
 	err = h.configRepository.SaveConfig(&config)
@@ -34,6 +34,6 @@ func (h *InitializeCommandHandler) Handle() error {
 		return err
 	}
 
-	output.PrintSuccess("Configuration created at ~/.dx-config.yaml")
+	output.PrintSuccess("Configuration created at ~/.pilot-config.yaml")
 	return nil
 }

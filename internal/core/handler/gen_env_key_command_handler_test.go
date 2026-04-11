@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"dx/internal/core/domain"
-	"dx/internal/testutil"
+	"pilot/internal/core/domain"
+	"pilot/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -40,7 +40,7 @@ func TestProvideGenEnvKeyCommandHandler_WritesNoEnvKeyIfKeyGenerationFailed(t *t
 	mockFileSystem := new(testutil.MockFileSystem)
 	containerOrchestrator := new(testutil.MockContainerOrchestrator)
 	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("", fmt.Errorf("error"))
-	sut := ProvideGenEnvKeyCommandHandler(
+	sut := NewGenEnvKeyCommandHandler(
 		configRepository,
 		mockFileSystem,
 		containerOrchestrator,

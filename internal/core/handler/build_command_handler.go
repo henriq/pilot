@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"dx/internal/cli/output"
-	"dx/internal/cli/progress"
-	"dx/internal/core/domain"
-	"dx/internal/ports"
+	"pilot/internal/cli/output"
+	"pilot/internal/cli/progress"
+	"pilot/internal/core/domain"
+	"pilot/internal/ports"
 )
 
 type BuildCommandHandler struct {
@@ -18,7 +18,7 @@ type BuildCommandHandler struct {
 	containerImageRepository ports.ContainerImageRepository
 }
 
-func ProvideBuildCommandHandler(
+func NewBuildCommandHandler(
 	configRepository ports.ConfigRepository,
 	scm ports.Scm,
 	containerImageRepository ports.ContainerImageRepository,

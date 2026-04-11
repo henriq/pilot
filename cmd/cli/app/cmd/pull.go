@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"dx/cmd/cli/app"
+	"pilot/cmd/cli/app"
 
 	"github.com/spf13/cobra"
 )
@@ -23,16 +23,16 @@ This command pulls both remote images and locally-built images. When pulling
 locally-built images, you will be prompted for confirmation since this will
 overwrite any locally built versions. Use --yes to skip confirmation.`,
 	Example: `  # Pull all images in the default profile
-  dx pull
+  pilot pull
 
   # Pull images for specific services
-  dx pull api frontend
+  pilot pull api frontend
 
   # Pull all images regardless of profile
-  dx pull -p all
+  pilot pull -p all
 
   # Skip confirmation for overwriting locally-built images
-  dx pull --yes`,
+  pilot pull --yes`,
 	Args:              ServiceArgsValidator,
 	ValidArgsFunction: ServiceArgsCompletion,
 	RunE: func(cmd *cobra.Command, args []string) error {

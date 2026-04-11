@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"dx/internal/core"
-	"dx/internal/core/domain"
-	"dx/internal/ports"
+	"pilot/internal/core"
+	"pilot/internal/core/domain"
+	"pilot/internal/ports"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -35,7 +35,7 @@ type Kubernetes struct {
 	namespace         string
 }
 
-func ProvideKubernetes(
+func NewKubernetes(
 	configRepository ports.ConfigRepository,
 	secretsRepository ports.SecretsRepository,
 	templater ports.Templater,
@@ -160,7 +160,7 @@ func (k *Kubernetes) installChart(service *domain.Service, certificateSecrets []
 		if err != nil {
 			return fmt.Errorf("failed to get home directory: %w", err)
 		}
-		kustomizeWorkDir := filepath.Join(homeDir, ".dx", contextName, "kustomize", service.Name)
+		kustomizeWorkDir := filepath.Join(homeDir, ".pilot", contextName, "kustomize", service.Name)
 		manifests, err = k.kustomizeClient.Apply(manifests, patches, kustomizeWorkDir)
 		if err != nil {
 			return fmt.Errorf("failed to apply kustomize patches: %w", err)
@@ -258,11 +258,11 @@ func (k *Kubernetes) UninstallService(service *domain.Service) error {
 // cleanupBuildArtifacts removes the wrapper chart and kustomize work directory for a service.
 func (k *Kubernetes) cleanupBuildArtifacts(contextName, serviceName string) {
 	_ = k.chartWrapper.Cleanup(contextName, serviceName)
-	_ = k.fileService.RemoveAll(filepath.Join("~", ".dx", contextName, "kustomize", serviceName))
+	_ = k.fileService.RemoveAll(filepath.Join("~", ".pilot", contextName, "kustomize", serviceName))
 }
 
 func (k *Kubernetes) HasDeployedServices() (bool, error) {
-	releases, err := k.helmClient.List("managed-by=dx", k.namespace)
+	releases, err := k.helmClient.List("managed-by=pilot", k.namespace)
 	if err != nil {
 		return false, err
 	}

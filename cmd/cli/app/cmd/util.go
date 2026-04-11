@@ -3,7 +3,7 @@ package cmd
 import (
 	"fmt"
 
-	"dx/cmd/cli/app"
+	"pilot/cmd/cli/app"
 
 	"github.com/spf13/cobra"
 )

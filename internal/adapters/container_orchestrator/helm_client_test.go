@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"dx/internal/ports"
-	"dx/internal/testutil"
+	"pilot/internal/ports"
+	"pilot/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,7 +16,7 @@ func TestHelmClient_Template(t *testing.T) {
 	runner.On("Run", "helm", []string{"template", "my-release", "/path/to/chart", "--namespace", "my-namespace", "--set", "foo=bar"}).
 		Return([]byte("apiVersion: v1\nkind: ConfigMap\n"), nil)
 
-	client := ProvideHelmClient(runner)
+	client := NewHelmClient(runner)
 
 	output, err := client.Template("my-release", "/path/to/chart", "my-namespace", []string{"--set", "foo=bar"})
 
@@ -30,7 +30,7 @@ func TestHelmClient_Template_NoNamespace(t *testing.T) {
 	runner.On("Run", "helm", []string{"template", "my-release", "/path/to/chart"}).
 		Return([]byte(""), nil)
 
-	client := ProvideHelmClient(runner)
+	client := NewHelmClient(runner)
 
 	_, err := client.Template("my-release", "/path/to/chart", "", nil)
 
@@ -43,7 +43,7 @@ func TestHelmClient_Template_Error(t *testing.T) {
 	runner.On("Run", "helm", []string{"template", "my-release", "/path/to/chart"}).
 		Return([]byte("Error: chart not found"), errors.New("exit status 1"))
 
-	client := ProvideHelmClient(runner)
+	client := NewHelmClient(runner)
 
 	_, err := client.Template("my-release", "/path/to/chart", "", nil)
 
@@ -54,10 +54,10 @@ func TestHelmClient_Template_Error(t *testing.T) {
 
 func TestHelmClient_UpgradeFromManifests(t *testing.T) {
 	runner := new(testutil.MockCommandRunner)
-	runner.On("Run", "helm", []string{"upgrade", "--install", "--labels", "managed-by=dx", "my-release", "/path/to/wrapper", "--namespace", "my-namespace"}).
+	runner.On("Run", "helm", []string{"upgrade", "--install", "--labels", "managed-by=pilot", "my-release", "/path/to/wrapper", "--namespace", "my-namespace"}).
 		Return([]byte("Release \"my-release\" has been upgraded."), nil)
 
-	client := ProvideHelmClient(runner)
+	client := NewHelmClient(runner)
 
 	err := client.UpgradeFromManifests("my-release", "my-namespace", "/path/to/wrapper")
 
@@ -67,10 +67,10 @@ func TestHelmClient_UpgradeFromManifests(t *testing.T) {
 
 func TestHelmClient_UpgradeFromManifests_NoNamespace(t *testing.T) {
 	runner := new(testutil.MockCommandRunner)
-	runner.On("Run", "helm", []string{"upgrade", "--install", "--labels", "managed-by=dx", "my-release", "/path/to/wrapper"}).
+	runner.On("Run", "helm", []string{"upgrade", "--install", "--labels", "managed-by=pilot", "my-release", "/path/to/wrapper"}).
 		Return([]byte(""), nil)
 
-	client := ProvideHelmClient(runner)
+	client := NewHelmClient(runner)
 
 	err := client.UpgradeFromManifests("my-release", "", "/path/to/wrapper")
 
@@ -83,7 +83,7 @@ func TestHelmClient_Uninstall(t *testing.T) {
 	runner.On("Run", "helm", []string{"uninstall", "my-release", "--namespace", "my-namespace"}).
 		Return([]byte(""), nil)
 
-	client := ProvideHelmClient(runner)
+	client := NewHelmClient(runner)
 
 	err := client.Uninstall("my-release", "my-namespace")
 
@@ -96,7 +96,7 @@ func TestHelmClient_Uninstall_NoNamespace(t *testing.T) {
 	runner.On("Run", "helm", []string{"uninstall", "my-release"}).
 		Return([]byte(""), nil)
 
-	client := ProvideHelmClient(runner)
+	client := NewHelmClient(runner)
 
 	err := client.Uninstall("my-release", "")
 
@@ -106,12 +106,12 @@ func TestHelmClient_Uninstall_NoNamespace(t *testing.T) {
 
 func TestHelmClient_List(t *testing.T) {
 	runner := new(testutil.MockCommandRunner)
-	runner.On("Run", "helm", []string{"list", "-l", "managed-by=dx", "--short", "--namespace", "my-namespace"}).
+	runner.On("Run", "helm", []string{"list", "-l", "managed-by=pilot", "--short", "--namespace", "my-namespace"}).
 		Return([]byte("release1\nrelease2\nrelease3"), nil)
 
-	client := ProvideHelmClient(runner)
+	client := NewHelmClient(runner)
 
-	releases, err := client.List("managed-by=dx", "my-namespace")
+	releases, err := client.List("managed-by=pilot", "my-namespace")
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"release1", "release2", "release3"}, releases)
@@ -120,12 +120,12 @@ func TestHelmClient_List(t *testing.T) {
 
 func TestHelmClient_List_NoNamespace(t *testing.T) {
 	runner := new(testutil.MockCommandRunner)
-	runner.On("Run", "helm", []string{"list", "-l", "managed-by=dx", "--short"}).
+	runner.On("Run", "helm", []string{"list", "-l", "managed-by=pilot", "--short"}).
 		Return([]byte("release1\nrelease2"), nil)
 
-	client := ProvideHelmClient(runner)
+	client := NewHelmClient(runner)
 
-	releases, err := client.List("managed-by=dx", "")
+	releases, err := client.List("managed-by=pilot", "")
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"release1", "release2"}, releases)
@@ -134,12 +134,12 @@ func TestHelmClient_List_NoNamespace(t *testing.T) {
 
 func TestHelmClient_List_Empty(t *testing.T) {
 	runner := new(testutil.MockCommandRunner)
-	runner.On("Run", "helm", []string{"list", "-l", "managed-by=dx", "--short", "--namespace", "my-namespace"}).
+	runner.On("Run", "helm", []string{"list", "-l", "managed-by=pilot", "--short", "--namespace", "my-namespace"}).
 		Return([]byte(""), nil)
 
-	client := ProvideHelmClient(runner)
+	client := NewHelmClient(runner)
 
-	releases, err := client.List("managed-by=dx", "my-namespace")
+	releases, err := client.List("managed-by=pilot", "my-namespace")
 
 	require.NoError(t, err)
 	assert.Empty(t, releases)
@@ -148,10 +148,10 @@ func TestHelmClient_List_Empty(t *testing.T) {
 
 func TestHelmClient_UpgradeFromManifests_Error(t *testing.T) {
 	runner := new(testutil.MockCommandRunner)
-	runner.On("Run", "helm", []string{"upgrade", "--install", "--labels", "managed-by=dx", "my-release", "/path/to/wrapper", "--namespace", "my-namespace"}).
+	runner.On("Run", "helm", []string{"upgrade", "--install", "--labels", "managed-by=pilot", "my-release", "/path/to/wrapper", "--namespace", "my-namespace"}).
 		Return([]byte("Error: release failed"), errors.New("exit status 1"))
 
-	client := ProvideHelmClient(runner)
+	client := NewHelmClient(runner)
 
 	err := client.UpgradeFromManifests("my-release", "my-namespace", "/path/to/wrapper")
 
@@ -166,7 +166,7 @@ func TestHelmClient_Uninstall_Error(t *testing.T) {
 	runner.On("Run", "helm", []string{"uninstall", "my-release", "--namespace", "my-namespace"}).
 		Return([]byte("Error: release not found"), errors.New("exit status 1"))
 
-	client := ProvideHelmClient(runner)
+	client := NewHelmClient(runner)
 
 	err := client.Uninstall("my-release", "my-namespace")
 
@@ -178,12 +178,12 @@ func TestHelmClient_Uninstall_Error(t *testing.T) {
 
 func TestHelmClient_List_Error(t *testing.T) {
 	runner := new(testutil.MockCommandRunner)
-	runner.On("Run", "helm", []string{"list", "-l", "managed-by=dx", "--short", "--namespace", "my-namespace"}).
+	runner.On("Run", "helm", []string{"list", "-l", "managed-by=pilot", "--short", "--namespace", "my-namespace"}).
 		Return([]byte("Error: cannot access cluster"), errors.New("exit status 1"))
 
-	client := ProvideHelmClient(runner)
+	client := NewHelmClient(runner)
 
-	_, err := client.List("managed-by=dx", "my-namespace")
+	_, err := client.List("managed-by=pilot", "my-namespace")
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to list helm charts")

@@ -4,9 +4,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"dx/internal/core/domain"
-	"dx/internal/ports"
-	"dx/internal/testutil"
+	"pilot/internal/core/domain"
+	"pilot/internal/ports"
+	"pilot/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -112,7 +112,7 @@ func TestValidateContextName(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validateContextName(tt.context)
+			err := domain.ValidateContextName(tt.context)
 			if tt.expectErr {
 				assert.Error(t, err)
 			} else {
@@ -148,7 +148,7 @@ func (m *mockSecretsRepository) SaveSecrets(secrets []*domain.Secret, configCont
 
 func TestFileSystemConfigRepository_SaveAndLoadCurrentContextName(t *testing.T) {
 	fs := testutil.NewTestFileSystem(t)
-	repo := ProvideFileSystemConfigRepository(fs, &mockSecretsRepository{}, &mockTemplater{})
+	repo := NewFileSystemConfigRepository(fs, &mockSecretsRepository{}, &mockTemplater{})
 
 	// Save a valid context name
 	err := repo.SaveCurrentContextName("test-context")
@@ -162,7 +162,7 @@ func TestFileSystemConfigRepository_SaveAndLoadCurrentContextName(t *testing.T) 
 
 func TestFileSystemConfigRepository_SaveCurrentContextName_RejectsInvalid(t *testing.T) {
 	fs := testutil.NewTestFileSystem(t)
-	repo := ProvideFileSystemConfigRepository(fs, &mockSecretsRepository{}, &mockTemplater{})
+	repo := NewFileSystemConfigRepository(fs, &mockSecretsRepository{}, &mockTemplater{})
 
 	tests := []struct {
 		name        string
@@ -185,10 +185,10 @@ func TestFileSystemConfigRepository_SaveCurrentContextName_RejectsInvalid(t *tes
 
 func TestFileSystemConfigRepository_LoadCurrentContextName_RejectsInvalidStoredValue(t *testing.T) {
 	fs := testutil.NewTestFileSystem(t)
-	repo := ProvideFileSystemConfigRepository(fs, &mockSecretsRepository{}, &mockTemplater{})
+	repo := NewFileSystemConfigRepository(fs, &mockSecretsRepository{}, &mockTemplater{})
 
 	// Write an invalid context name directly to the file (bypassing validation)
-	currentContextPath := filepath.Join("~", ".dx", "current-context")
+	currentContextPath := filepath.Join("~", ".pilot", "current-context")
 	err := fs.WriteFile(currentContextPath, []byte("../malicious"), ports.ReadWrite)
 	require.NoError(t, err)
 
@@ -200,7 +200,7 @@ func TestFileSystemConfigRepository_LoadCurrentContextName_RejectsInvalidStoredV
 
 func TestFileSystemConfigRepository_ConfigExists(t *testing.T) {
 	fs := testutil.NewTestFileSystem(t)
-	repo := ProvideFileSystemConfigRepository(fs, &mockSecretsRepository{}, &mockTemplater{})
+	repo := NewFileSystemConfigRepository(fs, &mockSecretsRepository{}, &mockTemplater{})
 
 	// Config should not exist initially
 	exists, err := repo.ConfigExists()
@@ -208,7 +208,7 @@ func TestFileSystemConfigRepository_ConfigExists(t *testing.T) {
 	assert.False(t, exists)
 
 	// Write a config file
-	configPath := filepath.Join("~", ".dx-config.yaml")
+	configPath := filepath.Join("~", ".pilot-config.yaml")
 	err = fs.WriteFile(configPath, []byte("contexts: []"), ports.ReadWrite)
 	require.NoError(t, err)
 
@@ -220,7 +220,7 @@ func TestFileSystemConfigRepository_ConfigExists(t *testing.T) {
 
 func TestFileSystemConfigRepository_SaveConfig(t *testing.T) {
 	fs := testutil.NewTestFileSystem(t)
-	repo := ProvideFileSystemConfigRepository(fs, &mockSecretsRepository{}, &mockTemplater{})
+	repo := NewFileSystemConfigRepository(fs, &mockSecretsRepository{}, &mockTemplater{})
 
 	config := domain.CreateDefaultConfig()
 	err := repo.SaveConfig(&config)
@@ -234,7 +234,7 @@ func TestFileSystemConfigRepository_SaveConfig(t *testing.T) {
 
 func TestFileSystemConfigRepository_LoadEnvKey(t *testing.T) {
 	fs := testutil.NewTestFileSystem(t)
-	repo := ProvideFileSystemConfigRepository(fs, &mockSecretsRepository{}, &mockTemplater{})
+	repo := NewFileSystemConfigRepository(fs, &mockSecretsRepository{}, &mockTemplater{})
 
 	// Try to load env key before it exists
 	_, err := repo.LoadEnvKey("test-context")
@@ -242,7 +242,7 @@ func TestFileSystemConfigRepository_LoadEnvKey(t *testing.T) {
 	assert.Contains(t, err.Error(), "env-key does not exist")
 
 	// Write an env key
-	envKeyPath := filepath.Join("~", ".dx", "test-context", "env-key")
+	envKeyPath := filepath.Join("~", ".pilot", "test-context", "env-key")
 	err = fs.WriteFile(envKeyPath, []byte("test-key-value"), ports.ReadWrite)
 	require.NoError(t, err)
 
@@ -462,7 +462,7 @@ func TestOverlayCertificate_PartialOverride(t *testing.T) {
 
 func TestFileSystemConfigRepository_LoadConfig_CachesResult(t *testing.T) {
 	fs := testutil.NewTestFileSystem(t)
-	repo := ProvideFileSystemConfigRepository(fs, &mockSecretsRepository{}, &mockTemplater{})
+	repo := NewFileSystemConfigRepository(fs, &mockSecretsRepository{}, &mockTemplater{})
 
 	// Create a valid config file
 	configContent := `contexts:
@@ -479,7 +479,7 @@ func TestFileSystemConfigRepository_LoadConfig_CachesResult(t *testing.T) {
             gitRepoPath: /tmp/repo
             gitRef: main
 `
-	configPath := filepath.Join("~", ".dx-config.yaml")
+	configPath := filepath.Join("~", ".pilot-config.yaml")
 	err := fs.WriteFile(configPath, []byte(configContent), ports.ReadWrite)
 	require.NoError(t, err)
 
@@ -496,10 +496,10 @@ func TestFileSystemConfigRepository_LoadConfig_CachesResult(t *testing.T) {
 
 func TestFileSystemConfigRepository_LoadCurrentConfigurationContext_NotFound(t *testing.T) {
 	fs := testutil.NewTestFileSystem(t)
-	repo := ProvideFileSystemConfigRepository(fs, &mockSecretsRepository{}, &mockTemplater{})
+	repo := NewFileSystemConfigRepository(fs, &mockSecretsRepository{}, &mockTemplater{})
 
 	// Set current context to a name that doesn't exist in config
-	currentContextPath := filepath.Join("~", ".dx", "current-context")
+	currentContextPath := filepath.Join("~", ".pilot", "current-context")
 	err := fs.WriteFile(currentContextPath, []byte("nonexistent-context"), ports.ReadWrite)
 	require.NoError(t, err)
 
@@ -518,7 +518,7 @@ func TestFileSystemConfigRepository_LoadCurrentConfigurationContext_NotFound(t *
             gitRepoPath: /tmp/repo
             gitRef: main
 `
-	configPath := filepath.Join("~", ".dx-config.yaml")
+	configPath := filepath.Join("~", ".pilot-config.yaml")
 	err = fs.WriteFile(configPath, []byte(configContent), ports.ReadWrite)
 	require.NoError(t, err)
 
@@ -530,10 +530,10 @@ func TestFileSystemConfigRepository_LoadCurrentConfigurationContext_NotFound(t *
 
 func TestFileSystemConfigRepository_InitConfig_FailsWhenConfigExists(t *testing.T) {
 	fs := testutil.NewTestFileSystem(t)
-	repo := ProvideFileSystemConfigRepository(fs, &mockSecretsRepository{}, &mockTemplater{})
+	repo := NewFileSystemConfigRepository(fs, &mockSecretsRepository{}, &mockTemplater{})
 
 	// Create an existing config file
-	configPath := filepath.Join("~", ".dx-config.yaml")
+	configPath := filepath.Join("~", ".pilot-config.yaml")
 	err := fs.WriteFile(configPath, []byte("contexts: []"), ports.ReadWrite)
 	require.NoError(t, err)
 
@@ -545,7 +545,7 @@ func TestFileSystemConfigRepository_InitConfig_FailsWhenConfigExists(t *testing.
 
 func TestFileSystemConfigRepository_InitConfig_Success(t *testing.T) {
 	fs := testutil.NewTestFileSystem(t)
-	repo := ProvideFileSystemConfigRepository(fs, &mockSecretsRepository{}, &mockTemplater{})
+	repo := NewFileSystemConfigRepository(fs, &mockSecretsRepository{}, &mockTemplater{})
 
 	// InitConfig should succeed when no config exists
 	err := repo.InitConfig()

@@ -8,14 +8,14 @@ import (
 	"fmt"
 	"io"
 
-	"dx/internal/ports"
+	"pilot/internal/ports"
 )
 
 var _ ports.SymmetricEncryptor = (*AesGcmEncryptor)(nil)
 
 type AesGcmEncryptor struct{}
 
-func ProvideAesGcmEncryptor() *AesGcmEncryptor {
+func NewAesGcmEncryptor() *AesGcmEncryptor {
 	return &AesGcmEncryptor{}
 }
 

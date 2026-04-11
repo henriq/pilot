@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"dx/internal/core/domain"
-	"dx/internal/testutil"
+	"pilot/internal/core/domain"
+	"pilot/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -89,7 +89,7 @@ func TestSecretCommandHandler_HandleSet_Success(t *testing.T) {
 		return secrets[0].Key == "DB_PASSWORD" && secrets[0].Value == "secret123"
 	}), "test-context").Return(nil)
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleSet("DB_PASSWORD")
 
@@ -120,7 +120,7 @@ func TestSecretCommandHandler_HandleSet_UpdateExisting(t *testing.T) {
 		return secrets[0].Key == "DB_PASSWORD" && secrets[0].Value == "new-value"
 	}), "test-context").Return(nil)
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleSet("DB_PASSWORD")
 
@@ -140,7 +140,7 @@ func TestSecretCommandHandler_HandleSet_LoadContextNameError(t *testing.T) {
 	terminalInput.On("ReadPassword", mock.Anything).Return("secret123", nil)
 	configRepository.On("LoadCurrentContextName").Return("", expectedErr)
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleSet("DB_PASSWORD")
 
@@ -161,7 +161,7 @@ func TestSecretCommandHandler_HandleSet_LoadSecretsError(t *testing.T) {
 	configRepository.On("LoadCurrentContextName").Return("test-context", nil)
 	secretsRepository.On("LoadSecrets", "test-context").Return(nil, expectedErr)
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleSet("DB_PASSWORD")
 
@@ -186,7 +186,7 @@ func TestSecretCommandHandler_HandleSet_SaveSecretsError(t *testing.T) {
 	secretsRepository.On("LoadSecrets", "test-context").Return(existingSecrets, nil)
 	secretsRepository.On("SaveSecrets", mock.Anything, "test-context").Return(expectedErr)
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleSet("DB_PASSWORD")
 
@@ -204,7 +204,7 @@ func TestSecretCommandHandler_HandleSet_NonTerminal(t *testing.T) {
 
 	terminalInput.On("IsTerminal").Return(false)
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleSet("DB_PASSWORD")
 
@@ -221,7 +221,7 @@ func TestSecretCommandHandler_HandleSet_ReadPasswordError(t *testing.T) {
 	terminalInput.On("IsTerminal").Return(true)
 	terminalInput.On("ReadPassword", mock.Anything).Return("", errors.New("read error"))
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleSet("DB_PASSWORD")
 
@@ -238,7 +238,7 @@ func TestSecretCommandHandler_HandleSet_EmptyValue(t *testing.T) {
 	terminalInput.On("IsTerminal").Return(true)
 	terminalInput.On("ReadPassword", mock.Anything).Return("", nil)
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleSet("DB_PASSWORD")
 
@@ -261,7 +261,7 @@ func TestSecretCommandHandler_HandleList_Success(t *testing.T) {
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	secretsRepository.On("LoadSecrets", "test-context").Return(secrets, nil)
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleList()
 
@@ -281,7 +281,7 @@ func TestSecretCommandHandler_HandleList_Empty(t *testing.T) {
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	secretsRepository.On("LoadSecrets", "test-context").Return(secrets, nil)
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleList()
 
@@ -298,7 +298,7 @@ func TestSecretCommandHandler_HandleList_LoadConfigError(t *testing.T) {
 	expectedErr := errors.New("load config error")
 	configRepository.On("LoadCurrentConfigurationContext").Return(nil, expectedErr)
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleList()
 
@@ -318,7 +318,7 @@ func TestSecretCommandHandler_HandleList_LoadSecretsError(t *testing.T) {
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	secretsRepository.On("LoadSecrets", "test-context").Return(nil, expectedErr)
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleList()
 
@@ -341,7 +341,7 @@ func TestSecretCommandHandler_HandleGet_Success(t *testing.T) {
 	configRepository.On("LoadCurrentContextName").Return("test-context", nil)
 	secretsRepository.On("LoadSecrets", "test-context").Return(existingSecrets, nil)
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleGet("DB_PASSWORD")
 
@@ -362,7 +362,7 @@ func TestSecretCommandHandler_HandleGet_NotFound(t *testing.T) {
 	configRepository.On("LoadCurrentContextName").Return("test-context", nil)
 	secretsRepository.On("LoadSecrets", "test-context").Return(existingSecrets, nil)
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleGet("NON_EXISTENT_KEY")
 
@@ -380,7 +380,7 @@ func TestSecretCommandHandler_HandleGet_LoadContextNameError(t *testing.T) {
 	expectedErr := errors.New("load context name error")
 	configRepository.On("LoadCurrentContextName").Return("", expectedErr)
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleGet("DB_PASSWORD")
 
@@ -398,7 +398,7 @@ func TestSecretCommandHandler_HandleGet_LoadSecretsError(t *testing.T) {
 	configRepository.On("LoadCurrentContextName").Return("test-context", nil)
 	secretsRepository.On("LoadSecrets", "test-context").Return(nil, expectedErr)
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleGet("DB_PASSWORD")
 
@@ -428,7 +428,7 @@ func TestSecretCommandHandler_HandleDelete_Success(t *testing.T) {
 		return secrets[0].Key == "API_KEY"
 	}), "test-context").Return(nil)
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleDelete("DB_PASSWORD")
 
@@ -458,7 +458,7 @@ func TestSecretCommandHandler_HandleDelete_NonExistentKey(t *testing.T) {
 		return secrets[0].Key == "DB_PASSWORD"
 	}), "test-context").Return(nil)
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleDelete("NON_EXISTENT_KEY")
 
@@ -475,7 +475,7 @@ func TestSecretCommandHandler_HandleDelete_LoadContextNameError(t *testing.T) {
 	expectedErr := errors.New("load context name error")
 	configRepository.On("LoadCurrentContextName").Return("", expectedErr)
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleDelete("DB_PASSWORD")
 
@@ -493,7 +493,7 @@ func TestSecretCommandHandler_HandleDelete_LoadSecretsError(t *testing.T) {
 	configRepository.On("LoadCurrentContextName").Return("test-context", nil)
 	secretsRepository.On("LoadSecrets", "test-context").Return(nil, expectedErr)
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleDelete("DB_PASSWORD")
 
@@ -517,7 +517,7 @@ func TestSecretCommandHandler_HandleDelete_SaveSecretsError(t *testing.T) {
 	secretsRepository.On("LoadSecrets", "test-context").Return(existingSecrets, nil)
 	secretsRepository.On("SaveSecrets", mock.Anything, "test-context").Return(expectedErr)
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleDelete("DB_PASSWORD")
 
@@ -541,7 +541,7 @@ func TestSecretCommandHandler_HandleConfigure_NoSecretsInConfig(t *testing.T) {
 
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleConfigure(false)
 
@@ -567,7 +567,7 @@ func TestSecretCommandHandler_HandleConfigure_AllSecretsConfigured(t *testing.T)
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	secretsRepository.On("LoadSecrets", "test-context").Return(existingSecrets, nil)
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleConfigure(false)
 
@@ -592,7 +592,7 @@ func TestSecretCommandHandler_HandleConfigure_CheckOnly_MissingSecrets(t *testin
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	secretsRepository.On("LoadSecrets", "test-context").Return(existingSecrets, nil)
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleConfigure(true)
 
@@ -620,7 +620,7 @@ func TestSecretCommandHandler_HandleConfigure_CheckOnly_PartialMissing(t *testin
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	secretsRepository.On("LoadSecrets", "test-context").Return(existingSecrets, nil)
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleConfigure(true)
 
@@ -647,7 +647,7 @@ func TestSecretCommandHandler_HandleConfigure_Interactive_NonTerminal(t *testing
 	secretsRepository.On("LoadSecrets", "test-context").Return(existingSecrets, nil)
 	terminalInput.On("IsTerminal").Return(false)
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleConfigure(false)
 
@@ -682,7 +682,7 @@ func TestSecretCommandHandler_HandleConfigure_Interactive_Success(t *testing.T) 
 		return secrets[0].Key == "DB_PASSWORD" && secrets[0].Value == "secret123"
 	}), "test-context").Return(nil)
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleConfigure(false)
 
@@ -711,7 +711,7 @@ func TestSecretCommandHandler_HandleConfigure_Interactive_SkipEmpty(t *testing.T
 	terminalInput.On("ReadPassword", mock.Anything).Return("", nil) // Empty input
 	// Note: SaveSecrets is NOT called when all secrets are skipped (no changes to save)
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleConfigure(false)
 
@@ -739,7 +739,7 @@ func TestSecretCommandHandler_HandleConfigure_Interactive_ReadPasswordError(t *t
 	terminalInput.On("IsTerminal").Return(true)
 	terminalInput.On("ReadPassword", mock.Anything).Return("", errors.New("read error"))
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleConfigure(false)
 
@@ -758,7 +758,7 @@ func TestSecretCommandHandler_HandleConfigure_LoadConfigError(t *testing.T) {
 	expectedErr := errors.New("load config error")
 	configRepository.On("LoadCurrentConfigurationContext").Return(nil, expectedErr)
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleConfigure(false)
 
@@ -783,7 +783,7 @@ func TestSecretCommandHandler_HandleConfigure_LoadSecretsError(t *testing.T) {
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	secretsRepository.On("LoadSecrets", "test-context").Return(nil, expectedErr)
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleConfigure(false)
 
@@ -822,7 +822,7 @@ func TestSecretCommandHandler_HandleConfigure_FromHelmArgs(t *testing.T) {
 		return secrets[0].Key == "DB_PASSWORD"
 	}), "test-context").Return(nil)
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleConfigure(false)
 
@@ -852,7 +852,7 @@ func TestSecretCommandHandler_HandleConfigure_Interactive_SaveSecretsError(t *te
 	terminalInput.On("ReadPassword", mock.Anything).Return("secret123", nil)
 	secretsRepository.On("SaveSecrets", mock.Anything, "test-context").Return(expectedErr)
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleConfigure(false)
 
@@ -880,14 +880,14 @@ func TestSecretCommandHandler_HandleSet_ConflictsWithExistingPrefix(t *testing.T
 	secretsRepository.On("LoadSecrets", "test-context").Return(existingSecrets, nil)
 	// SaveSecrets should NOT be called
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleSet("db.password")
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "cannot set secret 'db.password'")
 	assert.Contains(t, err.Error(), "conflicts with existing secret 'db'")
-	assert.Contains(t, err.Error(), "dx secret delete db")
+	assert.Contains(t, err.Error(), "pilot secret delete db")
 	secretsRepository.AssertNotCalled(t, "SaveSecrets", mock.Anything, mock.Anything)
 	configRepository.AssertExpectations(t)
 	terminalInput.AssertExpectations(t)
@@ -908,14 +908,14 @@ func TestSecretCommandHandler_HandleSet_ConflictsWithExistingNested(t *testing.T
 	secretsRepository.On("LoadSecrets", "test-context").Return(existingSecrets, nil)
 	// SaveSecrets should NOT be called
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleSet("db")
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "cannot set secret 'db'")
 	assert.Contains(t, err.Error(), "conflicts with existing secret 'db.password'")
-	assert.Contains(t, err.Error(), "dx secret delete db.password")
+	assert.Contains(t, err.Error(), "pilot secret delete db.password")
 	secretsRepository.AssertNotCalled(t, "SaveSecrets", mock.Anything, mock.Anything)
 	configRepository.AssertExpectations(t)
 	terminalInput.AssertExpectations(t)
@@ -944,7 +944,7 @@ func TestSecretCommandHandler_HandleSet_UpdateExistingWithConflict(t *testing.T)
 		return secrets[0].Key == "db" && secrets[0].Value == "new-value"
 	}), "test-context").Return(nil)
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleSet("db")
 
@@ -974,7 +974,7 @@ func TestSecretCommandHandler_HandleSet_NoConflictIndependentKeys(t *testing.T) 
 		return secrets[1].Key == "db.password" && secrets[1].Value == "secret123"
 	}), "test-context").Return(nil)
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleSet("db.password")
 
@@ -1004,7 +1004,7 @@ func TestSecretCommandHandler_HandleSet_NoConflictSimilarPrefix(t *testing.T) {
 		return secrets[1].Key == "db_host" && secrets[1].Value == "host-value"
 	}), "test-context").Return(nil)
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleSet("db_host")
 
@@ -1037,7 +1037,7 @@ func TestSecretCommandHandler_HandleConfigure_Interactive_SkipsConflictingKey(t 
 	terminalInput.On("ReadPassword", mock.Anything).Return("secret123", nil)
 	// SaveSecrets should NOT be called because the only missing key conflicts
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleConfigure(false)
 
@@ -1082,7 +1082,7 @@ func TestSecretCommandHandler_HandleConfigure_FromBuildArgs(t *testing.T) {
 		return secrets[0].Key == "NPM_TOKEN"
 	}), "test-context").Return(nil)
 
-	sut := ProvideSecretCommandHandler(secretsRepository, configRepository, terminalInput)
+	sut := NewSecretCommandHandler(secretsRepository, configRepository, terminalInput)
 
 	err := sut.HandleConfigure(false)
 

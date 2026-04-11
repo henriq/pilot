@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"dx/internal/cli/output"
-	"dx/internal/cli/progress"
-	"dx/internal/ports"
+	"pilot/internal/cli/output"
+	"pilot/internal/cli/progress"
+	"pilot/internal/ports"
 
 	"golang.org/x/sync/errgroup"
 )
@@ -22,7 +22,7 @@ type PullCommandHandler struct {
 	terminalInput            ports.TerminalInput
 }
 
-func ProvidePullCommandHandler(
+func NewPullCommandHandler(
 	configRepository ports.ConfigRepository,
 	containerImageRepository ports.ContainerImageRepository,
 	terminalInput ports.TerminalInput,

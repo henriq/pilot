@@ -5,13 +5,13 @@ import (
 	"os"
 	"os/exec"
 
-	"dx/internal/ports"
+	"pilot/internal/ports"
 )
 
 // OsCommandRunner executes shell commands using os/exec.
 type OsCommandRunner struct{}
 
-func ProvideOsCommandRunner() *OsCommandRunner {
+func NewOsCommandRunner() *OsCommandRunner {
 	return &OsCommandRunner{}
 }
 

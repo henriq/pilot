@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"dx/internal/core/domain"
-	"dx/internal/testutil"
+	"pilot/internal/core/domain"
+	"pilot/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -34,7 +34,7 @@ func TestRunCommandHandler_Handle_Success(t *testing.T) {
 	templater.On("Render", "echo hello", "test-script", mock.Anything).Return("echo hello", nil)
 	commandRunner.On("RunInteractive", shell, []string{shellArg, "echo hello"}).Return(nil)
 
-	sut := ProvideRunCommandHandler(configRepository, secretsRepository, templater, scm, commandRunner)
+	sut := NewRunCommandHandler(configRepository, secretsRepository, templater, scm, commandRunner)
 
 	scripts := map[string]string{"test-script": "echo hello"}
 	executionPlan := []string{"test-script"}
@@ -80,7 +80,7 @@ func TestRunCommandHandler_Handle_WithServiceDependency(t *testing.T) {
 	templater.On("Render", scriptWithDep, "build-script", mock.Anything).Return("cd /path/to/service && make build", nil)
 	commandRunner.On("RunInteractive", shell, []string{shellArg, "cd /path/to/service && make build"}).Return(nil)
 
-	sut := ProvideRunCommandHandler(configRepository, secretsRepository, templater, scm, commandRunner)
+	sut := NewRunCommandHandler(configRepository, secretsRepository, templater, scm, commandRunner)
 
 	scripts := map[string]string{"build-script": scriptWithDep}
 	executionPlan := []string{"build-script"}
@@ -105,7 +105,7 @@ func TestRunCommandHandler_Handle_LoadContextNameError(t *testing.T) {
 	expectedErr := errors.New("load context name error")
 	configRepository.On("LoadCurrentContextName").Return("", expectedErr)
 
-	sut := ProvideRunCommandHandler(configRepository, secretsRepository, templater, scm, commandRunner)
+	sut := NewRunCommandHandler(configRepository, secretsRepository, templater, scm, commandRunner)
 
 	scripts := map[string]string{"test-script": "echo hello"}
 	executionPlan := []string{"test-script"}
@@ -136,7 +136,7 @@ func TestRunCommandHandler_Handle_LoadConfigContextError(t *testing.T) {
 	// Second call (direct in Handle) fails
 	configRepository.On("LoadCurrentConfigurationContext").Return(nil, expectedErr).Once()
 
-	sut := ProvideRunCommandHandler(configRepository, secretsRepository, templater, scm, commandRunner)
+	sut := NewRunCommandHandler(configRepository, secretsRepository, templater, scm, commandRunner)
 
 	scripts := map[string]string{"test-script": "echo hello"}
 	executionPlan := []string{"test-script"}
@@ -163,7 +163,7 @@ func TestRunCommandHandler_Handle_LoadSecretsError(t *testing.T) {
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	secretsRepository.On("LoadSecrets", "test-context").Return(nil, expectedErr)
 
-	sut := ProvideRunCommandHandler(configRepository, secretsRepository, templater, scm, commandRunner)
+	sut := NewRunCommandHandler(configRepository, secretsRepository, templater, scm, commandRunner)
 
 	scripts := map[string]string{"test-script": "echo hello"}
 	executionPlan := []string{"test-script"}
@@ -193,7 +193,7 @@ func TestRunCommandHandler_Handle_ServiceNotFoundError(t *testing.T) {
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	secretsRepository.On("LoadSecrets", "test-context").Return(secrets, nil)
 
-	sut := ProvideRunCommandHandler(configRepository, secretsRepository, templater, scm, commandRunner)
+	sut := NewRunCommandHandler(configRepository, secretsRepository, templater, scm, commandRunner)
 
 	// Script references a non-existent service
 	scriptWithMissingService := `cd {{.Services."missing-service".path}} && make build`
@@ -232,7 +232,7 @@ func TestRunCommandHandler_Handle_ServiceMissingGitInfoError(t *testing.T) {
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	secretsRepository.On("LoadSecrets", "test-context").Return(secrets, nil)
 
-	sut := ProvideRunCommandHandler(configRepository, secretsRepository, templater, scm, commandRunner)
+	sut := NewRunCommandHandler(configRepository, secretsRepository, templater, scm, commandRunner)
 
 	scriptWithDep := `cd {{.Services."my-service".path}} && make build`
 	scripts := map[string]string{"build-script": scriptWithDep}
@@ -272,7 +272,7 @@ func TestRunCommandHandler_Handle_ScmDownloadError(t *testing.T) {
 	secretsRepository.On("LoadSecrets", "test-context").Return(secrets, nil)
 	scm.On("Download", "github.com/org/repo", "main", "/path/to/service").Return(downloadErr)
 
-	sut := ProvideRunCommandHandler(configRepository, secretsRepository, templater, scm, commandRunner)
+	sut := NewRunCommandHandler(configRepository, secretsRepository, templater, scm, commandRunner)
 
 	scriptWithDep := `cd {{.Services."my-service".path}} && make build`
 	scripts := map[string]string{"build-script": scriptWithDep}
@@ -306,7 +306,7 @@ func TestRunCommandHandler_Handle_TemplateRenderError(t *testing.T) {
 	secretsRepository.On("LoadSecrets", "test-context").Return(secrets, nil)
 	templater.On("Render", "echo hello", "test-script", mock.Anything).Return("", renderErr)
 
-	sut := ProvideRunCommandHandler(configRepository, secretsRepository, templater, scm, commandRunner)
+	sut := NewRunCommandHandler(configRepository, secretsRepository, templater, scm, commandRunner)
 
 	scripts := map[string]string{"test-script": "echo hello"}
 	executionPlan := []string{"test-script"}
@@ -343,7 +343,7 @@ func TestRunCommandHandler_Handle_CommandRunError(t *testing.T) {
 	templater.On("Render", "exit 1", "failing-script", mock.Anything).Return("exit 1", nil)
 	commandRunner.On("RunInteractive", shell, []string{shellArg, "exit 1"}).Return(runErr)
 
-	sut := ProvideRunCommandHandler(configRepository, secretsRepository, templater, scm, commandRunner)
+	sut := NewRunCommandHandler(configRepository, secretsRepository, templater, scm, commandRunner)
 
 	scripts := map[string]string{"failing-script": "exit 1"}
 	executionPlan := []string{"failing-script"}
@@ -382,7 +382,7 @@ func TestRunCommandHandler_Handle_MultipleScripts(t *testing.T) {
 	commandRunner.On("RunInteractive", shell, []string{shellArg, "echo first"}).Return(nil)
 	commandRunner.On("RunInteractive", shell, []string{shellArg, "echo second"}).Return(nil)
 
-	sut := ProvideRunCommandHandler(configRepository, secretsRepository, templater, scm, commandRunner)
+	sut := NewRunCommandHandler(configRepository, secretsRepository, templater, scm, commandRunner)
 
 	scripts := map[string]string{
 		"script1": "echo first",

@@ -1,8 +1,8 @@
 package handler
 
 import (
-	"dx/internal/core/domain"
-	"dx/internal/testutil"
+	"pilot/internal/core/domain"
+	"pilot/internal/testutil"
 	"strings"
 	"testing"
 
@@ -31,7 +31,7 @@ func TestGenerateCommandHandler_GenerateHostEntriesReturnsHostEntries(t *testing
 
 	assert.Nil(t, result)
 	assert.Equal(
-		t, `# DX entries for test-context
+		t, `# Pilot entries for test-context
 127.0.0.1 dev-proxy.test-context.localhost
 127.0.0.1 stats.dev-proxy.test-context.localhost
 127.0.0.1 test-service.test-context.localhost

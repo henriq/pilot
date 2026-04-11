@@ -14,8 +14,8 @@ func init() {
 
 var versionCmd = &cobra.Command{
 	Use:   "version",
-	Short: "Displays the application version",
+	Short: "Show the application version",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("DX %s\n", version)
+		fmt.Printf("Pilot %s\n", version)
 	},
 }

@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"dx/cmd/cli/app"
+	"pilot/cmd/cli/app"
 
 	"github.com/spf13/cobra"
 )
@@ -12,8 +12,8 @@ func init() {
 
 var genEnvKeyCmd = &cobra.Command{
 	Use:   "gen-env-key",
-	Short: "Generates an environment key for the currently active cluster configuration",
-	Long:  `Generates an environment key using the current cluster and namespace configuration in ~/.kube/config`,
+	Short: "Generate an environment key for the active cluster",
+	Long:  `Generate an environment key derived from the current cluster and namespace in ~/.kube/config. This key is used for cluster verification.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		handler, err := app.InjectGenEnvKeyCommandHandler()
 		if err != nil {

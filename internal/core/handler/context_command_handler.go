@@ -4,15 +4,15 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"dx/internal/cli/output"
-	"dx/internal/ports"
+	"pilot/internal/cli/output"
+	"pilot/internal/ports"
 )
 
 type ContextCommandHandler struct {
 	configRepository ports.ConfigRepository
 }
 
-func ProvideContextCommandHandler(
+func NewContextCommandHandler(
 	configRepository ports.ConfigRepository,
 ) ContextCommandHandler {
 	return ContextCommandHandler{

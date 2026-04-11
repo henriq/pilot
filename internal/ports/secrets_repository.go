@@ -1,6 +1,6 @@
 package ports
 
-import "dx/internal/core/domain"
+import "pilot/internal/core/domain"
 
 type SecretsRepository interface {
 	LoadSecrets(configContextName string) ([]*domain.Secret, error)

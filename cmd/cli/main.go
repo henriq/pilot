@@ -1,7 +1,7 @@
 package main
 
 import (
-	"dx/cmd/cli/app/cmd"
+	"pilot/cmd/cli/app/cmd"
 )
 
 func main() {

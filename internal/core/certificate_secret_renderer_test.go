@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"dx/internal/core/domain"
+	"pilot/internal/core/domain"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,7 +37,7 @@ func TestRenderCertificateSecretManifests_TLSSecret(t *testing.T) {
 	assert.Contains(t, yaml, "apiVersion: v1")
 	assert.Contains(t, yaml, "kind: Secret")
 	assert.Contains(t, yaml, "name: foo-tls")
-	assert.Contains(t, yaml, "managed-by: dx")
+	assert.Contains(t, yaml, "managed-by: pilot")
 	assert.Contains(t, yaml, "type: kubernetes.io/tls")
 	assert.Contains(t, yaml, "ca.crt: "+base64.StdEncoding.EncodeToString([]byte("ca-pem")))
 	assert.Contains(t, yaml, "tls.crt: "+base64.StdEncoding.EncodeToString([]byte("cert-pem")))

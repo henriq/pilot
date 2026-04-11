@@ -3,7 +3,7 @@ package scm
 import (
 	"fmt"
 
-	"dx/internal/ports"
+	"pilot/internal/ports"
 )
 
 var _ ports.Scm = (*Git)(nil)
@@ -15,7 +15,7 @@ type Git struct {
 	cloned map[string]bool
 }
 
-func ProvideGit(gitClient *GitClient, fileSystem ports.FileSystem) *Git {
+func NewGit(gitClient *GitClient, fileSystem ports.FileSystem) *Git {
 	return &Git{
 		gitClient:  gitClient,
 		fileSystem: fileSystem,

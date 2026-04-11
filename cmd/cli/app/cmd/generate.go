@@ -1,8 +1,8 @@
 package cmd
 
 import (
-	"dx/cmd/cli/app"
 	"os"
+	"pilot/cmd/cli/app"
 
 	"github.com/spf13/cobra"
 )
@@ -14,14 +14,21 @@ func init() {
 
 var generateCmd = &cobra.Command{
 	Use:   "generate",
-	Short: "Generates data based on configuration",
-	Long:  `Commands for generating data based on configuration`,
+	Short: "Generate data from configuration",
+	Long:  `Generate data derived from the current configuration.`,
+	Example: `  # Generate host file entries
+  pilot generate host-entries`,
 }
 
 var generateHostEntriesCmd = &cobra.Command{
 	Use:   "host-entries",
-	Short: "Generates host entries for putting in the host file based on all configuration contexts",
-	Long:  `Generates host entries in a format that can be inserted in the hosts file`,
+	Short: "Generate /etc/hosts entries for the current context",
+	Long:  `Generate host entries for the current context in a format that can be appended to /etc/hosts.`,
+	Example: `  # Print host entries
+  pilot generate host-entries
+
+  # Append to /etc/hosts
+  pilot generate host-entries | sudo tee -a /etc/hosts`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		handler, err := app.InjectGenerateCommandHandler()
 		if err != nil {

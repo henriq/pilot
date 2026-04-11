@@ -5,10 +5,10 @@ import (
 	"strings"
 	"time"
 
-	"dx/internal/cli/output"
-	"dx/internal/core"
-	"dx/internal/core/domain"
-	"dx/internal/ports"
+	"pilot/internal/cli/output"
+	"pilot/internal/core"
+	"pilot/internal/core/domain"
+	"pilot/internal/ports"
 )
 
 type CACommandHandler struct {
@@ -19,7 +19,7 @@ type CACommandHandler struct {
 	environmentEnsurer     core.EnvironmentEnsurer
 }
 
-func ProvideCACommandHandler(
+func NewCACommandHandler(
 	configRepository ports.ConfigRepository,
 	certificateAuthority ports.CertificateAuthority,
 	certificateProvisioner *core.CertificateProvisioner,
@@ -45,7 +45,7 @@ func (h *CACommandHandler) HandlePrint() error {
 	certPEM, err := h.certificateAuthority.GetCACertificatePEM(contextName)
 	if err != nil {
 		return fmt.Errorf(
-			"no certificate authority exists for context '%s'; run 'dx install' to create one",
+			"no certificate authority exists for context '%s'; run 'pilot install' to create one",
 			contextName,
 		)
 	}
@@ -71,7 +71,7 @@ func (h *CACommandHandler) HandleDelete(skipConfirmation bool) error {
 	caExists := caErr == nil
 
 	if !caExists {
-		output.PrintInfo("No CA exists for this context; one will be created automatically on 'dx install'")
+		output.PrintInfo("No CA exists for this context; one will be created automatically on 'pilot install'")
 		return nil
 	}
 
@@ -92,7 +92,7 @@ func (h *CACommandHandler) HandleDelete(skipConfirmation bool) error {
 				output.PrintWarningDetail(cert.K8sSecret.Name)
 			}
 		}
-		output.PrintWarningSecondary("After running 'dx install', you must re-trust the new CA certificate.")
+		output.PrintWarningSecondary("After running 'pilot install', you must re-trust the new CA certificate.")
 		output.PrintWarningNewline()
 
 		response, err := h.terminalInput.ReadLine("Continue? [y/N] ")
@@ -121,8 +121,8 @@ func (h *CACommandHandler) HandleDelete(skipConfirmation bool) error {
 
 	output.PrintNewline()
 	output.PrintSuccess("Deleted CA for context '" + contextName + "'")
-	output.PrintInfo("Run 'dx install' to create a new CA and apply certificates")
-	output.PrintInfo("Run 'dx ca print' to retrieve the new CA certificate for your trust store")
+	output.PrintInfo("Run 'pilot install' to create a new CA and apply certificates")
+	output.PrintInfo("Run 'pilot ca print' to retrieve the new CA certificate for your trust store")
 
 	return nil
 }
@@ -140,7 +140,7 @@ func (h *CACommandHandler) HandleStatus() error {
 
 	expiry, err := h.certificateAuthority.GetCACertificateExpiry(contextName)
 	if err != nil {
-		output.PrintInfo("No CA exists for this context; one will be created automatically on 'dx install'")
+		output.PrintInfo("No CA exists for this context; one will be created automatically on 'pilot install'")
 		return nil
 	}
 
@@ -176,7 +176,7 @@ func (h *CACommandHandler) HandleStatus() error {
 			output.Plural(daysRemaining, "day", "days"),
 		))
 	}
-	output.PrintField("Cert path:", fmt.Sprintf("~/.dx/%s/ca/ca.crt", contextName))
+	output.PrintField("Cert path:", fmt.Sprintf("~/.pilot/%s/ca/ca.crt", contextName))
 
 	// List certificate statuses
 	configContext, err := h.configRepository.LoadCurrentConfigurationContext()

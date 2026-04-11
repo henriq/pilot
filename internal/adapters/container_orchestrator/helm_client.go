@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"dx/internal/ports"
+	"pilot/internal/ports"
 )
 
 var _ ports.HelmClient = (*HelmClient)(nil)
@@ -14,8 +14,8 @@ type HelmClient struct {
 	commandRunner ports.CommandRunner
 }
 
-// ProvideHelmClient creates a HelmClient for Wire dependency injection.
-func ProvideHelmClient(runner ports.CommandRunner) *HelmClient {
+// NewHelmClient creates a new HelmClient.
+func NewHelmClient(runner ports.CommandRunner) *HelmClient {
 	return &HelmClient{
 		commandRunner: runner,
 	}
@@ -44,7 +44,7 @@ func (h *HelmClient) UpgradeFromManifests(name, namespace, wrapperChartPath stri
 	cmdArgs := []string{
 		"upgrade",
 		"--install",
-		"--labels", "managed-by=dx",
+		"--labels", "managed-by=pilot",
 		name,
 		wrapperChartPath,
 	}

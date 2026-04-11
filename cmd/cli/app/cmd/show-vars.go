@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"dx/cmd/cli/app"
+	"pilot/cmd/cli/app"
 
 	"github.com/spf13/cobra"
 )
@@ -12,8 +12,8 @@ func init() {
 
 var showVarsCommand = &cobra.Command{
 	Use:   "show-vars",
-	Short: "Shows variables that can be used in templates.",
-	Long:  `Shows all variables that can be used in templates`,
+	Short: "Show variables available in configuration templates",
+	Long:  `Show all variables that can be referenced in configuration templates (e.g. secrets, service properties).`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		handler, err := app.InjectShowVarsCommandHandler()
 		if err != nil {

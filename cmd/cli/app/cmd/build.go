@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"dx/cmd/cli/app"
+	"pilot/cmd/cli/app"
 
 	"github.com/spf13/cobra"
 )
@@ -19,13 +19,13 @@ specified, builds all services in the current profile.
 Images are built using the configured Dockerfile and made available to the
 local Kubernetes cluster.`,
 	Example: `  # Build all services in the default profile
-  dx build
+  pilot build
 
   # Build specific services
-  dx build api frontend
+  pilot build api frontend
 
   # Build all services regardless of profile
-  dx build -p all`,
+  pilot build -p all`,
 	Args:              ServiceArgsValidator,
 	ValidArgsFunction: ServiceArgsCompletion,
 	RunE: func(cmd *cobra.Command, args []string) error {

@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"dx/internal/core/domain"
-	"dx/internal/testutil"
+	"pilot/internal/core/domain"
+	"pilot/internal/testutil"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -40,7 +40,7 @@ func TestCertificateProvisioner_ProvisionCertificateData_OpaqueSecretData(t *tes
 	mockCA := new(testutil.MockCertificateAuthority)
 	mockKeyring := new(testutil.MockKeyring)
 
-	sut := ProvideCertificateProvisioner(mockCA, nil, mockKeyring, nil)
+	sut := NewCertificateProvisioner(mockCA, nil, mockKeyring, nil)
 
 	mockKeyring.On("HasKey", "ctx-ca-key").Return(true, nil)
 	mockKeyring.On("GetKey", "ctx-ca-key").Return("test-passphrase", nil)
@@ -82,7 +82,7 @@ func TestCertificateProvisioner_ProvisionCertificateData_CreatesPassphraseIfMiss
 	mockKeyring := new(testutil.MockKeyring)
 	mockEncryptor := new(testutil.MockSymmetricEncryptor)
 
-	sut := ProvideCertificateProvisioner(mockCA, nil, mockKeyring, mockEncryptor)
+	sut := NewCertificateProvisioner(mockCA, nil, mockKeyring, mockEncryptor)
 
 	mockKeyring.On("HasKey", "ctx-ca-key").Return(false, nil)
 	mockEncryptor.On("CreateKey").Return([]byte("new-passphrase"), nil)
@@ -117,7 +117,7 @@ func TestCertificateProvisioner_ProvisionCertificateData_IssueCertificateCAError
 	mockCA := new(testutil.MockCertificateAuthority)
 	mockKeyring := new(testutil.MockKeyring)
 
-	sut := ProvideCertificateProvisioner(mockCA, nil, mockKeyring, nil)
+	sut := NewCertificateProvisioner(mockCA, nil, mockKeyring, nil)
 
 	mockKeyring.On("HasKey", "ctx-ca-key").Return(true, nil)
 	mockKeyring.On("GetKey", "ctx-ca-key").Return("pass", nil)
@@ -139,7 +139,7 @@ func TestCertificateProvisioner_ProvisionCertificateData_IssueCertificateCAError
 func TestCertificateProvisioner_ProvisionCertificateData_KeyringHasKeyError(t *testing.T) {
 	mockKeyring := new(testutil.MockKeyring)
 
-	sut := ProvideCertificateProvisioner(nil, nil, mockKeyring, nil)
+	sut := NewCertificateProvisioner(nil, nil, mockKeyring, nil)
 
 	mockKeyring.On("HasKey", "ctx-ca-key").Return(false, assert.AnError)
 
@@ -160,7 +160,7 @@ func TestCertificateProvisioner_ProvisionCertificateData_CreateKeyError(t *testi
 	mockKeyring := new(testutil.MockKeyring)
 	mockEncryptor := new(testutil.MockSymmetricEncryptor)
 
-	sut := ProvideCertificateProvisioner(nil, nil, mockKeyring, mockEncryptor)
+	sut := NewCertificateProvisioner(nil, nil, mockKeyring, mockEncryptor)
 
 	mockKeyring.On("HasKey", "ctx-ca-key").Return(false, nil)
 	mockEncryptor.On("CreateKey").Return(nil, assert.AnError)
@@ -182,7 +182,7 @@ func TestCertificateProvisioner_ProvisionCertificateData_SetKeyError(t *testing.
 	mockKeyring := new(testutil.MockKeyring)
 	mockEncryptor := new(testutil.MockSymmetricEncryptor)
 
-	sut := ProvideCertificateProvisioner(nil, nil, mockKeyring, mockEncryptor)
+	sut := NewCertificateProvisioner(nil, nil, mockKeyring, mockEncryptor)
 
 	mockKeyring.On("HasKey", "ctx-ca-key").Return(false, nil)
 	mockEncryptor.On("CreateKey").Return([]byte("new-key"), nil)
@@ -205,7 +205,7 @@ func TestCertificateProvisioner_ProvisionCertificateData_GetKeyError(t *testing.
 	mockKeyring := new(testutil.MockKeyring)
 	mockEncryptor := new(testutil.MockSymmetricEncryptor)
 
-	sut := ProvideCertificateProvisioner(nil, nil, mockKeyring, mockEncryptor)
+	sut := NewCertificateProvisioner(nil, nil, mockKeyring, mockEncryptor)
 
 	mockKeyring.On("HasKey", "ctx-ca-key").Return(false, nil)
 	mockEncryptor.On("CreateKey").Return([]byte("new-key"), nil)
@@ -229,7 +229,7 @@ func TestCertificateProvisioner_ProvisionCertificateData_MultipleCertificates(t 
 	mockCA := new(testutil.MockCertificateAuthority)
 	mockKeyring := new(testutil.MockKeyring)
 
-	sut := ProvideCertificateProvisioner(mockCA, nil, mockKeyring, nil)
+	sut := NewCertificateProvisioner(mockCA, nil, mockKeyring, nil)
 
 	mockKeyring.On("HasKey", "ctx-ca-key").Return(true, nil)
 	mockKeyring.On("GetKey", "ctx-ca-key").Return("pass", nil)
@@ -256,7 +256,7 @@ func TestCertificateProvisioner_ProvisionCertificateData_MultipleCertificates(t 
 func TestCertificateProvisioner_DeletePassphrase(t *testing.T) {
 	mockKeyring := new(testutil.MockKeyring)
 
-	sut := ProvideCertificateProvisioner(nil, nil, mockKeyring, nil)
+	sut := NewCertificateProvisioner(nil, nil, mockKeyring, nil)
 
 	mockKeyring.On("DeleteKey", "ctx-ca-key").Return(nil)
 
@@ -269,7 +269,7 @@ func TestCertificateProvisioner_DeletePassphrase(t *testing.T) {
 func TestCertificateProvisioner_DeletePassphrase_Error(t *testing.T) {
 	mockKeyring := new(testutil.MockKeyring)
 
-	sut := ProvideCertificateProvisioner(nil, nil, mockKeyring, nil)
+	sut := NewCertificateProvisioner(nil, nil, mockKeyring, nil)
 
 	mockKeyring.On("DeleteKey", "ctx-ca-key").Return(assert.AnError)
 
@@ -280,7 +280,7 @@ func TestCertificateProvisioner_DeletePassphrase_Error(t *testing.T) {
 func TestCertificateProvisioner_GetCertificateStatuses(t *testing.T) {
 	mockOrch := new(testutil.MockSecretStore)
 
-	sut := ProvideCertificateProvisioner(nil, mockOrch, nil, nil)
+	sut := NewCertificateProvisioner(nil, mockOrch, nil, nil)
 
 	// foo-tls exists with a valid cert (20 days remaining)
 	validCert := testCertPEM(t, time.Now().AddDate(0, 0, 20))
@@ -337,7 +337,7 @@ func TestCertificateProvisioner_GetCertificateStatuses(t *testing.T) {
 func TestCertificateProvisioner_GetCertificateStatuses_GetSecretDataError(t *testing.T) {
 	mockOrch := new(testutil.MockSecretStore)
 
-	sut := ProvideCertificateProvisioner(nil, mockOrch, nil, nil)
+	sut := NewCertificateProvisioner(nil, mockOrch, nil, nil)
 
 	mockOrch.On("GetSecretData", "foo-tls").Return(nil, assert.AnError)
 
@@ -365,7 +365,7 @@ func TestCertificateProvisioner_GetCertificateStatuses_GetSecretDataError(t *tes
 func TestCertificateProvisioner_GetCertificateStatuses_MultipleServices(t *testing.T) {
 	mockOrch := new(testutil.MockSecretStore)
 
-	sut := ProvideCertificateProvisioner(nil, mockOrch, nil, nil)
+	sut := NewCertificateProvisioner(nil, mockOrch, nil, nil)
 
 	mockOrch.On("GetSecretData", "svc-a-tls").Return(map[string][]byte(nil), nil)
 	mockOrch.On("GetSecretData", "svc-b-tls").Return(map[string][]byte(nil), nil)
@@ -492,7 +492,7 @@ func TestCertificateProvisioner_ProvisionCertificateData_IssuesNewCert(t *testin
 	mockCA := new(testutil.MockCertificateAuthority)
 	mockKeyring := new(testutil.MockKeyring)
 
-	sut := ProvideCertificateProvisioner(mockCA, nil, mockKeyring, nil)
+	sut := NewCertificateProvisioner(mockCA, nil, mockKeyring, nil)
 
 	mockKeyring.On("HasKey", "ctx-ca-key").Return(true, nil)
 	mockKeyring.On("GetKey", "ctx-ca-key").Return("test-passphrase", nil)
@@ -531,7 +531,7 @@ func TestCertificateProvisioner_ProvisionCertificateData_GroupsByService(t *test
 	mockCA := new(testutil.MockCertificateAuthority)
 	mockKeyring := new(testutil.MockKeyring)
 
-	sut := ProvideCertificateProvisioner(mockCA, nil, mockKeyring, nil)
+	sut := NewCertificateProvisioner(mockCA, nil, mockKeyring, nil)
 
 	mockKeyring.On("HasKey", "ctx-ca-key").Return(true, nil)
 	mockKeyring.On("GetKey", "ctx-ca-key").Return("test-passphrase", nil)
@@ -569,7 +569,7 @@ func TestCertificateProvisioner_ProvisionCertificateData_GroupsByService(t *test
 }
 
 func TestCertificateProvisioner_ProvisionCertificateData_EmptyServices(t *testing.T) {
-	sut := ProvideCertificateProvisioner(
+	sut := NewCertificateProvisioner(
 		new(testutil.MockCertificateAuthority),
 		new(testutil.MockSecretStore),
 		new(testutil.MockKeyring),
@@ -586,7 +586,7 @@ func TestCertificateProvisioner_ProvisionCertificateData_IssueCertificateError(t
 	mockCA := new(testutil.MockCertificateAuthority)
 	mockKeyring := new(testutil.MockKeyring)
 
-	sut := ProvideCertificateProvisioner(mockCA, nil, mockKeyring, nil)
+	sut := NewCertificateProvisioner(mockCA, nil, mockKeyring, nil)
 
 	mockKeyring.On("HasKey", "ctx-ca-key").Return(true, nil)
 	mockKeyring.On("GetKey", "ctx-ca-key").Return("test-passphrase", nil)

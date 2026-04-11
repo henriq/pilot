@@ -1,22 +1,22 @@
 package filesystem
 
 import (
-	"dx/internal/ports"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"pilot/internal/ports"
 	"runtime"
 	"strings"
 )
 
 var _ ports.FileSystem = (*OsFileSystem)(nil)
 
-var ErrAccessDenied = errors.New("access denied: path must be within ~/.dx/ or be ~/.dx-config.yaml")
+var ErrAccessDenied = errors.New("access denied: path must be within ~/.pilot/ or be ~/.pilot-config.yaml")
 
 type OsFileSystem struct{}
 
-func ProvideOsFileSystem() *OsFileSystem {
+func NewOsFileSystem() *OsFileSystem {
 	return &OsFileSystem{}
 }
 
@@ -49,13 +49,13 @@ func normalizePathSeparators(path string) string {
 	return path
 }
 
-// allowedPaths returns the allowed path patterns: ~/.dx/ directory and ~/.dx-config.yaml file.
-func allowedPaths() (dxDir string, configFile string, err error) {
+// allowedPaths returns the allowed path patterns: ~/.pilot/ directory and ~/.pilot-config.yaml file.
+func allowedPaths() (pilotDir string, configFile string, err error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", "", fmt.Errorf("failed to get user home directory: %w", err)
 	}
-	return filepath.Join(home, ".dx"), filepath.Join(home, ".dx-config.yaml"), nil
+	return filepath.Join(home, ".pilot"), filepath.Join(home, ".pilot-config.yaml"), nil
 }
 
 // resolveSymlinks resolves symlinks in a path, handling non-existent files by
@@ -90,7 +90,7 @@ func resolveSymlinks(path string) (string, error) {
 	return filepath.Join(resolvedDir, base), nil
 }
 
-// validatePath checks that the given path is within ~/.dx/ or is ~/.dx-config.yaml.
+// validatePath checks that the given path is within ~/.pilot/ or is ~/.pilot-config.yaml.
 // It also resolves symlinks to prevent symlink escape attacks.
 func validatePath(path string) (string, error) {
 	if path == "" {
@@ -102,7 +102,7 @@ func validatePath(path string) (string, error) {
 		return "", err
 	}
 
-	dxDir, configFile, err := allowedPaths()
+	pilotDir, configFile, err := allowedPaths()
 	if err != nil {
 		return "", err
 	}
@@ -122,8 +122,8 @@ func validatePath(path string) (string, error) {
 		return resolvedPath, nil
 	}
 
-	// Check if path is within ~/.dx/ directory (case-insensitive on Windows)
-	if pathsEqual(resolvedPath, dxDir) || pathHasPrefix(resolvedPath, dxDir+string(filepath.Separator)) {
+	// Check if path is within ~/.pilot/ directory (case-insensitive on Windows)
+	if pathsEqual(resolvedPath, pilotDir) || pathHasPrefix(resolvedPath, pilotDir+string(filepath.Separator)) {
 		return resolvedPath, nil
 	}
 

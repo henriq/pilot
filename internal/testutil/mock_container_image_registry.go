@@ -1,8 +1,8 @@
 package testutil
 
 import (
-	"dx/internal/core/domain"
-	"dx/internal/ports"
+	"pilot/internal/core/domain"
+	"pilot/internal/ports"
 
 	"github.com/stretchr/testify/mock"
 )
