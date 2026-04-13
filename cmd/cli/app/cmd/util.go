@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"pilot/cmd/cli/app"
 
@@ -11,6 +13,14 @@ import (
 const DefaultProfile = "default"
 
 func ServiceArgsValidator(cmd *cobra.Command, args []string) error {
+	if len(args) == 0 {
+		return nil
+	}
+	if home, err := os.UserHomeDir(); err == nil {
+		if _, err := os.Stat(filepath.Join(home, ".pilot-config.yaml")); err != nil {
+			return nil
+		}
+	}
 	configRepo, err := app.InjectConfigRepo()
 	if err != nil {
 		return fmt.Errorf("error injecting config repo: %v", err)
