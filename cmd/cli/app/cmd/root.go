@@ -32,18 +32,34 @@ Common workflows:
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-		if home, err := os.UserHomeDir(); err == nil {
-			if _, err := os.Stat(filepath.Join(home, ".pilot-config.yaml")); err == nil {
-				return nil
+		if !skipMigration(cmd) {
+			if home, err := os.UserHomeDir(); err == nil {
+				if _, err := os.Stat(filepath.Join(home, ".pilot-config.yaml")); err != nil {
+					handler, err := app.InjectMigrateCommandHandler()
+					if err != nil {
+						return err
+					}
+					if _, err = handler.Handle(); err != nil {
+						return err
+					}
+				}
 			}
 		}
-		handler, err := app.InjectMigrateCommandHandler()
-		if err != nil {
-			return err
-		}
-		_, err = handler.Handle()
-		return err
+		return nil
 	},
+}
+
+var migrationSkipCommands = map[string]struct{}{
+	"generate": {}, // called by homebrew during link/install where stdin is a TTY, causing the migration prompt to hang
+}
+
+func skipMigration(cmd *cobra.Command) bool {
+	for c := cmd; c != nil; c = c.Parent() {
+		if _, ok := migrationSkipCommands[c.Name()]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 func Execute() {
