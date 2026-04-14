@@ -50,7 +50,7 @@ Common workflows:
 }
 
 var migrationSkipCommands = map[string]struct{}{
-	"generate": {}, // called by homebrew during link/install where stdin is a TTY, causing the migration prompt to hang
+	"completion": {}, // called by homebrew during link/install where stdin is a TTY, causing the migration prompt to hang
 }
 
 func skipMigration(cmd *cobra.Command) bool {
