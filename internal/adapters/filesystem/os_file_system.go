@@ -230,6 +230,55 @@ func (f *OsFileSystem) RemoveAll(path string) error {
 	return nil
 }
 
+func (f *OsFileSystem) ReadSubdirectories(path string) ([]string, error) {
+	validPath, err := validatePath(path)
+	if err != nil {
+		return nil, err
+	}
+
+	entries, err := os.ReadDir(validPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read directory: %w", err)
+	}
+
+	var result []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			result = append(result, entry.Name())
+		}
+	}
+	return result, nil
+}
+
+// DirSize returns the total size of all files under path.
+// WalkDir does not follow symlinks within the tree, so symlinks pointing
+// outside the sandbox are not traversed.
+func (f *OsFileSystem) DirSize(path string) (int64, error) {
+	validPath, err := validatePath(path)
+	if err != nil {
+		return 0, err
+	}
+
+	var totalSize int64
+	err = filepath.WalkDir(validPath, func(_ string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() {
+			info, err := d.Info()
+			if err != nil {
+				return err
+			}
+			totalSize += info.Size()
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to calculate directory size: %w", err)
+	}
+	return totalSize, nil
+}
+
 func (f *OsFileSystem) HomeDir() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {

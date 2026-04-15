@@ -133,6 +133,16 @@ func PrintWarningDetail(message string) {
 	fmt.Fprintf(os.Stderr, "  %s %s\n", SymbolBullet, message)
 }
 
+// PrintWarningLabel prints a label line to stderr, used as a sub-section heading within warning blocks.
+func PrintWarningLabel(label string) {
+	fmt.Fprintf(os.Stderr, "  %s\n", label)
+}
+
+// PrintWarningBulletField prints an indented bullet item with a right-side value to stderr.
+func PrintWarningBulletField(name string, value string) {
+	fmt.Fprintf(os.Stderr, "    %s %-36s %s\n", SymbolBullet, name, value)
+}
+
 // PrintWarningSecondary prints a secondary/hint line to stderr, for actionable guidance under a warning.
 func PrintWarningSecondary(message string) {
 	fmt.Fprintf(os.Stderr, "  %s %s\n", SymbolArrow, Secondary(message))

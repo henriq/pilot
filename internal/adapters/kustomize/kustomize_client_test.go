@@ -448,6 +448,14 @@ func (m *mockFileSystemWithErrors) RemoveAll(path string) error {
 	return nil
 }
 
+func (m *mockFileSystemWithErrors) ReadSubdirectories(_ string) ([]string, error) {
+	return nil, nil
+}
+
+func (m *mockFileSystemWithErrors) DirSize(_ string) (int64, error) {
+	return 0, nil
+}
+
 func (m *mockFileSystemWithErrors) HomeDir() (string, error) {
 	return "/home/test", nil
 }

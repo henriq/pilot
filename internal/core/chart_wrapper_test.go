@@ -80,6 +80,14 @@ func (m *chartWrapperMockFileSystem) RemoveAll(path string) error {
 	return nil
 }
 
+func (m *chartWrapperMockFileSystem) ReadSubdirectories(_ string) ([]string, error) {
+	return nil, nil
+}
+
+func (m *chartWrapperMockFileSystem) DirSize(_ string) (int64, error) {
+	return 0, nil
+}
+
 func (m *chartWrapperMockFileSystem) HomeDir() (string, error) {
 	if m.homeDirError != nil {
 		return "", m.homeDirError

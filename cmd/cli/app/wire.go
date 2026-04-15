@@ -146,3 +146,8 @@ func InjectCACommandHandler() (handler.CACommandHandler, error) {
 	wire.Build(CommandHandlerSet, handler.NewCACommandHandler)
 	return handler.CACommandHandler{}, nil
 }
+
+func InjectCacheCommandHandler() (handler.CacheCommandHandler, error) {
+	wire.Build(CommandHandlerSet, handler.NewCacheCommandHandler)
+	return handler.CacheCommandHandler{}, nil
+}

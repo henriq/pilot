@@ -79,6 +79,38 @@ func (f *TestFileSystem) RemoveAll(path string) error {
 	return os.RemoveAll(f.resolvePath(path))
 }
 
+func (f *TestFileSystem) ReadSubdirectories(path string) ([]string, error) {
+	entries, err := os.ReadDir(f.resolvePath(path))
+	if err != nil {
+		return nil, err
+	}
+	var result []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			result = append(result, entry.Name())
+		}
+	}
+	return result, nil
+}
+
+func (f *TestFileSystem) DirSize(path string) (int64, error) {
+	var totalSize int64
+	err := filepath.WalkDir(f.resolvePath(path), func(_ string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() {
+			info, err := d.Info()
+			if err != nil {
+				return err
+			}
+			totalSize += info.Size()
+		}
+		return nil
+	})
+	return totalSize, err
+}
+
 func (f *TestFileSystem) HomeDir() (string, error) {
 	// Return the sandbox base directory as a mock "home"
 	return f.baseDir, nil

@@ -56,7 +56,18 @@ func (d *DevProxyManager) ShouldRebuildDevProxy(interceptHttp bool) (bool, error
 	}
 
 	newChecksum := d.configGenerator.GenerateChecksum(configContext, interceptHttp)
-	return currentChecksum != newChecksum, nil
+	if currentChecksum != newChecksum {
+		return true, nil
+	}
+
+	// Checksum matches, but local files may have been removed (e.g. by cache clear).
+	// Force rebuild if the helm chart directory is missing.
+	helmPath := filepath.Join("~", ".pilot", configContext.Name, "dev-proxy", "helm")
+	exists, err := d.fileService.FileExists(helmPath)
+	if err != nil {
+		return false, fmt.Errorf("failed to check dev-proxy helm path: %w", err)
+	}
+	return !exists, nil
 }
 
 // SaveConfiguration generates and saves all dev-proxy configuration files
