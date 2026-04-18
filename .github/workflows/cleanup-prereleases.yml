@@ -1,0 +1,54 @@
+name: Cleanup prereleases
+
+on:
+  schedule:
+    - cron: "13 4 * * 1"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/cleanup-prereleases.yml"
+      - ".github/scripts/prerelease-cleanup.js"
+
+permissions: {}
+
+concurrency:
+  group: cleanup-prereleases-${{ github.event_name == 'pull_request' && github.ref || 'main' }}
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Preview prerelease cleanup
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const run = require('./.github/scripts/prerelease-cleanup.js');
+            await run({ github, context, core, dryRun: true });
+
+  cleanup:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    timeout-minutes: 10
+    steps:
+      # Pin to main so workflow_dispatch from a feature branch still runs the
+      # audited script from main, not the branch-local (potentially modified) copy.
+      - uses: actions/checkout@v6
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Delete old prereleases
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const run = require('./.github/scripts/prerelease-cleanup.js');
+            await run({ github, context, core, dryRun: false });
