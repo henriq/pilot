@@ -23,11 +23,11 @@ jobs:
       contents: read
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
       - name: Preview prerelease cleanup
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const run = require('./.github/scripts/prerelease-cleanup.js');
@@ -42,12 +42,12 @@ jobs:
     steps:
       # Pin to main so workflow_dispatch from a feature branch still runs the
       # audited script from main, not the branch-local (potentially modified) copy.
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           ref: main
           persist-credentials: false
       - name: Delete old prereleases
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const run = require('./.github/scripts/prerelease-cleanup.js');

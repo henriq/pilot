@@ -45,6 +45,8 @@ pre-commit:
 	@go vet ./...
 	@echo "==> Linting..."
 	@golangci-lint run ./...
+	@echo "==> Vulnerability check..."
+	@go tool govulncheck ./...
 	@echo "==> Testing..."
 	@go test -race ./...
 	@echo "==> Building (linux/amd64, windows/amd64, darwin/arm64)..."
@@ -76,6 +78,6 @@ help:
 	@echo "  fmt            - Format Go code"
 	@echo "  vet            - Run go vet"
 	@echo "  lint           - Run go vet and golangci-lint"
-	@echo "  pre-commit     - Run all checks (generate, tidy, fmt, lint, test, cross-build)"
+	@echo "  pre-commit     - Run all checks (generate, tidy, fmt, lint, govulncheck, test, cross-build)"
 	@echo "  clean          - Remove $(BUILD_DIR)/ directory"
 	@echo "  all            - Clean, generate, test, and build"
