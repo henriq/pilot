@@ -224,7 +224,7 @@ services:
         gitRepoPath: /path/to/source
         gitRef: main
         buildArgs:
-          - GO_VERSION=1.21
+          - --build-arg=GO_VERSION=1.21
 
     # Images to pull (not build)
     remoteImages:
