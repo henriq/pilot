@@ -12,6 +12,25 @@ type MockConfigRepository struct {
 
 func (m *MockConfigRepository) LoadCurrentConfigurationContext() (*domain.ConfigurationContext, error) {
 	args := m.Called()
+	if resolve, ok := args.Get(0).(func(domain.ContextOverrides) (*domain.ConfigurationContext, error)); ok {
+		return resolve(domain.NoOverrides)
+	}
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.ConfigurationContext), args.Error(1)
+}
+
+// ResolveCurrentConfigurationContext accepts either a fixed context or a
+// resolver func as its first Return value, so a test can run the real
+// domain.ResolveContext and assert on the paths and refs it derives.
+func (m *MockConfigRepository) ResolveCurrentConfigurationContext(
+	overrides domain.ContextOverrides,
+) (*domain.ConfigurationContext, error) {
+	args := m.Called(overrides)
+	if resolve, ok := args.Get(0).(func(domain.ContextOverrides) (*domain.ConfigurationContext, error)); ok {
+		return resolve(overrides)
+	}
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}

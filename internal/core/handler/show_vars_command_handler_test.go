@@ -29,7 +29,6 @@ func TestShowVarsCommandHandler_Handle_Success(t *testing.T) {
 	}
 
 	// For CreateTemplatingValues
-	configRepository.On("LoadCurrentContextName").Return("test-context", nil)
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	secretsRepository.On("LoadSecrets", "test-context").Return(secrets, nil)
 
@@ -53,7 +52,6 @@ func TestShowVarsCommandHandler_Handle_NoSecrets(t *testing.T) {
 	secrets := []*domain.Secret{}
 
 	// For CreateTemplatingValues
-	configRepository.On("LoadCurrentContextName").Return("test-context", nil)
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	secretsRepository.On("LoadSecrets", "test-context").Return(secrets, nil)
 
@@ -66,28 +64,11 @@ func TestShowVarsCommandHandler_Handle_NoSecrets(t *testing.T) {
 	secretsRepository.AssertExpectations(t)
 }
 
-func TestShowVarsCommandHandler_Handle_LoadContextNameError(t *testing.T) {
-	secretsRepository := new(testutil.MockSecretsRepository)
-	configRepository := new(testutil.MockConfigRepository)
-
-	expectedErr := errors.New("load context name error")
-	configRepository.On("LoadCurrentContextName").Return("", expectedErr)
-
-	sut := NewShowVarsCommandHandler(secretsRepository, configRepository)
-
-	err := sut.Handle()
-
-	assert.Error(t, err)
-	assert.Equal(t, expectedErr, err)
-	configRepository.AssertExpectations(t)
-}
-
 func TestShowVarsCommandHandler_Handle_LoadConfigError(t *testing.T) {
 	secretsRepository := new(testutil.MockSecretsRepository)
 	configRepository := new(testutil.MockConfigRepository)
 
 	expectedErr := errors.New("load config error")
-	configRepository.On("LoadCurrentContextName").Return("test-context", nil)
 	configRepository.On("LoadCurrentConfigurationContext").Return(nil, expectedErr)
 
 	sut := NewShowVarsCommandHandler(secretsRepository, configRepository)
@@ -106,7 +87,6 @@ func TestShowVarsCommandHandler_Handle_LoadSecretsError(t *testing.T) {
 	configContext := &domain.ConfigurationContext{Name: "test-context"}
 	expectedErr := errors.New("load secrets error")
 
-	configRepository.On("LoadCurrentContextName").Return("test-context", nil)
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	secretsRepository.On("LoadSecrets", "test-context").Return(nil, expectedErr)
 
@@ -188,7 +168,6 @@ func TestShowVarsCommandHandler_Handle_SortedOutput(t *testing.T) {
 		{Key: "MIKE_SECRET", Value: "mike-value"},
 	}
 
-	configRepository.On("LoadCurrentContextName").Return("test-context", nil)
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	secretsRepository.On("LoadSecrets", "test-context").Return(secrets, nil)
 

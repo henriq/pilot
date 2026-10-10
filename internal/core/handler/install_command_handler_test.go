@@ -67,7 +67,7 @@ func TestInstallCommandHandler_HandleInstallsAllServices(t *testing.T) {
 	}
 	configRepository := new(testutil.MockConfigRepository)
 	configRepository.On("LoadEnvKey", mock.Anything).Return("any-key", nil)
-	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
+	mockRawConfig(configRepository, configContext)
 	containerOrchestrator := new(testutil.MockContainerOrchestrator)
 	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("any-key", nil)
 	containerOrchestrator.On("InstallService", mock.MatchedBy(func(s *domain.Service) bool {
@@ -83,16 +83,16 @@ func TestInstallCommandHandler_HandleInstallsAllServices(t *testing.T) {
 		"Download",
 		configContext.Services[0].HelmRepoPath,
 		configContext.Services[0].HelmBranch,
-		configContext.Services[0].HelmPath,
+		mock.Anything,
 	).Return(nil)
 	scm.On(
 		"Download",
 		configContext.Services[1].HelmRepoPath,
 		configContext.Services[1].HelmBranch,
-		configContext.Services[1].HelmPath,
+		mock.Anything,
 	).Return(nil)
 	containerImageRepository := new(testutil.MockContainerImageRepository)
-	containerImageRepository.On("BuildImage", mock.Anything).Return(nil)
+	containerImageRepository.On("BuildImage", mock.Anything, mock.Anything).Return(nil)
 	configGenerator := core.NewDevProxyConfigGenerator()
 	containerOrchestrator.On("GetDevProxyChecksum").Return("", nil) // No existing deployment, will trigger rebuild
 	devProxyManager := core.NewDevProxyManager(
@@ -149,7 +149,7 @@ func TestInstallCommandHandler_HandleInstallsOnlySelectedService(t *testing.T) {
 	}
 	configRepository := new(testutil.MockConfigRepository)
 	configRepository.On("LoadEnvKey", mock.Anything).Return("any-key", nil)
-	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
+	mockRawConfig(configRepository, configContext)
 	containerOrchestrator := new(testutil.MockContainerOrchestrator)
 	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("any-key", nil)
 	containerOrchestrator.On("InstallService", mock.Anything, mock.Anything).Return(nil)
@@ -163,10 +163,10 @@ func TestInstallCommandHandler_HandleInstallsOnlySelectedService(t *testing.T) {
 		"Download",
 		configContext.Services[0].HelmRepoPath,
 		configContext.Services[0].HelmBranch,
-		configContext.Services[0].HelmPath,
+		mock.Anything,
 	).Return(nil)
 	containerImageRepository := new(testutil.MockContainerImageRepository)
-	containerImageRepository.On("BuildImage", mock.Anything).Return(nil)
+	containerImageRepository.On("BuildImage", mock.Anything, mock.Anything).Return(nil)
 	configGenerator := core.NewDevProxyConfigGenerator()
 	containerOrchestrator.On("GetDevProxyChecksum").Return("", nil) // No existing deployment, will trigger rebuild
 	devProxyManager := core.NewDevProxyManager(
@@ -221,7 +221,7 @@ func TestInstallCommandHandler_HandleSkipsNamedNonDeployableService(t *testing.T
 	}
 	configRepository := new(testutil.MockConfigRepository)
 	configRepository.On("LoadEnvKey", mock.Anything).Return("any-key", nil)
-	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
+	mockRawConfig(configRepository, configContext)
 	containerOrchestrator := new(testutil.MockContainerOrchestrator)
 	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("any-key", nil)
 	containerOrchestrator.On("InstallDevProxy", mock.Anything, mock.Anything).Return(nil)
@@ -231,7 +231,7 @@ func TestInstallCommandHandler_HandleSkipsNamedNonDeployableService(t *testing.T
 	fileSystem.On("HomeDir").Return("/home/test", nil)
 	fileSystem.On("RemoveAll", mock.Anything).Return(nil)
 	containerImageRepository := new(testutil.MockContainerImageRepository)
-	containerImageRepository.On("BuildImage", mock.Anything).Return(nil)
+	containerImageRepository.On("BuildImage", mock.Anything, mock.Anything).Return(nil)
 	devProxyManager := core.NewDevProxyManager(
 		configRepository,
 		fileSystem,
@@ -275,7 +275,7 @@ func TestInstallCommandHandler_TrackerExcludesNonDeployableService(t *testing.T)
 	}
 	configRepository := new(testutil.MockConfigRepository)
 	configRepository.On("LoadEnvKey", mock.Anything).Return("any-key", nil)
-	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
+	mockRawConfig(configRepository, configContext)
 	containerOrchestrator := new(testutil.MockContainerOrchestrator)
 	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("any-key", nil)
 	containerOrchestrator.On("InstallService", mock.MatchedBy(func(s *domain.Service) bool {
@@ -290,7 +290,7 @@ func TestInstallCommandHandler_TrackerExcludesNonDeployableService(t *testing.T)
 	scm := new(testutil.MockScm)
 	scm.On("Download", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	containerImageRepository := new(testutil.MockContainerImageRepository)
-	containerImageRepository.On("BuildImage", mock.Anything).Return(nil)
+	containerImageRepository.On("BuildImage", mock.Anything, mock.Anything).Return(nil)
 	devProxyManager := core.NewDevProxyManager(
 		configRepository,
 		fileSystem,
@@ -349,7 +349,7 @@ func TestInstallCommandHandler_HandleSkipsNonDeployableServicesByProfile(t *test
 	}
 	configRepository := new(testutil.MockConfigRepository)
 	configRepository.On("LoadEnvKey", mock.Anything).Return("any-key", nil)
-	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
+	mockRawConfig(configRepository, configContext)
 	containerOrchestrator := new(testutil.MockContainerOrchestrator)
 	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("any-key", nil)
 	containerOrchestrator.On("InstallService", mock.Anything, mock.Anything).Return(nil)
@@ -362,7 +362,7 @@ func TestInstallCommandHandler_HandleSkipsNonDeployableServicesByProfile(t *test
 	scm := new(testutil.MockScm)
 	scm.On("Download", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	containerImageRepository := new(testutil.MockContainerImageRepository)
-	containerImageRepository.On("BuildImage", mock.Anything).Return(nil)
+	containerImageRepository.On("BuildImage", mock.Anything, mock.Anything).Return(nil)
 	devProxyManager := core.NewDevProxyManager(
 		configRepository,
 		fileSystem,
@@ -402,7 +402,7 @@ func TestInstallCommandHandler_HandleWithInterceptHttp(t *testing.T) {
 	}
 	configRepository := new(testutil.MockConfigRepository)
 	configRepository.On("LoadEnvKey", mock.Anything).Return("any-key", nil)
-	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
+	mockRawConfig(configRepository, configContext)
 	containerOrchestrator := new(testutil.MockContainerOrchestrator)
 	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("any-key", nil)
 	containerOrchestrator.On("InstallService", mock.MatchedBy(func(s *domain.Service) bool {
@@ -417,10 +417,10 @@ func TestInstallCommandHandler_HandleWithInterceptHttp(t *testing.T) {
 		"Download",
 		configContext.Services[0].HelmRepoPath,
 		configContext.Services[0].HelmBranch,
-		configContext.Services[0].HelmPath,
+		mock.Anything,
 	).Return(nil)
 	containerImageRepository := new(testutil.MockContainerImageRepository)
-	containerImageRepository.On("BuildImage", mock.Anything).Return(nil)
+	containerImageRepository.On("BuildImage", mock.Anything, mock.Anything).Return(nil)
 	configGenerator := core.NewDevProxyConfigGenerator()
 	// No GetDevProxyChecksum mock needed — interceptHttp always triggers rebuild
 	devProxyManager := core.NewDevProxyManager(
@@ -481,7 +481,7 @@ func TestInstallCommandHandler_HandleSkipsDevProxyWhenChecksumUnchanged(t *testi
 
 	configRepository := new(testutil.MockConfigRepository)
 	configRepository.On("LoadEnvKey", mock.Anything).Return("any-key", nil)
-	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
+	mockRawConfig(configRepository, configContext)
 	containerOrchestrator := new(testutil.MockContainerOrchestrator)
 	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("any-key", nil)
 	containerOrchestrator.On("InstallService", mock.Anything, mock.Anything).Return(nil)
@@ -496,7 +496,7 @@ func TestInstallCommandHandler_HandleSkipsDevProxyWhenChecksumUnchanged(t *testi
 		"Download",
 		configContext.Services[0].HelmRepoPath,
 		configContext.Services[0].HelmBranch,
-		configContext.Services[0].HelmPath,
+		mock.Anything,
 	).Return(nil)
 	containerImageRepository := new(testutil.MockContainerImageRepository)
 
@@ -559,7 +559,7 @@ func TestInstallCommandHandler_HandleAlwaysRebuildsDevProxyWithInterceptHttp(t *
 
 	configRepository := new(testutil.MockConfigRepository)
 	configRepository.On("LoadEnvKey", mock.Anything).Return("any-key", nil)
-	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
+	mockRawConfig(configRepository, configContext)
 	containerOrchestrator := new(testutil.MockContainerOrchestrator)
 	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("any-key", nil)
 	containerOrchestrator.On("InstallService", mock.Anything, mock.Anything).Return(nil)
@@ -572,10 +572,10 @@ func TestInstallCommandHandler_HandleAlwaysRebuildsDevProxyWithInterceptHttp(t *
 		"Download",
 		configContext.Services[0].HelmRepoPath,
 		configContext.Services[0].HelmBranch,
-		configContext.Services[0].HelmPath,
+		mock.Anything,
 	).Return(nil)
 	containerImageRepository := new(testutil.MockContainerImageRepository)
-	containerImageRepository.On("BuildImage", mock.Anything).Return(nil)
+	containerImageRepository.On("BuildImage", mock.Anything, mock.Anything).Return(nil)
 
 	devProxyManager := core.NewDevProxyManager(
 		configRepository,
@@ -633,7 +633,7 @@ func TestInstallCommandHandler_HandleProvisionsCertificatesDuringInstall(t *test
 
 	configRepository := new(testutil.MockConfigRepository)
 	configRepository.On("LoadEnvKey", mock.Anything).Return("any-key", nil)
-	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
+	mockRawConfig(configRepository, configContext)
 
 	containerOrchestrator := new(testutil.MockContainerOrchestrator)
 	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("any-key", nil)
@@ -664,7 +664,7 @@ func TestInstallCommandHandler_HandleProvisionsCertificatesDuringInstall(t *test
 	scm := new(testutil.MockScm)
 	scm.On("Download", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 	containerImageRepository := new(testutil.MockContainerImageRepository)
-	containerImageRepository.On("BuildImage", mock.Anything).Return(nil)
+	containerImageRepository.On("BuildImage", mock.Anything, mock.Anything).Return(nil)
 	configGenerator := core.NewDevProxyConfigGenerator()
 	devProxyManager := core.NewDevProxyManager(
 		configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator,
@@ -707,7 +707,7 @@ func TestInstallCommandHandler_HandleReturnsErrorWhenCertificateProvisioningFail
 
 	configRepository := new(testutil.MockConfigRepository)
 	configRepository.On("LoadEnvKey", mock.Anything).Return("any-key", nil)
-	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
+	mockRawConfig(configRepository, configContext)
 
 	containerOrchestrator := new(testutil.MockContainerOrchestrator)
 	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("any-key", nil)
@@ -723,6 +723,7 @@ func TestInstallCommandHandler_HandleReturnsErrorWhenCertificateProvisioningFail
 	provisioner := core.NewCertificateProvisioner(mockCA, mockSecretStore, mockKeyring, mockEncryptor)
 
 	fileSystem := new(testutil.MockFileSystem)
+	fileSystem.On("HomeDir").Return("/home/test", nil)
 	scm := new(testutil.MockScm)
 	containerImageRepository := new(testutil.MockContainerImageRepository)
 	configGenerator := core.NewDevProxyConfigGenerator()
@@ -758,11 +759,12 @@ func TestInstallCommandHandler_HandleReturnsErrorFromShouldRebuildDevProxy(t *te
 	}
 	configRepository := new(testutil.MockConfigRepository)
 	configRepository.On("LoadEnvKey", mock.Anything).Return("any-key", nil)
-	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
+	mockRawConfig(configRepository, configContext)
 	containerOrchestrator := new(testutil.MockContainerOrchestrator)
 	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("any-key", nil)
 	containerOrchestrator.On("GetDevProxyChecksum").Return("", assert.AnError)
 	fileSystem := new(testutil.MockFileSystem)
+	fileSystem.On("HomeDir").Return("/home/test", nil)
 	scm := new(testutil.MockScm)
 	containerImageRepository := new(testutil.MockContainerImageRepository)
 	configGenerator := core.NewDevProxyConfigGenerator()
@@ -811,7 +813,7 @@ func TestInstallCommandHandler_Handle_InstallDevProxyError(t *testing.T) {
 
 	configRepository := new(testutil.MockConfigRepository)
 	configRepository.On("LoadEnvKey", mock.Anything).Return("any-key", nil)
-	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
+	mockRawConfig(configRepository, configContext)
 	containerOrchestrator := new(testutil.MockContainerOrchestrator)
 	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("any-key", nil)
 	// Checksum matches — no rebuild, but InstallDevProxy still called and fails
@@ -863,7 +865,7 @@ func TestInstallCommandHandler_Handle_ScmDownloadError(t *testing.T) {
 	}
 	configRepository := new(testutil.MockConfigRepository)
 	configRepository.On("LoadEnvKey", mock.Anything).Return("any-key", nil)
-	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
+	mockRawConfig(configRepository, configContext)
 	containerOrchestrator := new(testutil.MockContainerOrchestrator)
 	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("any-key", nil)
 	containerOrchestrator.On("InstallDevProxy", mock.Anything, mock.Anything).Return(nil)
@@ -877,10 +879,10 @@ func TestInstallCommandHandler_Handle_ScmDownloadError(t *testing.T) {
 		"Download",
 		configContext.Services[0].HelmRepoPath,
 		configContext.Services[0].HelmBranch,
-		configContext.Services[0].HelmPath,
+		mock.Anything,
 	).Return(assert.AnError)
 	containerImageRepository := new(testutil.MockContainerImageRepository)
-	containerImageRepository.On("BuildImage", mock.Anything).Return(nil)
+	containerImageRepository.On("BuildImage", mock.Anything, mock.Anything).Return(nil)
 	configGenerator := core.NewDevProxyConfigGenerator()
 	devProxyManager := core.NewDevProxyManager(
 		configRepository,
@@ -923,7 +925,7 @@ func TestInstallCommandHandler_Handle_InstallServiceError(t *testing.T) {
 	}
 	configRepository := new(testutil.MockConfigRepository)
 	configRepository.On("LoadEnvKey", mock.Anything).Return("any-key", nil)
-	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
+	mockRawConfig(configRepository, configContext)
 	containerOrchestrator := new(testutil.MockContainerOrchestrator)
 	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("any-key", nil)
 	containerOrchestrator.On("InstallDevProxy", mock.Anything, mock.Anything).Return(nil)
@@ -938,10 +940,10 @@ func TestInstallCommandHandler_Handle_InstallServiceError(t *testing.T) {
 		"Download",
 		configContext.Services[0].HelmRepoPath,
 		configContext.Services[0].HelmBranch,
-		configContext.Services[0].HelmPath,
+		mock.Anything,
 	).Return(nil)
 	containerImageRepository := new(testutil.MockContainerImageRepository)
-	containerImageRepository.On("BuildImage", mock.Anything).Return(nil)
+	containerImageRepository.On("BuildImage", mock.Anything, mock.Anything).Return(nil)
 	configGenerator := core.NewDevProxyConfigGenerator()
 	devProxyManager := core.NewDevProxyManager(
 		configRepository,
@@ -995,7 +997,7 @@ func TestInstallCommandHandler_HandleSkipsScmDownloadForOverriddenService(t *tes
 	}
 	configRepository := new(testutil.MockConfigRepository)
 	configRepository.On("LoadEnvKey", mock.Anything).Return("any-key", nil)
-	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
+	mockRawConfig(configRepository, configContext)
 	containerOrchestrator := new(testutil.MockContainerOrchestrator)
 	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("any-key", nil)
 	containerOrchestrator.On("InstallService", mock.MatchedBy(func(service *domain.Service) bool {
@@ -1005,7 +1007,7 @@ func TestInstallCommandHandler_HandleSkipsScmDownloadForOverriddenService(t *tes
 	}), mock.Anything).Return(nil).Once()
 	containerOrchestrator.On("InstallService", mock.MatchedBy(func(service *domain.Service) bool {
 		return service.Name == "service-2" &&
-			service.HelmPath == "/cache/service-2" &&
+			service.HelmPath != "" &&
 			service.HelmChartRelativePath == ""
 	}), mock.Anything).Return(nil).Once()
 	containerOrchestrator.On("InstallDevProxy", mock.Anything, mock.Anything).Return(nil)
@@ -1019,10 +1021,10 @@ func TestInstallCommandHandler_HandleSkipsScmDownloadForOverriddenService(t *tes
 		"Download",
 		"any-repo-2",
 		"any-branch-2",
-		"/cache/service-2",
+		mock.Anything,
 	).Return(nil)
 	containerImageRepository := new(testutil.MockContainerImageRepository)
-	containerImageRepository.On("BuildImage", mock.Anything).Return(nil)
+	containerImageRepository.On("BuildImage", mock.Anything, mock.Anything).Return(nil)
 	configGenerator := core.NewDevProxyConfigGenerator()
 	devProxyManager := core.NewDevProxyManager(
 		configRepository,
@@ -1067,12 +1069,13 @@ func TestInstallCommandHandler_HandleFailsOnUnknownOverrideService(t *testing.T)
 	}
 	configRepository := new(testutil.MockConfigRepository)
 	configRepository.On("LoadEnvKey", mock.Anything).Return("any-key", nil)
-	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
+	mockRawConfig(configRepository, configContext)
 	containerOrchestrator := new(testutil.MockContainerOrchestrator)
 	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("any-key", nil)
 	scm := new(testutil.MockScm)
 	containerImageRepository := new(testutil.MockContainerImageRepository)
 	fileSystem := new(testutil.MockFileSystem)
+	fileSystem.On("HomeDir").Return("/home/test", nil)
 	configGenerator := core.NewDevProxyConfigGenerator()
 	devProxyManager := core.NewDevProxyManager(
 		configRepository,
@@ -1128,11 +1131,11 @@ func TestInstallCommandHandler_HandleIgnoresOverrideForOutOfScopeService(t *test
 	}
 	configRepository := new(testutil.MockConfigRepository)
 	configRepository.On("LoadEnvKey", mock.Anything).Return("any-key", nil)
-	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
+	mockRawConfig(configRepository, configContext)
 	containerOrchestrator := new(testutil.MockContainerOrchestrator)
 	containerOrchestrator.On("CreateClusterEnvironmentKey").Return("any-key", nil)
 	containerOrchestrator.On("InstallService", mock.MatchedBy(func(service *domain.Service) bool {
-		return service.Name == "service-1" && service.HelmPath == "/cache/service-1"
+		return service.Name == "service-1"
 	}), mock.Anything).Return(nil).Once()
 	containerOrchestrator.On("InstallDevProxy", mock.Anything, mock.Anything).Return(nil)
 	containerOrchestrator.On("GetDevProxyChecksum").Return("", nil)
@@ -1141,9 +1144,9 @@ func TestInstallCommandHandler_HandleIgnoresOverrideForOutOfScopeService(t *test
 	fileSystem.On("HomeDir").Return("/home/test", nil)
 	fileSystem.On("RemoveAll", mock.Anything).Return(nil)
 	scm := new(testutil.MockScm)
-	scm.On("Download", "any-repo-1", "any-branch-1", "/cache/service-1").Return(nil)
+	scm.On("Download", "any-repo-1", "any-branch-1", mock.Anything).Return(nil)
 	containerImageRepository := new(testutil.MockContainerImageRepository)
-	containerImageRepository.On("BuildImage", mock.Anything).Return(nil)
+	containerImageRepository.On("BuildImage", mock.Anything, mock.Anything).Return(nil)
 	configGenerator := core.NewDevProxyConfigGenerator()
 	devProxyManager := core.NewDevProxyManager(
 		configRepository,

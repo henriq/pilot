@@ -1,11 +1,9 @@
 package config_repository
 
 import (
-	"crypto/sha256"
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 
 	"pilot/internal/core/domain"
@@ -38,6 +36,10 @@ func NewFileSystemConfigRepository(
 	}
 }
 
+// LoadConfig reads, caches, and returns the raw configuration: imports are
+// merged, but cache-path derivation, git-ref inheritance, and profile
+// defaulting are not applied (that is ResolveContext's job, reached via
+// LoadCurrentConfigurationContext).
 func (c *FileSystemConfigRepository) LoadConfig() (*domain.Config, error) {
 	if c.config != nil {
 		return c.config, nil
@@ -76,33 +78,6 @@ func (c *FileSystemConfigRepository) LoadConfig() (*domain.Config, error) {
 				} else {
 					config.Contexts[i] = mergeConfigurationContexts(baseContextConfig, *context)
 				}
-			}
-		}
-
-		for j := range context.Services {
-			service := &context.Services[j]
-			if len(service.Profiles) == 0 && service.IsDeployable() {
-				service.Profiles = []string{"default"}
-			}
-			if !slices.Contains(service.Profiles, "all") {
-				service.Profiles = append(service.Profiles, "all")
-			}
-			if service.IsDeployable() {
-				service.HelmPath = filepath.Join(home, ".pilot", context.Name, "charts", shortHash(service.HelmRepoPath, service.HelmBranch))
-			}
-			for k := range context.Services[j].DockerImages {
-				image := &config.Contexts[i].Services[j].DockerImages[k]
-				if image.GitRepoPath == "" {
-					image.GitRepoPath = service.GitRepoPath
-				}
-				if image.GitRef == "" {
-					image.GitRef = service.GitRef
-				}
-
-				image.Path = filepath.Join(home, ".pilot", context.Name, service.Name, shortHash(image.GitRepoPath, image.GitRef))
-			}
-			if service.GitRepoPath != "" && service.GitRef != "" {
-				service.Path = filepath.Join(home, ".pilot", context.Name, service.Name, shortHash(service.GitRepoPath, service.GitRef))
 			}
 		}
 	}
@@ -167,7 +142,20 @@ func (c *FileSystemConfigRepository) SaveCurrentContextName(currentContextName s
 	return c.fileService.WriteFile(currentContextPath, []byte(currentContextName), ports.ReadWrite)
 }
 
+// LoadCurrentConfigurationContext returns the current context fully resolved:
+// imports merged, cache paths derived, git refs inherited, and profiles
+// populated.
 func (c *FileSystemConfigRepository) LoadCurrentConfigurationContext() (*domain.ConfigurationContext, error) {
+	return c.ResolveCurrentConfigurationContext(domain.NoOverrides)
+}
+
+// ResolveCurrentConfigurationContext returns the current context resolved with
+// the given CLI overrides applied. It derives a fresh copy per call and never
+// mutates the cached raw config, so one command's overrides cannot leak into
+// the next.
+func (c *FileSystemConfigRepository) ResolveCurrentConfigurationContext(
+	overrides domain.ContextOverrides,
+) (*domain.ConfigurationContext, error) {
 	currentContextName, err := c.LoadCurrentContextName()
 	if err != nil {
 		return nil, err
@@ -178,9 +166,18 @@ func (c *FileSystemConfigRepository) LoadCurrentConfigurationContext() (*domain.
 		return nil, err
 	}
 
+	home, err := c.fileService.HomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user home directory: %w", err)
+	}
+
 	for _, context := range config.Contexts {
 		if context.Name == currentContextName {
-			return &context, nil
+			resolved, err := domain.ResolveContext(context, home, overrides)
+			if err != nil {
+				return nil, err
+			}
+			return &resolved, nil
 		}
 	}
 
@@ -203,13 +200,6 @@ func (c *FileSystemConfigRepository) InitConfig() error {
 	}
 
 	return c.fileService.WriteFile(configFilePath, data, ports.ReadWrite)
-}
-
-// shortHash returns a 12-character hex-encoded SHA-256 hash of the given parts joined by "-".
-func shortHash(parts ...string) string {
-	hasher := sha256.New()
-	fmt.Fprintf(hasher, "%s", strings.Join(parts, "-"))
-	return fmt.Sprintf("%x", hasher.Sum(nil))[:12]
 }
 
 // expandImportPath expands ~ to home directory for import paths.

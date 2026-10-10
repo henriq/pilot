@@ -7,6 +7,7 @@ type ConfigRepository interface {
 	SaveConfig(*domain.Config) error
 	ConfigExists() (bool, error)
 	LoadCurrentConfigurationContext() (*domain.ConfigurationContext, error)
+	ResolveCurrentConfigurationContext(overrides domain.ContextOverrides) (*domain.ConfigurationContext, error)
 	LoadCurrentContextName() (string, error)
 	SaveCurrentContextName(string) error
 	LoadEnvKey(contextName string) (string, error)

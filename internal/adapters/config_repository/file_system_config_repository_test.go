@@ -1,6 +1,7 @@
 package config_repository
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -519,14 +520,17 @@ func TestFileSystemConfigRepository_LoadConfig_CachesResult(t *testing.T) {
 	assert.Same(t, config1, config2, "LoadConfig should return cached result")
 }
 
-func TestFileSystemConfigRepository_LoadConfig_NonDeployableServiceProfileAssignment(t *testing.T) {
+func TestFileSystemConfigRepository_LoadCurrentConfigurationContext_ResolvesPaths(t *testing.T) {
 	fs := testutil.NewTestFileSystem(t)
 	repo := NewFileSystemConfigRepository(fs, &mockSecretsRepository{}, &mockTemplater{})
 
+	require.NoError(t, fs.WriteFile(filepath.Join("~", ".pilot", "current-context"), []byte("test-context"), ports.ReadWrite))
 	configContent := `contexts:
   - name: test-context
     services:
       - name: deployable
+        gitRepoPath: /tmp/repo
+        gitRef: main
         helmRepoPath: /tmp/foo
         helmBranch: main
         helmChartRelativePath: helm
@@ -534,8 +538,6 @@ func TestFileSystemConfigRepository_LoadConfig_NonDeployableServiceProfileAssign
           - name: deployable-image
             dockerfilePath: Dockerfile
             buildContextRelativePath: "."
-            gitRepoPath: /tmp/repo
-            gitRef: main
       - name: automation
         dockerImages:
           - name: automation-image
@@ -544,23 +546,63 @@ func TestFileSystemConfigRepository_LoadConfig_NonDeployableServiceProfileAssign
             gitRepoPath: /tmp/repo
             gitRef: main
 `
-	configPath := filepath.Join("~", ".pilot-config.yaml")
-	require.NoError(t, fs.WriteFile(configPath, []byte(configContent), ports.ReadWrite))
+	require.NoError(t, fs.WriteFile(filepath.Join("~", ".pilot-config.yaml"), []byte(configContent), ports.ReadWrite))
 
-	config, err := repo.LoadConfig()
+	context, err := repo.LoadCurrentConfigurationContext()
 	require.NoError(t, err)
-	require.Len(t, config.Contexts, 1)
-	require.Len(t, config.Contexts[0].Services, 2)
+	require.Len(t, context.Services, 2)
 
-	deployable := config.Contexts[0].Services[0]
+	deployable := context.Services[0]
 	assert.Contains(t, deployable.Profiles, "default")
 	assert.Contains(t, deployable.Profiles, "all")
-	assert.NotEmpty(t, deployable.HelmPath)
+	assert.NotEmpty(t, deployable.HelmPath, "deployable service has a derived helm path")
+	assert.NotEmpty(t, deployable.Path, "deployable service has a derived cache path")
+	assert.Equal(t, "main", deployable.DockerImages[0].GitRef, "image inherits the service git ref")
+	assert.NotEmpty(t, deployable.DockerImages[0].Path, "image has a derived cache path")
 
-	automation := config.Contexts[0].Services[1]
+	automation := context.Services[1]
 	assert.NotContains(t, automation.Profiles, "default")
 	assert.Contains(t, automation.Profiles, "all")
-	assert.Empty(t, automation.HelmPath)
+	assert.Empty(t, automation.HelmPath, "non-deployable service has no helm path")
+}
+
+func TestFileSystemConfigRepository_LoadCurrentConfigurationContext_ResolvesImportedContext(t *testing.T) {
+	fs := testutil.NewTestFileSystem(t)
+	repo := NewFileSystemConfigRepository(fs, &mockSecretsRepository{}, &mockTemplater{})
+
+	home, err := fs.HomeDir()
+	require.NoError(t, err)
+	baseConfigPath := filepath.Join(home, "base-context.yaml")
+	baseContent := `name: test-context
+services:
+  - name: imported
+    helmRepoPath: /tmp/foo
+    helmBranch: main
+    helmChartRelativePath: helm
+    dockerImages:
+      - name: imported-image
+        dockerfilePath: Dockerfile
+        buildContextRelativePath: "."
+        gitRepoPath: /tmp/repo
+        gitRef: main
+`
+	require.NoError(t, os.WriteFile(baseConfigPath, []byte(baseContent), 0o600))
+
+	require.NoError(t, fs.WriteFile(filepath.Join("~", ".pilot", "current-context"), []byte("test-context"), ports.ReadWrite))
+	configContent := `contexts:
+  - name: test-context
+    import: ~/base-context.yaml
+`
+	require.NoError(t, fs.WriteFile(filepath.Join("~", ".pilot-config.yaml"), []byte(configContent), ports.ReadWrite))
+
+	context, err := repo.LoadCurrentConfigurationContext()
+	require.NoError(t, err)
+
+	require.Len(t, context.Services, 1)
+	imported := context.Services[0]
+	assert.Equal(t, "imported", imported.Name, "the imported service is merged in")
+	assert.NotEmpty(t, imported.HelmPath, "derivation runs on the merged, imported service")
+	assert.Contains(t, imported.Profiles, "all")
 }
 
 func TestFileSystemConfigRepository_LoadCurrentConfigurationContext_NotFound(t *testing.T) {

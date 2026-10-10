@@ -34,12 +34,11 @@ func ProvideGit(gitClient *scm.GitClient, fileSystem ports.FileSystem) *scm.Git 
 }
 
 func ProvideDockerRepository(
-	configRepository ports.ConfigRepository,
 	secretsRepository ports.SecretsRepository,
 	templater ports.Templater,
 	commandRunner ports.CommandRunner,
 ) *container_image_repository.DockerRepository {
-	return container_image_repository.NewDockerRepository(configRepository, secretsRepository, templater, commandRunner)
+	return container_image_repository.NewDockerRepository(secretsRepository, templater, commandRunner)
 }
 
 func ProvideHelmClient(commandRunner ports.CommandRunner) *container_orchestrator.HelmClient {

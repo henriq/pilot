@@ -39,7 +39,7 @@ func TestGitClient_ContainsRepository_False(t *testing.T) {
 func TestGitClient_UpdateOriginUrl_Success(t *testing.T) {
 	commandRunner := new(testutil.MockCommandRunner)
 	fileSystem := new(testutil.MockFileSystem)
-	commandRunner.On("RunInDir", "/repo", "git", []string{"remote", "set-url", "origin", "https://example.com/user/repo.git"}).
+	commandRunner.On("RunInDir", "/repo", "git", []string{"remote", "set-url", "--end-of-options", "origin", "https://example.com/user/repo.git"}).
 		Return([]byte(""), nil)
 
 	client := NewGitClient(commandRunner, fileSystem)
@@ -53,7 +53,7 @@ func TestGitClient_UpdateOriginUrl_Success(t *testing.T) {
 func TestGitClient_UpdateOriginUrl_Error(t *testing.T) {
 	commandRunner := new(testutil.MockCommandRunner)
 	fileSystem := new(testutil.MockFileSystem)
-	commandRunner.On("RunInDir", "/repo", "git", []string{"remote", "set-url", "origin", "invalid-url"}).
+	commandRunner.On("RunInDir", "/repo", "git", []string{"remote", "set-url", "--end-of-options", "origin", "invalid-url"}).
 		Return([]byte("fatal: No such remote 'origin'"), errors.New("exit status 1"))
 
 	client := NewGitClient(commandRunner, fileSystem)
@@ -68,7 +68,7 @@ func TestGitClient_UpdateOriginUrl_Error(t *testing.T) {
 func TestGitClient_FetchRefFromOrigin_Success(t *testing.T) {
 	commandRunner := new(testutil.MockCommandRunner)
 	fileSystem := new(testutil.MockFileSystem)
-	commandRunner.On("RunWithEnvInDir", "/repo", sshBatchModeEnv, "git", []string{"-c", "core.autocrlf=false", "fetch", "origin", "-f", "main"}).
+	commandRunner.On("RunWithEnvInDir", "/repo", sshBatchModeEnv, "git", []string{"-c", "core.autocrlf=false", "fetch", "origin", "-f", "--end-of-options", "main"}).
 		Return([]byte("From https://example.com/user/repo\n * branch main -> FETCH_HEAD"), nil)
 
 	client := NewGitClient(commandRunner, fileSystem)
@@ -82,7 +82,7 @@ func TestGitClient_FetchRefFromOrigin_Success(t *testing.T) {
 func TestGitClient_FetchRefFromOrigin_Error(t *testing.T) {
 	commandRunner := new(testutil.MockCommandRunner)
 	fileSystem := new(testutil.MockFileSystem)
-	commandRunner.On("RunWithEnvInDir", "/repo", sshBatchModeEnv, "git", []string{"-c", "core.autocrlf=false", "fetch", "origin", "-f", "nonexistent"}).
+	commandRunner.On("RunWithEnvInDir", "/repo", sshBatchModeEnv, "git", []string{"-c", "core.autocrlf=false", "fetch", "origin", "-f", "--end-of-options", "nonexistent"}).
 		Return([]byte("fatal: couldn't find remote ref nonexistent"), errors.New("exit status 1"))
 
 	client := NewGitClient(commandRunner, fileSystem)
@@ -137,7 +137,7 @@ func TestGitClient_GetCurrentRef_Error(t *testing.T) {
 func TestGitClient_Checkout_Success(t *testing.T) {
 	commandRunner := new(testutil.MockCommandRunner)
 	fileSystem := new(testutil.MockFileSystem)
-	commandRunner.On("RunInDir", "/repo", "git", []string{"-c", "core.autocrlf=false", "checkout", "main"}).
+	commandRunner.On("RunInDir", "/repo", "git", []string{"-c", "core.autocrlf=false", "checkout", "--end-of-options", "main", "--"}).
 		Return([]byte("Switched to branch 'main'"), nil)
 
 	client := NewGitClient(commandRunner, fileSystem)
@@ -151,7 +151,7 @@ func TestGitClient_Checkout_Success(t *testing.T) {
 func TestGitClient_Checkout_Error(t *testing.T) {
 	commandRunner := new(testutil.MockCommandRunner)
 	fileSystem := new(testutil.MockFileSystem)
-	commandRunner.On("RunInDir", "/repo", "git", []string{"-c", "core.autocrlf=false", "checkout", "nonexistent"}).
+	commandRunner.On("RunInDir", "/repo", "git", []string{"-c", "core.autocrlf=false", "checkout", "--end-of-options", "nonexistent", "--"}).
 		Return([]byte("error: pathspec 'nonexistent' did not match any file(s) known to git"), errors.New("exit status 1"))
 
 	client := NewGitClient(commandRunner, fileSystem)
@@ -166,7 +166,7 @@ func TestGitClient_Checkout_Error(t *testing.T) {
 func TestGitClient_IsBranch_True(t *testing.T) {
 	commandRunner := new(testutil.MockCommandRunner)
 	fileSystem := new(testutil.MockFileSystem)
-	commandRunner.On("RunInDir", "/repo", "git", []string{"rev-parse", "--verify", "--quiet", "refs/remotes/origin/main"}).
+	commandRunner.On("RunInDir", "/repo", "git", []string{"rev-parse", "--verify", "--quiet", "--end-of-options", "refs/remotes/origin/main"}).
 		Return([]byte("abc123def456"), nil)
 
 	client := NewGitClient(commandRunner, fileSystem)
@@ -179,7 +179,7 @@ func TestGitClient_IsBranch_True(t *testing.T) {
 func TestGitClient_IsBranch_False(t *testing.T) {
 	commandRunner := new(testutil.MockCommandRunner)
 	fileSystem := new(testutil.MockFileSystem)
-	commandRunner.On("RunInDir", "/repo", "git", []string{"rev-parse", "--verify", "--quiet", "refs/remotes/origin/nonexistent"}).
+	commandRunner.On("RunInDir", "/repo", "git", []string{"rev-parse", "--verify", "--quiet", "--end-of-options", "refs/remotes/origin/nonexistent"}).
 		Return([]byte(""), errors.New("exit status 1"))
 
 	client := NewGitClient(commandRunner, fileSystem)
@@ -192,7 +192,7 @@ func TestGitClient_IsBranch_False(t *testing.T) {
 func TestGitClient_GetRevisionForCommit_Success(t *testing.T) {
 	commandRunner := new(testutil.MockCommandRunner)
 	fileSystem := new(testutil.MockFileSystem)
-	commandRunner.On("RunInDir", "/repo", "git", []string{"rev-parse", "HEAD"}).
+	commandRunner.On("RunInDir", "/repo", "git", []string{"rev-parse", "--verify", "--end-of-options", "HEAD"}).
 		Return([]byte("abc123def456789\n"), nil)
 
 	client := NewGitClient(commandRunner, fileSystem)
@@ -206,7 +206,7 @@ func TestGitClient_GetRevisionForCommit_Success(t *testing.T) {
 func TestGitClient_GetRevisionForCommit_Error(t *testing.T) {
 	commandRunner := new(testutil.MockCommandRunner)
 	fileSystem := new(testutil.MockFileSystem)
-	commandRunner.On("RunInDir", "/repo", "git", []string{"rev-parse", "invalid-ref"}).
+	commandRunner.On("RunInDir", "/repo", "git", []string{"rev-parse", "--verify", "--end-of-options", "invalid-ref"}).
 		Return([]byte("fatal: ambiguous argument 'invalid-ref'"), errors.New("exit status 1"))
 
 	client := NewGitClient(commandRunner, fileSystem)
@@ -220,7 +220,7 @@ func TestGitClient_GetRevisionForCommit_Error(t *testing.T) {
 func TestGitClient_ResetToCommit_Success(t *testing.T) {
 	commandRunner := new(testutil.MockCommandRunner)
 	fileSystem := new(testutil.MockFileSystem)
-	commandRunner.On("RunInDir", "/repo", "git", []string{"-c", "core.autocrlf=false", "reset", "--hard", "abc123"}).
+	commandRunner.On("RunInDir", "/repo", "git", []string{"-c", "core.autocrlf=false", "reset", "--hard", "--end-of-options", "abc123"}).
 		Return([]byte("HEAD is now at abc123 commit message"), nil)
 
 	client := NewGitClient(commandRunner, fileSystem)
@@ -234,7 +234,7 @@ func TestGitClient_ResetToCommit_Success(t *testing.T) {
 func TestGitClient_ResetToCommit_Error(t *testing.T) {
 	commandRunner := new(testutil.MockCommandRunner)
 	fileSystem := new(testutil.MockFileSystem)
-	commandRunner.On("RunInDir", "/repo", "git", []string{"-c", "core.autocrlf=false", "reset", "--hard", "invalid"}).
+	commandRunner.On("RunInDir", "/repo", "git", []string{"-c", "core.autocrlf=false", "reset", "--hard", "--end-of-options", "invalid"}).
 		Return([]byte("fatal: Could not parse object 'invalid'"), errors.New("exit status 1"))
 
 	client := NewGitClient(commandRunner, fileSystem)
@@ -248,7 +248,7 @@ func TestGitClient_ResetToCommit_Error(t *testing.T) {
 func TestGitClient_Download_Success(t *testing.T) {
 	commandRunner := new(testutil.MockCommandRunner)
 	fileSystem := new(testutil.MockFileSystem)
-	commandRunner.On("RunWithEnv", "git", sshBatchModeEnv, []string{"clone", "-c", "core.autocrlf=false", "https://example.com/user/repo.git", "--branch", "main", "/path/to/dest"}).
+	commandRunner.On("RunWithEnv", "git", sshBatchModeEnv, []string{"clone", "-c", "core.autocrlf=false", "--branch", "main", "--end-of-options", "https://example.com/user/repo.git", "/path/to/dest"}).
 		Return([]byte("Cloning into '/path/to/dest'..."), nil)
 
 	client := NewGitClient(commandRunner, fileSystem)
@@ -262,7 +262,7 @@ func TestGitClient_Download_Success(t *testing.T) {
 func TestGitClient_Download_Error(t *testing.T) {
 	commandRunner := new(testutil.MockCommandRunner)
 	fileSystem := new(testutil.MockFileSystem)
-	commandRunner.On("RunWithEnv", "git", sshBatchModeEnv, []string{"clone", "-c", "core.autocrlf=false", "https://invalid-url", "--branch", "main", "/path/to/dest"}).
+	commandRunner.On("RunWithEnv", "git", sshBatchModeEnv, []string{"clone", "-c", "core.autocrlf=false", "--branch", "main", "--end-of-options", "https://invalid-url", "/path/to/dest"}).
 		Return([]byte("fatal: repository 'https://invalid-url' not found"), errors.New("exit status 128"))
 
 	client := NewGitClient(commandRunner, fileSystem)
@@ -287,7 +287,7 @@ func TestGit_Download_NewRepository_CreatesDirectoryAndClones(t *testing.T) {
 	fileSystem.On("MkdirAll", "/repo", testutil.AnyAccessMode).Return(nil)
 
 	// Should clone the repository
-	commandRunner.On("RunWithEnv", "git", sshBatchModeEnv, []string{"clone", "-c", "core.autocrlf=false", "https://example.com/user/repo.git", "--branch", "main", "/repo"}).
+	commandRunner.On("RunWithEnv", "git", sshBatchModeEnv, []string{"clone", "-c", "core.autocrlf=false", "--branch", "main", "--end-of-options", "https://example.com/user/repo.git", "/repo"}).
 		Return([]byte("Cloning..."), nil)
 
 	gitClient := NewGitClient(commandRunner, fileSystem)
@@ -308,11 +308,11 @@ func TestGit_Download_ExistingRepository_UpdatesInsteadOfCloning(t *testing.T) {
 	fileSystem.On("FileExists", "/repo/.git/HEAD").Return(true, nil)
 
 	// Should update origin URL
-	commandRunner.On("RunInDir", "/repo", "git", []string{"remote", "set-url", "origin", "https://example.com/user/repo.git"}).
+	commandRunner.On("RunInDir", "/repo", "git", []string{"remote", "set-url", "--end-of-options", "origin", "https://example.com/user/repo.git"}).
 		Return([]byte(""), nil)
 
 	// Should fetch the ref (uses SSH batch mode)
-	commandRunner.On("RunWithEnvInDir", "/repo", sshBatchModeEnv, "git", []string{"-c", "core.autocrlf=false", "fetch", "origin", "-f", "main"}).
+	commandRunner.On("RunWithEnvInDir", "/repo", sshBatchModeEnv, "git", []string{"-c", "core.autocrlf=false", "fetch", "origin", "-f", "--end-of-options", "main"}).
 		Return([]byte(""), nil)
 
 	// Should check current ref (already on main)
@@ -320,13 +320,13 @@ func TestGit_Download_ExistingRepository_UpdatesInsteadOfCloning(t *testing.T) {
 		Return([]byte("main\n"), nil)
 
 	// Should check if it's a branch
-	commandRunner.On("RunInDir", "/repo", "git", []string{"rev-parse", "--verify", "--quiet", "refs/remotes/origin/main"}).
+	commandRunner.On("RunInDir", "/repo", "git", []string{"rev-parse", "--verify", "--quiet", "--end-of-options", "refs/remotes/origin/main"}).
 		Return([]byte("abc123"), nil)
 
 	// Should get local and origin revisions to compare
-	commandRunner.On("RunInDir", "/repo", "git", []string{"rev-parse", "main"}).
+	commandRunner.On("RunInDir", "/repo", "git", []string{"rev-parse", "--verify", "--end-of-options", "main"}).
 		Return([]byte("abc123\n"), nil)
-	commandRunner.On("RunInDir", "/repo", "git", []string{"rev-parse", "origin/main"}).
+	commandRunner.On("RunInDir", "/repo", "git", []string{"rev-parse", "--verify", "--end-of-options", "origin/main"}).
 		Return([]byte("abc123\n"), nil)
 
 	gitClient := NewGitClient(commandRunner, fileSystem)
@@ -348,7 +348,7 @@ func TestGit_Download_Deduplication_SameRepoRefNotClonedTwice(t *testing.T) {
 
 	// Should create directory and clone only once
 	fileSystem.On("MkdirAll", "/repo", testutil.AnyAccessMode).Return(nil).Once()
-	commandRunner.On("RunWithEnv", "git", sshBatchModeEnv, []string{"clone", "-c", "core.autocrlf=false", "https://example.com/user/repo.git", "--branch", "main", "/repo"}).
+	commandRunner.On("RunWithEnv", "git", sshBatchModeEnv, []string{"clone", "-c", "core.autocrlf=false", "--branch", "main", "--end-of-options", "https://example.com/user/repo.git", "/repo"}).
 		Return([]byte("Cloning..."), nil).Once()
 
 	gitClient := NewGitClient(commandRunner, fileSystem)
@@ -373,20 +373,20 @@ func TestGit_Download_DifferentRefs_BothDownloaded(t *testing.T) {
 	// First download: repo doesn't exist
 	fileSystem.On("FileExists", "/repo/.git/HEAD").Return(false, nil).Once()
 	fileSystem.On("MkdirAll", "/repo", testutil.AnyAccessMode).Return(nil).Once()
-	commandRunner.On("RunWithEnv", "git", sshBatchModeEnv, []string{"clone", "-c", "core.autocrlf=false", "https://example.com/user/repo.git", "--branch", "main", "/repo"}).
+	commandRunner.On("RunWithEnv", "git", sshBatchModeEnv, []string{"clone", "-c", "core.autocrlf=false", "--branch", "main", "--end-of-options", "https://example.com/user/repo.git", "/repo"}).
 		Return([]byte("Cloning..."), nil).Once()
 
 	// Second download with different ref: repo now exists
 	fileSystem.On("FileExists", "/repo/.git/HEAD").Return(true, nil).Once()
-	commandRunner.On("RunInDir", "/repo", "git", []string{"remote", "set-url", "origin", "https://example.com/user/repo.git"}).
+	commandRunner.On("RunInDir", "/repo", "git", []string{"remote", "set-url", "--end-of-options", "origin", "https://example.com/user/repo.git"}).
 		Return([]byte(""), nil)
-	commandRunner.On("RunWithEnvInDir", "/repo", sshBatchModeEnv, "git", []string{"-c", "core.autocrlf=false", "fetch", "origin", "-f", "feature"}).
+	commandRunner.On("RunWithEnvInDir", "/repo", sshBatchModeEnv, "git", []string{"-c", "core.autocrlf=false", "fetch", "origin", "-f", "--end-of-options", "feature"}).
 		Return([]byte(""), nil)
 	commandRunner.On("RunInDir", "/repo", "git", []string{"rev-parse", "--abbrev-ref", "HEAD"}).
 		Return([]byte("main\n"), nil)
-	commandRunner.On("RunInDir", "/repo", "git", []string{"-c", "core.autocrlf=false", "checkout", "feature"}).
+	commandRunner.On("RunInDir", "/repo", "git", []string{"-c", "core.autocrlf=false", "checkout", "--end-of-options", "feature", "--"}).
 		Return([]byte(""), nil)
-	commandRunner.On("RunInDir", "/repo", "git", []string{"rev-parse", "--verify", "--quiet", "refs/remotes/origin/feature"}).
+	commandRunner.On("RunInDir", "/repo", "git", []string{"rev-parse", "--verify", "--quiet", "--end-of-options", "refs/remotes/origin/feature"}).
 		Return([]byte(""), errors.New("not a branch")) // Tag, not branch
 
 	gitClient := NewGitClient(commandRunner, fileSystem)
@@ -412,11 +412,11 @@ func TestGit_Download_ExistingRepo_ResetsToBranch_WhenBehindOrigin(t *testing.T)
 	fileSystem.On("FileExists", "/repo/.git/HEAD").Return(true, nil)
 
 	// Update origin
-	commandRunner.On("RunInDir", "/repo", "git", []string{"remote", "set-url", "origin", "https://example.com/user/repo.git"}).
+	commandRunner.On("RunInDir", "/repo", "git", []string{"remote", "set-url", "--end-of-options", "origin", "https://example.com/user/repo.git"}).
 		Return([]byte(""), nil)
 
 	// Fetch (uses SSH batch mode)
-	commandRunner.On("RunWithEnvInDir", "/repo", sshBatchModeEnv, "git", []string{"-c", "core.autocrlf=false", "fetch", "origin", "-f", "main"}).
+	commandRunner.On("RunWithEnvInDir", "/repo", sshBatchModeEnv, "git", []string{"-c", "core.autocrlf=false", "fetch", "origin", "-f", "--end-of-options", "main"}).
 		Return([]byte(""), nil)
 
 	// Already on main
@@ -424,17 +424,17 @@ func TestGit_Download_ExistingRepo_ResetsToBranch_WhenBehindOrigin(t *testing.T)
 		Return([]byte("main\n"), nil)
 
 	// It's a branch
-	commandRunner.On("RunInDir", "/repo", "git", []string{"rev-parse", "--verify", "--quiet", "refs/remotes/origin/main"}).
+	commandRunner.On("RunInDir", "/repo", "git", []string{"rev-parse", "--verify", "--quiet", "--end-of-options", "refs/remotes/origin/main"}).
 		Return([]byte("abc123"), nil)
 
 	// Local is behind origin (different revisions)
-	commandRunner.On("RunInDir", "/repo", "git", []string{"rev-parse", "main"}).
+	commandRunner.On("RunInDir", "/repo", "git", []string{"rev-parse", "--verify", "--end-of-options", "main"}).
 		Return([]byte("old123\n"), nil)
-	commandRunner.On("RunInDir", "/repo", "git", []string{"rev-parse", "origin/main"}).
+	commandRunner.On("RunInDir", "/repo", "git", []string{"rev-parse", "--verify", "--end-of-options", "origin/main"}).
 		Return([]byte("new456\n"), nil)
 
 	// Should reset to origin/main
-	commandRunner.On("RunInDir", "/repo", "git", []string{"-c", "core.autocrlf=false", "reset", "--hard", "origin/main"}).
+	commandRunner.On("RunInDir", "/repo", "git", []string{"-c", "core.autocrlf=false", "reset", "--hard", "--end-of-options", "origin/main"}).
 		Return([]byte("HEAD is now at new456"), nil)
 
 	gitClient := NewGitClient(commandRunner, fileSystem)
@@ -443,7 +443,7 @@ func TestGit_Download_ExistingRepo_ResetsToBranch_WhenBehindOrigin(t *testing.T)
 	err := git.Download("https://example.com/user/repo.git", "main", "/repo")
 
 	require.NoError(t, err)
-	commandRunner.AssertCalled(t, "RunInDir", "/repo", "git", []string{"-c", "core.autocrlf=false", "reset", "--hard", "origin/main"})
+	commandRunner.AssertCalled(t, "RunInDir", "/repo", "git", []string{"-c", "core.autocrlf=false", "reset", "--hard", "--end-of-options", "origin/main"})
 }
 
 // SSH Authentication Error Tests
@@ -451,7 +451,7 @@ func TestGit_Download_ExistingRepo_ResetsToBranch_WhenBehindOrigin(t *testing.T)
 func TestGitClient_Download_SSHAuthError_ProvidesHelpfulMessage(t *testing.T) {
 	commandRunner := new(testutil.MockCommandRunner)
 	fileSystem := new(testutil.MockFileSystem)
-	commandRunner.On("RunWithEnv", "git", sshBatchModeEnv, []string{"clone", "-c", "core.autocrlf=false", "git@example.com:user/repo.git", "--branch", "main", "/path/to/dest"}).
+	commandRunner.On("RunWithEnv", "git", sshBatchModeEnv, []string{"clone", "-c", "core.autocrlf=false", "--branch", "main", "--end-of-options", "git@example.com:user/repo.git", "/path/to/dest"}).
 		Return([]byte("Permission denied (publickey)."), errors.New("exit status 128"))
 
 	client := NewGitClient(commandRunner, fileSystem)
@@ -467,7 +467,7 @@ func TestGitClient_Download_SSHAuthError_ProvidesHelpfulMessage(t *testing.T) {
 func TestGitClient_Download_SSHHostKeyError_ProvidesHelpfulMessage(t *testing.T) {
 	commandRunner := new(testutil.MockCommandRunner)
 	fileSystem := new(testutil.MockFileSystem)
-	commandRunner.On("RunWithEnv", "git", sshBatchModeEnv, []string{"clone", "-c", "core.autocrlf=false", "git@example.com:user/repo.git", "--branch", "main", "/path/to/dest"}).
+	commandRunner.On("RunWithEnv", "git", sshBatchModeEnv, []string{"clone", "-c", "core.autocrlf=false", "--branch", "main", "--end-of-options", "git@example.com:user/repo.git", "/path/to/dest"}).
 		Return([]byte("Host key verification failed."), errors.New("exit status 128"))
 
 	client := NewGitClient(commandRunner, fileSystem)
@@ -484,7 +484,7 @@ func TestGitClient_Download_SSHHostKeyError_ProvidesHelpfulMessage(t *testing.T)
 func TestGitClient_FetchRefFromOrigin_SSHAuthError_ProvidesHelpfulMessage(t *testing.T) {
 	commandRunner := new(testutil.MockCommandRunner)
 	fileSystem := new(testutil.MockFileSystem)
-	commandRunner.On("RunWithEnvInDir", "/repo", sshBatchModeEnv, "git", []string{"-c", "core.autocrlf=false", "fetch", "origin", "-f", "main"}).
+	commandRunner.On("RunWithEnvInDir", "/repo", sshBatchModeEnv, "git", []string{"-c", "core.autocrlf=false", "fetch", "origin", "-f", "--end-of-options", "main"}).
 		Return([]byte("Permission denied (publickey)."), errors.New("exit status 128"))
 
 	client := NewGitClient(commandRunner, fileSystem)
@@ -494,6 +494,46 @@ func TestGitClient_FetchRefFromOrigin_SSHAuthError_ProvidesHelpfulMessage(t *tes
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "SSH authentication failed")
 	assert.Contains(t, err.Error(), "ssh-agent")
+}
+
+func TestGitClient_EndOfOptionsSeparators_KeepRefArgumentsFromBeingParsedAsOptions(t *testing.T) {
+	// A ref shaped like a flag (--upload-pack=/tmp/x.sh) is a known git
+	// option-injection RCE vector, so --end-of-options must precede every
+	// ref or commit positional.
+	commandRunner := new(testutil.MockCommandRunner)
+	fileSystem := new(testutil.MockFileSystem)
+	hostileRef := "--upload-pack=/tmp/x.sh"
+
+	commandRunner.On("RunWithEnvInDir", "/repo", sshBatchModeEnv, "git",
+		[]string{"-c", "core.autocrlf=false", "fetch", "origin", "-f", "--end-of-options", hostileRef}).
+		Return([]byte(""), nil)
+	commandRunner.On("RunInDir", "/repo", "git",
+		[]string{"-c", "core.autocrlf=false", "checkout", "--end-of-options", hostileRef, "--"}).
+		Return([]byte(""), nil)
+	commandRunner.On("RunInDir", "/repo", "git",
+		[]string{"rev-parse", "--verify", "--end-of-options", hostileRef}).
+		Return([]byte("abc\n"), nil)
+	commandRunner.On("RunInDir", "/repo", "git",
+		[]string{"-c", "core.autocrlf=false", "reset", "--hard", "--end-of-options", hostileRef}).
+		Return([]byte(""), nil)
+	commandRunner.On("RunInDir", "/repo", "git",
+		[]string{"rev-parse", "--verify", "--quiet", "--end-of-options", "refs/remotes/origin/" + hostileRef}).
+		Return([]byte("abc"), nil)
+	commandRunner.On("RunWithEnv", "git", sshBatchModeEnv,
+		[]string{"clone", "-c", "core.autocrlf=false", "--branch", hostileRef, "--end-of-options", "https://example.com/repo.git", "/dest"}).
+		Return([]byte(""), nil)
+
+	client := NewGitClient(commandRunner, fileSystem)
+
+	require.NoError(t, client.FetchRefFromOrigin("/repo", hostileRef))
+	require.NoError(t, client.Checkout("/repo", hostileRef))
+	_, err := client.GetRevisionForCommit("/repo", hostileRef)
+	require.NoError(t, err)
+	require.NoError(t, client.ResetToCommit("/repo", hostileRef))
+	require.True(t, client.IsBranch("/repo", hostileRef))
+	require.NoError(t, client.Download("/dest", hostileRef, "https://example.com/repo.git"))
+
+	commandRunner.AssertExpectations(t)
 }
 
 func TestIsSSHAuthError(t *testing.T) {

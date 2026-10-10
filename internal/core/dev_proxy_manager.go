@@ -185,7 +185,7 @@ func (d *DevProxyManager) BuildDevProxy(interceptHttp bool) error {
 	}
 
 	for _, image := range dockerImages {
-		err = d.containerImageRepository.BuildImage(image)
+		err = d.containerImageRepository.BuildImage(image, configContext)
 		if err != nil {
 			return fmt.Errorf("failed to build image %s: %w", image.Name, err)
 		}

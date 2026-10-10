@@ -271,11 +271,20 @@ func (s *Service) validate(contextName string, index int) error {
 			controlIndex,
 		)
 	}
+	// The name is the one unhashed part of every derived cache path. A "/" is
+	// allowed and simply nests; ".." would escape ~/.pilot entirely.
+	if strings.Contains(s.Name, "..") || strings.Contains(s.Name, "\x00") {
+		return fmt.Errorf(
+			"service '%s' in context '%s' has invalid name; '..' is not permitted",
+			s.Name,
+			contextName,
+		)
+	}
 	if err := s.validateHelmConfiguration(contextName); err != nil {
 		return err
 	}
 	for i, img := range s.DockerImages {
-		if err := img.validate(contextName, s.Name, i); err != nil {
+		if err := img.validate(contextName, s.Name, s.GitRepoPath, s.GitRef, i); err != nil {
 			return err
 		}
 	}
@@ -335,7 +344,7 @@ func (s *Service) validateHelmConfiguration(contextName string) error {
 	return nil
 }
 
-func (i *DockerImage) validate(contextName, serviceName string, index int) error {
+func (i *DockerImage) validate(contextName, serviceName, serviceGitRepoPath, serviceGitRef string, index int) error {
 	if i.Name == "" {
 		return fmt.Errorf(
 			"docker image at index %d for service '%s' in context '%s' has empty name",
@@ -379,7 +388,7 @@ func (i *DockerImage) validate(contextName, serviceName string, index int) error
 			contextName,
 		)
 	}
-	if i.GitRepoPath == "" {
+	if i.GitRepoPath == "" && serviceGitRepoPath == "" {
 		return fmt.Errorf(
 			"docker image '%s' for service '%s' in context '%s' has empty gitRepoPath",
 			i.Name,
@@ -387,7 +396,7 @@ func (i *DockerImage) validate(contextName, serviceName string, index int) error
 			contextName,
 		)
 	}
-	if i.GitRef == "" {
+	if i.GitRef == "" && serviceGitRef == "" {
 		return fmt.Errorf(
 			"docker image '%s' for service '%s' in context '%s' has empty gitRef",
 			i.Name,

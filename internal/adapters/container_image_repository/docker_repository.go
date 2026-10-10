@@ -13,27 +13,24 @@ import (
 var _ ports.ContainerImageRepository = (*DockerRepository)(nil)
 
 type DockerRepository struct {
-	configRepository  ports.ConfigRepository
 	secretsRepository ports.SecretsRepository
 	templater         ports.Templater
 	commandRunner     ports.CommandRunner
 }
 
 func NewDockerRepository(
-	configRepository ports.ConfigRepository,
 	secretsRepository ports.SecretsRepository,
 	templater ports.Templater,
 	commandRunner ports.CommandRunner,
 ) *DockerRepository {
 	return &DockerRepository{
-		configRepository:  configRepository,
 		secretsRepository: secretsRepository,
 		templater:         templater,
 		commandRunner:     commandRunner,
 	}
 }
 
-func (d *DockerRepository) BuildImage(image domain.DockerImage) error {
+func (d *DockerRepository) BuildImage(image domain.DockerImage, configContext *domain.ConfigurationContext) error {
 	contextPath := filepath.Join(image.Path, image.BuildContextRelativePath)
 
 	// Determine dockerfile path: use stdin ("-") for override, or file path
@@ -49,7 +46,7 @@ func (d *DockerRepository) BuildImage(image domain.DockerImage) error {
 	// Execute docker build command
 	args := []string{"build", "-t", image.Name, "-f", dockerfilePath}
 
-	templateValues, err := core.CreateTemplatingValues(d.configRepository, d.secretsRepository)
+	templateValues, err := core.CreateTemplatingValues(configContext, d.secretsRepository)
 	if err != nil {
 		return err
 	}

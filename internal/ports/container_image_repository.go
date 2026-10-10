@@ -5,6 +5,6 @@ import (
 )
 
 type ContainerImageRepository interface {
-	BuildImage(image domain.DockerImage) error
+	BuildImage(image domain.DockerImage, configContext *domain.ConfigurationContext) error
 	PullImage(image string) error
 }

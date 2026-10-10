@@ -37,12 +37,12 @@ func NewRunCommandHandler(
 }
 
 func (h *RunCommandHandler) Handle(scripts map[string]string, executionPlan []string) error {
-	renderValues, err := core.CreateTemplatingValues(h.configRepository, h.secretsRepository)
+	configContext, err := h.configRepository.LoadCurrentConfigurationContext()
 	if err != nil {
 		return err
 	}
 
-	configContext, err := h.configRepository.LoadCurrentConfigurationContext()
+	renderValues, err := core.CreateTemplatingValues(configContext, h.secretsRepository)
 	if err != nil {
 		return err
 	}

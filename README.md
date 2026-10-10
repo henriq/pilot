@@ -447,6 +447,29 @@ Notes:
 - Re-run the command after editing the chart to redeploy.
 - Tab completion suggests service names first, then directories after `:`.
 
+### Testing Feature Branches with `--git-ref`
+
+Use `--git-ref` to build a service's Docker image from a different git ref than the configured one.
+
+```bash
+# Build from a feature branch (works on both build and update)
+pilot build api --git-ref api:feature/my-change
+
+# Rebuild and redeploy from a feature branch
+pilot update api --git-ref api:feature/my-change
+
+# Multiple services at once
+pilot update --git-ref api:feature/api-change --git-ref worker:hotfix/123
+```
+
+Notes:
+
+- The override replaces the effective git ref for the whole service — every Docker image of that service, including images that declare their own `gitRef`, plus the service's own checkout used by `pilot run` scripts and by `{{ .Services.<name>.gitRef }}` in templated build args.
+- Only that invocation is affected; `~/.pilot-config.yaml` is not modified.
+- Refs are shape-checked before reaching git: no whitespace, control characters, `..`, `@{`, `~`, `^`, `:`, `?`, `*`, `[`, `\`, no leading `-`, and no trailing `/` or `.lock`.
+- If `--image-source` also targets an image of that service, the local directory wins and that image's git repo is not cloned at all.
+- No effect with `--pull`, which skips building entirely.
+
 ### Working on Multiple Services
 
 ```bash
@@ -502,6 +525,8 @@ Pilot stores data in `~/.pilot/`:
 - Generated dev-proxy configuration
 
 Configuration lives at `~/.pilot-config.yaml`.
+
+Clone directories are named by a hash of the repository path and git ref. That hash changed in this release, so the first run after upgrading re-clones every repository and leaves the previous directories behind; `rm -rf ~/.pilot/<context>` reclaims the space.
 
 ## Uninstall
 

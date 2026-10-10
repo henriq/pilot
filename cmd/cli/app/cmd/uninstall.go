@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"pilot/cmd/cli/app"
+	"pilot/cmd/cli/app/cmd/arguments"
 
 	"github.com/spf13/cobra"
 )
@@ -25,8 +26,8 @@ This uses Helm to uninstall the deployed releases.`,
 
   # Uninstall all services regardless of profile
   pilot uninstall -p all`,
-	Args:              ServiceArgsValidator,
-	ValidArgsFunction: ServiceArgsCompletion,
+	Args:              arguments.ServiceArgsValidator,
+	ValidArgsFunction: arguments.ServiceArgsCompletion,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		handler, err := app.InjectUninstallCommandHandler()
 		if err != nil {

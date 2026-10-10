@@ -10,6 +10,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const DefaultProfile = "default"
+
 var profile *string
 
 var rootCmd = &cobra.Command{

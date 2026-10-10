@@ -34,24 +34,22 @@ func (h *BuildCommandHandler) Handle(
 	services []string,
 	selectedProfile string,
 	imageSourceOverrides domain.DockerImageSourceOverrides,
+	serviceGitRefOverrides domain.ServiceGitRefOverrides,
 ) error {
 	var dockerImagesToBuild []domain.DockerImage
 	var dockerImagesToPull []string
 
-	configContext, err := h.configRepository.LoadCurrentConfigurationContext()
+	configContext, err := h.configRepository.ResolveCurrentConfigurationContext(domain.ContextOverrides{
+		ServiceGitRefs: serviceGitRefOverrides,
+		ImageSources:   imageSourceOverrides,
+	})
 	if err != nil {
 		return err
 	}
 
-	var allConfiguredImages []domain.DockerImage
-	for _, service := range configContext.Services {
-		allConfiguredImages = append(allConfiguredImages, service.DockerImages...)
-	}
-	if err := imageSourceOverrides.ValidateAgainstImages(allConfiguredImages); err != nil {
-		return err
-	}
+	servicesInScope := configContext.FilterServices(services, selectedProfile)
 
-	for _, service := range configContext.FilterServices(services, selectedProfile) {
+	for _, service := range servicesInScope {
 		dockerImagesToBuild = append(dockerImagesToBuild, service.DockerImages...)
 		dockerImagesToPull = append(dockerImagesToPull, service.RemoteImages...)
 	}
@@ -59,6 +57,12 @@ func (h *BuildCommandHandler) Handle(
 	for _, unusedOverride := range imageSourceOverrides.FindUnusedOverrides(dockerImagesToBuild) {
 		output.PrintWarning(fmt.Sprintf(
 			"--image-source override for %q: no matching image in scope; ignoring",
+			unusedOverride,
+		))
+	}
+	for _, unusedOverride := range serviceGitRefOverrides.FindUnusedOverrides(servicesInScope) {
+		output.PrintWarning(fmt.Sprintf(
+			"--git-ref override for %q: no matching service in scope; ignoring",
 			unusedOverride,
 		))
 	}
@@ -97,9 +101,7 @@ func (h *BuildCommandHandler) Handle(
 				output.PrintSecondary("Using inline Dockerfile from configuration")
 			}
 
-			if sourcePath, hasOverride := imageSourceOverrides.LookupSourcePath(image.Name); hasOverride {
-				image.Path = sourcePath
-			} else {
+			if _, usesLocalSource := imageSourceOverrides.LookupSourcePath(image.Name); !usesLocalSource {
 				if err := h.scm.Download(image.GitRepoPath, image.GitRef, image.Path); err != nil {
 					tracker.CompleteItem(i, err)
 					tracker.PrintItemComplete(i)
@@ -109,7 +111,7 @@ func (h *BuildCommandHandler) Handle(
 			}
 
 			// Build image
-			if err := h.containerImageRepository.BuildImage(image); err != nil {
+			if err := h.containerImageRepository.BuildImage(image, configContext); err != nil {
 				tracker.CompleteItem(i, err)
 				tracker.PrintItemComplete(i)
 				buildErr = err

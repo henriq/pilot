@@ -25,7 +25,12 @@ func NewShowVarsCommandHandler(
 }
 
 func (h *ShowVarsCommandHandler) Handle() error {
-	values, err := core.CreateTemplatingValues(h.configRepository, h.secretsRepository)
+	configContext, err := h.configRepository.LoadCurrentConfigurationContext()
+	if err != nil {
+		return err
+	}
+
+	values, err := core.CreateTemplatingValues(configContext, h.secretsRepository)
 	if err != nil {
 		return err
 	}

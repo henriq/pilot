@@ -579,3 +579,83 @@ func TestConfig_Validate_MinPilotVersion(t *testing.T) {
 		})
 	}
 }
+
+func TestConfig_Validate_DockerImageInheritsGitFieldsFromService(t *testing.T) {
+	tests := []struct {
+		name               string
+		serviceGitRepoPath string
+		serviceGitRef      string
+		imageGitRepoPath   string
+		imageGitRef        string
+		wantErrSubstr      string
+	}{
+		{"image supplies both", "", "", "/tmp/repo", "main", ""},
+		{"service supplies both", "/tmp/repo", "main", "", "", ""},
+		{"image overrides service", "/tmp/svc-repo", "svc-main", "/tmp/repo", "main", ""},
+		{"neither supplies repo path", "", "main", "", "main", "empty gitRepoPath"},
+		{"neither supplies ref", "/tmp/repo", "", "/tmp/repo", "", "empty gitRef"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := Config{
+				Contexts: []ConfigurationContext{
+					{
+						Name: "ctx",
+						Services: []Service{
+							{
+								Name:                  "test-svc",
+								HelmRepoPath:          "/tmp/helm",
+								HelmBranch:            "main",
+								HelmChartRelativePath: "charts",
+								GitRepoPath:           tt.serviceGitRepoPath,
+								GitRef:                tt.serviceGitRef,
+								DockerImages: []DockerImage{
+									{
+										Name:                     "api",
+										DockerfilePath:           "Dockerfile",
+										BuildContextRelativePath: ".",
+										GitRepoPath:              tt.imageGitRepoPath,
+										GitRef:                   tt.imageGitRef,
+									},
+								},
+							},
+						},
+					},
+				},
+			}
+
+			err := config.Validate()
+
+			if tt.wantErrSubstr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErrSubstr)
+		})
+	}
+}
+
+func TestConfig_Validate_RejectsServiceNameWithParentDirectory(t *testing.T) {
+	config := Config{
+		Contexts: []ConfigurationContext{
+			{
+				Name: "ctx",
+				Services: []Service{
+					{
+						Name:                  "../../escape",
+						HelmRepoPath:          "/tmp/helm",
+						HelmBranch:            "main",
+						HelmChartRelativePath: "charts",
+					},
+				},
+			},
+		},
+	}
+
+	err := config.Validate()
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "'..' is not permitted")
+}

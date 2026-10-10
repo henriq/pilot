@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"pilot/cmd/cli/app"
+	"pilot/cmd/cli/app/cmd/arguments"
 
 	"github.com/spf13/cobra"
 )
@@ -75,7 +76,7 @@ var secretGetCmd = &cobra.Command{
   # Pipe to the clipboard
   pilot secret get DB_PASSWORD | pbcopy`,
 	Args:              cobra.ExactArgs(1),
-	ValidArgsFunction: SecretKeysCompletion,
+	ValidArgsFunction: arguments.SecretKeysCompletion,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		handler, err := app.InjectSecretCommandHandler()
 		if err != nil {
@@ -121,7 +122,7 @@ var secretDeleteCmd = &cobra.Command{
 		}
 		return fmt.Errorf("secret '%s' not found", args[0])
 	},
-	ValidArgsFunction: SecretKeysCompletion,
+	ValidArgsFunction: arguments.SecretKeysCompletion,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		handler, err := app.InjectSecretCommandHandler()
 		if err != nil {

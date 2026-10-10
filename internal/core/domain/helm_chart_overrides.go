@@ -1,99 +1,31 @@
 package domain
 
-import (
-	"fmt"
-	"sort"
-	"strings"
-)
-
 // HelmChartOverrides maps a service name to a local chart directory that
 // should be rendered in place of the service's configured Helm chart.
 type HelmChartOverrides struct {
-	chartDirectoryByService map[string]string
+	overrides nameKeyedOverrides
 }
 
 func NewHelmChartOverrides(chartDirectoryByService map[string]string) HelmChartOverrides {
-	copied := make(map[string]string, len(chartDirectoryByService))
-	for serviceName, chartDirectory := range chartDirectoryByService {
-		copied[serviceName] = chartDirectory
-	}
-	return HelmChartOverrides{chartDirectoryByService: copied}
+	return HelmChartOverrides{overrides: newNameKeyedOverrides(chartDirectoryByService, "service")}
 }
 
 func (o HelmChartOverrides) IsEmpty() bool {
-	return len(o.chartDirectoryByService) == 0
+	return o.overrides.isEmpty()
 }
 
 func (o HelmChartOverrides) LookupChartDirectory(serviceName string) (string, bool) {
-	directory, ok := o.chartDirectoryByService[serviceName]
-	return directory, ok
+	return o.overrides.lookup(serviceName)
 }
 
 // FindUnusedOverrides returns the service names with overrides that are not
 // present in the given list, sorted lexically.
 func (o HelmChartOverrides) FindUnusedOverrides(servicesInScope []Service) []string {
-	if o.IsEmpty() {
-		return nil
-	}
-	inScope := map[string]struct{}{}
-	for _, service := range servicesInScope {
-		inScope[service.Name] = struct{}{}
-	}
-	var unused []string
-	for serviceName := range o.chartDirectoryByService {
-		if _, ok := inScope[serviceName]; !ok {
-			unused = append(unused, serviceName)
-		}
-	}
-	sort.Strings(unused)
-	return unused
+	return o.overrides.findUnused(serviceNames(servicesInScope))
 }
 
 // ValidateAgainstServices returns an error if any override targets a service
 // name not present in the given list.
 func (o HelmChartOverrides) ValidateAgainstServices(services []Service) error {
-	if o.IsEmpty() {
-		return nil
-	}
-
-	knownServices := map[string]struct{}{}
-	for _, service := range services {
-		knownServices[service.Name] = struct{}{}
-	}
-
-	var unknownServices []string
-	for serviceName := range o.chartDirectoryByService {
-		if _, ok := knownServices[serviceName]; !ok {
-			unknownServices = append(unknownServices, serviceName)
-		}
-	}
-	if len(unknownServices) == 0 {
-		return nil
-	}
-	sort.Strings(unknownServices)
-	return fmt.Errorf(
-		"service(s) not found: %s; available services:\n%s",
-		strings.Join(quoteAll(unknownServices), ", "),
-		availableServiceNames(services),
-	)
-}
-
-func quoteAll(values []string) []string {
-	quoted := make([]string, len(values))
-	for index, value := range values {
-		quoted[index] = fmt.Sprintf("%q", value)
-	}
-	return quoted
-}
-
-func availableServiceNames(services []Service) string {
-	names := make([]string, 0, len(services))
-	for _, service := range services {
-		names = append(names, service.Name)
-	}
-	sort.Strings(names)
-	for index, name := range names {
-		names[index] = "  - " + name
-	}
-	return strings.Join(names, "\n")
+	return o.overrides.validateAgainst(serviceNames(services))
 }

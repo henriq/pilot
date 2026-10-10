@@ -257,13 +257,13 @@ func TestBuildDevProxy_Success_WithInterception(t *testing.T) {
 		DockerfilePath:           "Dockerfile",
 		BuildContextRelativePath: ".",
 		Path:                     filepath.Join(homeDir, ".pilot", "test-context", "dev-proxy", "haproxy"),
-	}).Return(nil)
+	}, mock.Anything).Return(nil)
 	containerImageRepository.On("BuildImage", domain.DockerImage{
 		Name:                     "henriq/mitmproxy-test-context",
 		DockerfilePath:           "Dockerfile",
 		BuildContextRelativePath: ".",
 		Path:                     filepath.Join(homeDir, ".pilot", "test-context", "dev-proxy", "mitmproxy"),
-	}).Return(nil)
+	}, mock.Anything).Return(nil)
 
 	sut := NewDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
@@ -293,7 +293,7 @@ func TestBuildDevProxy_Success_WithoutInterception(t *testing.T) {
 		DockerfilePath:           "Dockerfile",
 		BuildContextRelativePath: ".",
 		Path:                     filepath.Join(homeDir, ".pilot", "test-context", "dev-proxy", "haproxy"),
-	}).Return(nil)
+	}, mock.Anything).Return(nil)
 
 	sut := NewDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
@@ -365,7 +365,7 @@ func TestBuildDevProxy_BuildFirstImageError(t *testing.T) {
 		DockerfilePath:           "Dockerfile",
 		BuildContextRelativePath: ".",
 		Path:                     filepath.Join(homeDir, ".pilot", "test-context", "dev-proxy", "haproxy"),
-	}).Return(buildErr)
+	}, mock.Anything).Return(buildErr)
 
 	sut := NewDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 
@@ -398,13 +398,13 @@ func TestBuildDevProxy_BuildSecondImageError(t *testing.T) {
 		DockerfilePath:           "Dockerfile",
 		BuildContextRelativePath: ".",
 		Path:                     filepath.Join(homeDir, ".pilot", "test-context", "dev-proxy", "haproxy"),
-	}).Return(nil)
+	}, mock.Anything).Return(nil)
 	containerImageRepository.On("BuildImage", domain.DockerImage{
 		Name:                     "henriq/mitmproxy-test-context",
 		DockerfilePath:           "Dockerfile",
 		BuildContextRelativePath: ".",
 		Path:                     filepath.Join(homeDir, ".pilot", "test-context", "dev-proxy", "mitmproxy"),
-	}).Return(buildErr)
+	}, mock.Anything).Return(buildErr)
 
 	sut := NewDevProxyManager(configRepository, fileSystem, containerImageRepository, containerOrchestrator, configGenerator)
 

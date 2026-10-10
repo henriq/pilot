@@ -14,8 +14,8 @@ type MockContainerImageRepository struct {
 	mock.Mock
 }
 
-func (m *MockContainerImageRepository) BuildImage(image domain.DockerImage) error {
-	args := m.Called(image)
+func (m *MockContainerImageRepository) BuildImage(image domain.DockerImage, configContext *domain.ConfigurationContext) error {
+	args := m.Called(image, configContext)
 	return args.Error(0)
 }
 

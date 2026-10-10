@@ -25,7 +25,6 @@ func TestRunCommandHandler_Handle_Success(t *testing.T) {
 	secrets := []*domain.Secret{}
 
 	// For CreateTemplatingValues
-	configRepository.On("LoadCurrentContextName").Return("test-context", nil)
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	secretsRepository.On("LoadSecrets", "test-context").Return(secrets, nil)
 
@@ -69,7 +68,6 @@ func TestRunCommandHandler_Handle_WithServiceDependency(t *testing.T) {
 	secrets := []*domain.Secret{}
 
 	// For CreateTemplatingValues
-	configRepository.On("LoadCurrentContextName").Return("test-context", nil)
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	secretsRepository.On("LoadSecrets", "test-context").Return(secrets, nil)
 
@@ -95,28 +93,6 @@ func TestRunCommandHandler_Handle_WithServiceDependency(t *testing.T) {
 	commandRunner.AssertExpectations(t)
 }
 
-func TestRunCommandHandler_Handle_LoadContextNameError(t *testing.T) {
-	configRepository := new(testutil.MockConfigRepository)
-	secretsRepository := new(testutil.MockSecretsRepository)
-	templater := new(testutil.MockTemplater)
-	scm := new(testutil.MockScm)
-	commandRunner := new(testutil.MockCommandRunner)
-
-	expectedErr := errors.New("load context name error")
-	configRepository.On("LoadCurrentContextName").Return("", expectedErr)
-
-	sut := NewRunCommandHandler(configRepository, secretsRepository, templater, scm, commandRunner)
-
-	scripts := map[string]string{"test-script": "echo hello"}
-	executionPlan := []string{"test-script"}
-
-	err := sut.Handle(scripts, executionPlan)
-
-	assert.Error(t, err)
-	assert.Equal(t, expectedErr, err)
-	configRepository.AssertExpectations(t)
-}
-
 func TestRunCommandHandler_Handle_LoadConfigContextError(t *testing.T) {
 	configRepository := new(testutil.MockConfigRepository)
 	secretsRepository := new(testutil.MockSecretsRepository)
@@ -124,17 +100,9 @@ func TestRunCommandHandler_Handle_LoadConfigContextError(t *testing.T) {
 	scm := new(testutil.MockScm)
 	commandRunner := new(testutil.MockCommandRunner)
 
-	configContext := &domain.ConfigurationContext{Name: "test-context"}
-	secrets := []*domain.Secret{}
 	expectedErr := errors.New("load config context error")
 
-	// First call (inside CreateTemplatingValues) succeeds
-	configRepository.On("LoadCurrentContextName").Return("test-context", nil)
-	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil).Once()
-	secretsRepository.On("LoadSecrets", "test-context").Return(secrets, nil)
-
-	// Second call (direct in Handle) fails
-	configRepository.On("LoadCurrentConfigurationContext").Return(nil, expectedErr).Once()
+	configRepository.On("LoadCurrentConfigurationContext").Return(nil, expectedErr)
 
 	sut := NewRunCommandHandler(configRepository, secretsRepository, templater, scm, commandRunner)
 
@@ -159,7 +127,6 @@ func TestRunCommandHandler_Handle_LoadSecretsError(t *testing.T) {
 	configContext := &domain.ConfigurationContext{Name: "test-context"}
 	expectedErr := errors.New("load secrets error")
 
-	configRepository.On("LoadCurrentContextName").Return("test-context", nil)
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	secretsRepository.On("LoadSecrets", "test-context").Return(nil, expectedErr)
 
@@ -189,7 +156,6 @@ func TestRunCommandHandler_Handle_ServiceNotFoundError(t *testing.T) {
 	}
 	secrets := []*domain.Secret{}
 
-	configRepository.On("LoadCurrentContextName").Return("test-context", nil)
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	secretsRepository.On("LoadSecrets", "test-context").Return(secrets, nil)
 
@@ -228,7 +194,6 @@ func TestRunCommandHandler_Handle_ServiceMissingGitInfoError(t *testing.T) {
 	}
 	secrets := []*domain.Secret{}
 
-	configRepository.On("LoadCurrentContextName").Return("test-context", nil)
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	secretsRepository.On("LoadSecrets", "test-context").Return(secrets, nil)
 
@@ -267,7 +232,6 @@ func TestRunCommandHandler_Handle_ScmDownloadError(t *testing.T) {
 	secrets := []*domain.Secret{}
 	downloadErr := errors.New("download error")
 
-	configRepository.On("LoadCurrentContextName").Return("test-context", nil)
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	secretsRepository.On("LoadSecrets", "test-context").Return(secrets, nil)
 	scm.On("Download", "example.com/org/repo", "main", "/path/to/service").Return(downloadErr)
@@ -301,7 +265,6 @@ func TestRunCommandHandler_Handle_TemplateRenderError(t *testing.T) {
 	secrets := []*domain.Secret{}
 	renderErr := errors.New("template render error")
 
-	configRepository.On("LoadCurrentContextName").Return("test-context", nil)
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	secretsRepository.On("LoadSecrets", "test-context").Return(secrets, nil)
 	templater.On("Render", "echo hello", "test-script", mock.Anything).Return("", renderErr)
@@ -334,7 +297,6 @@ func TestRunCommandHandler_Handle_CommandRunError(t *testing.T) {
 	secrets := []*domain.Secret{}
 	runErr := errors.New("command execution error")
 
-	configRepository.On("LoadCurrentContextName").Return("test-context", nil)
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	secretsRepository.On("LoadSecrets", "test-context").Return(secrets, nil)
 
@@ -371,7 +333,6 @@ func TestRunCommandHandler_Handle_MultipleScripts(t *testing.T) {
 	}
 	secrets := []*domain.Secret{}
 
-	configRepository.On("LoadCurrentContextName").Return("test-context", nil)
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	secretsRepository.On("LoadSecrets", "test-context").Return(secrets, nil)
 
@@ -429,7 +390,6 @@ func TestRunCommandHandler_Handle_RangeOverServices(t *testing.T) {
 	}
 	secrets := []*domain.Secret{}
 
-	configRepository.On("LoadCurrentContextName").Return("test-context", nil)
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	secretsRepository.On("LoadSecrets", "test-context").Return(secrets, nil)
 
@@ -477,7 +437,6 @@ func TestRunCommandHandler_Handle_RangeOverServices_NoGitMetadata(t *testing.T) 
 	}
 	secrets := []*domain.Secret{}
 
-	configRepository.On("LoadCurrentContextName").Return("test-context", nil)
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	secretsRepository.On("LoadSecrets", "test-context").Return(secrets, nil)
 
@@ -527,7 +486,6 @@ func TestRunCommandHandler_Handle_RangeWithExplicitRef_ClonesEachServiceOnce(t *
 	}
 	secrets := []*domain.Secret{}
 
-	configRepository.On("LoadCurrentContextName").Return("test-context", nil)
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	secretsRepository.On("LoadSecrets", "test-context").Return(secrets, nil)
 
@@ -567,7 +525,6 @@ func TestRunCommandHandler_Handle_RangeOverServices_EmptyServiceList(t *testing.
 	}
 	secrets := []*domain.Secret{}
 
-	configRepository.On("LoadCurrentContextName").Return("test-context", nil)
 	configRepository.On("LoadCurrentConfigurationContext").Return(configContext, nil)
 	secretsRepository.On("LoadSecrets", "test-context").Return(secrets, nil)
 

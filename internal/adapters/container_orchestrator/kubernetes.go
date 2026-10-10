@@ -117,7 +117,12 @@ func (k *Kubernetes) InstallDevProxy(service *domain.Service, certificateSecrets
 // installChart is the shared implementation for installing a helm chart.
 // When applyPatches is true, kustomize patches are built from LocalServices and applied.
 func (k *Kubernetes) installChart(service *domain.Service, certificateSecrets []byte, applyPatches bool) error {
-	templateValues, err := core.CreateTemplatingValues(k.configRepository, k.secretsRepository)
+	configContext, err := k.configRepository.LoadCurrentConfigurationContext()
+	if err != nil {
+		return err
+	}
+
+	templateValues, err := core.CreateTemplatingValues(configContext, k.secretsRepository)
 	if err != nil {
 		return err
 	}

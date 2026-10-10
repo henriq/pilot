@@ -7,19 +7,14 @@ import (
 	"pilot/internal/ports"
 )
 
+// CreateTemplatingValues renders from the already-resolved context it is given
+// rather than re-reading config, so CLI overrides reach templated build and
+// helm args instead of being silently replaced by the configured values.
 func CreateTemplatingValues(
-	configRepository ports.ConfigRepository,
+	configContext *domain.ConfigurationContext,
 	secretsRepository ports.SecretsRepository,
 ) (map[string]interface{}, error) {
-	contextName, err := configRepository.LoadCurrentContextName()
-	if err != nil {
-		return nil, err
-	}
-	configContext, err := configRepository.LoadCurrentConfigurationContext()
-	if err != nil {
-		return nil, err
-	}
-	secrets, err := secretsRepository.LoadSecrets(contextName)
+	secrets, err := secretsRepository.LoadSecrets(configContext.Name)
 	if err != nil {
 		return nil, err
 	}

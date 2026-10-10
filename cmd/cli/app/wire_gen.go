@@ -55,7 +55,7 @@ func InjectBuildCommandHandler() (handler.BuildCommandHandler, error) {
 	osCommandRunner := ProvideCommandRunner()
 	gitClient := ProvideGitClient(osCommandRunner, osFileSystem)
 	git := ProvideGit(gitClient, osFileSystem)
-	dockerRepository := ProvideDockerRepository(fileSystemConfigRepository, encryptedFileSecretRepository, textTemplater, osCommandRunner)
+	dockerRepository := ProvideDockerRepository(encryptedFileSecretRepository, textTemplater, osCommandRunner)
 	buildCommandHandler := handler.NewBuildCommandHandler(fileSystemConfigRepository, git, dockerRepository)
 	return buildCommandHandler, nil
 }
@@ -68,7 +68,7 @@ func InjectInstallCommandHandler() (handler.InstallCommandHandler, error) {
 	textTemplater := ProvideTemplater()
 	fileSystemConfigRepository := ProvideConfigRepository(osFileSystem, encryptedFileSecretRepository, textTemplater)
 	osCommandRunner := ProvideCommandRunner()
-	dockerRepository := ProvideDockerRepository(fileSystemConfigRepository, encryptedFileSecretRepository, textTemplater, osCommandRunner)
+	dockerRepository := ProvideDockerRepository(encryptedFileSecretRepository, textTemplater, osCommandRunner)
 	helmClient := ProvideHelmClient(osCommandRunner)
 	client := ProvideKustomizeClient(osCommandRunner, osFileSystem)
 	chartWrapper := ProvideChartWrapper(osFileSystem)
@@ -103,7 +103,7 @@ func InjectUninstallCommandHandler() (handler.UninstallCommandHandler, error) {
 		return handler.UninstallCommandHandler{}, err
 	}
 	environmentEnsurer := ProvideEnvironmentEnsurer(fileSystemConfigRepository, kubernetes)
-	dockerRepository := ProvideDockerRepository(fileSystemConfigRepository, encryptedFileSecretRepository, textTemplater, osCommandRunner)
+	dockerRepository := ProvideDockerRepository(encryptedFileSecretRepository, textTemplater, osCommandRunner)
 	devProxyConfigGenerator := ProvideDevProxyConfigGenerator()
 	devProxyManager := ProvideDevProxyManager(fileSystemConfigRepository, osFileSystem, dockerRepository, kubernetes, devProxyConfigGenerator)
 	uninstallCommandHandler := handler.NewUninstallCommandHandler(fileSystemConfigRepository, kubernetes, environmentEnsurer, devProxyManager)
@@ -207,7 +207,7 @@ func InjectPullCommandHandler() (handler.PullCommandHandler, error) {
 	textTemplater := ProvideTemplater()
 	fileSystemConfigRepository := ProvideConfigRepository(osFileSystem, encryptedFileSecretRepository, textTemplater)
 	osCommandRunner := ProvideCommandRunner()
-	dockerRepository := ProvideDockerRepository(fileSystemConfigRepository, encryptedFileSecretRepository, textTemplater, osCommandRunner)
+	dockerRepository := ProvideDockerRepository(encryptedFileSecretRepository, textTemplater, osCommandRunner)
 	terminalInput := ProvideTerminalInput()
 	pullCommandHandler := handler.NewPullCommandHandler(fileSystemConfigRepository, dockerRepository, terminalInput)
 	return pullCommandHandler, nil

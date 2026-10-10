@@ -2,15 +2,18 @@ package cmd
 
 import (
 	"pilot/cmd/cli/app"
+	"pilot/cmd/cli/app/cmd/arguments"
 
 	"github.com/spf13/cobra"
 )
 
 var buildImageSourceOverrides []string
+var buildServiceGitRefOverrides []string
 
 func init() {
 	rootCmd.AddCommand(buildCmd)
-	RegisterImageSourceOverrideFlag(buildCmd, &buildImageSourceOverrides)
+	arguments.RegisterImageSourceOverrideFlag(buildCmd, &buildImageSourceOverrides)
+	arguments.RegisterServiceGitRefOverrideFlag(buildCmd, &buildServiceGitRefOverrides)
 }
 
 var buildCmd = &cobra.Command{
@@ -24,7 +27,10 @@ local Kubernetes cluster.
 
 Use --image-source to build an image from a local directory instead of
 cloning its configured git repo — handy for testing local changes before
-committing or pushing.`,
+committing or pushing.
+
+Use --git-ref to clone the configured git repo at a different ref than the
+one in ~/.pilot-config.yaml — handy for testing feature branches.`,
 	Example: `  # Build all services in the default profile
   pilot build
 
@@ -35,11 +41,18 @@ committing or pushing.`,
   pilot build -p all
 
   # Build an image from a local checkout
-  pilot build api --image-source api:./services/api`,
-	Args:              ServiceArgsValidator,
-	ValidArgsFunction: ServiceArgsCompletion,
+  pilot build api --image-source api:./services/api
+
+  # Build from a feature branch
+  pilot build api --git-ref api:feature/my-change`,
+	Args:              arguments.ServiceArgsValidator,
+	ValidArgsFunction: arguments.ServiceArgsCompletion,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		imageSourceOverrides, err := ParseImageSourceOverrides(buildImageSourceOverrides)
+		imageSourceOverrides, err := arguments.ParseImageSourceOverrides(buildImageSourceOverrides)
+		if err != nil {
+			return err
+		}
+		serviceGitRefOverrides, err := arguments.ParseServiceGitRefOverrides(buildServiceGitRefOverrides)
 		if err != nil {
 			return err
 		}
@@ -48,6 +61,6 @@ committing or pushing.`,
 			return err
 		}
 
-		return handler.Handle(args, *profile, imageSourceOverrides)
+		return handler.Handle(args, *profile, imageSourceOverrides, serviceGitRefOverrides)
 	},
 }
